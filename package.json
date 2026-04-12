@@ -1,0 +1,13 @@
+{
+  "name": "openapi-tool",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "bin": {
+    "openapi-tool": "./bin/openapi-tool.mjs"
+  },
+  "scripts": {
+    "help": "node ./bin/openapi-tool.mjs help",
+    "init": "node ./bin/openapi-tool.mjs init"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  // standalone tool 기본값 예시입니다.
+  // 실제 프로젝트에서는 project.jsonc 로 override 합니다.
+  "sourceUrl": "",
+  "sourcePath": "openapi/_internal/source/openapi.json",
+  "catalogJsonPath": "openapi/review/catalog/endpoints.json",
+  "catalogMarkdownPath": "openapi/review/catalog/endpoints.md",
+  "docsDir": "openapi/review/docs",
+  "endpointsDir": "openapi/review/endpoints",
+  "projectRulesAnalysisPath": "openapi/review/project-rules/analysis.md",
+  "projectRulesPath": "openapi/config/project-rules.jsonc",
+  "projectGeneratedSrcDir": "openapi/project/src/openapi-generated",
+  "applyTargetSrcDir": "src/openapi-generated"
+}

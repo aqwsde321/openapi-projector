@@ -1,0 +1,32 @@
+{
+  // OpenAPI 원본 URL 입니다.
+  // 실제 백엔드 Swagger/OpenAPI 주소로 바꿔야 download / refresh 가 동작합니다.
+  "sourceUrl": "https://example.com/v3/api-docs",
+
+  // 다운로드한 원본 OpenAPI JSON 저장 위치입니다.
+  "sourcePath": "openapi/_internal/source/openapi.json",
+
+  // 전체 endpoint catalog JSON 출력 위치입니다.
+  "catalogJsonPath": "openapi/review/catalog/endpoints.json",
+
+  // 사람이 보는 전체 endpoint 목록 Markdown 출력 위치입니다.
+  "catalogMarkdownPath": "openapi/review/catalog/endpoints.md",
+
+  // review용 endpoint 문서 출력 폴더입니다.
+  "docsDir": "openapi/review/docs",
+
+  // review용 raw endpoint helper 출력 폴더입니다.
+  "endpointsDir": "openapi/review/endpoints",
+
+  // rules 명령이 만드는 프로젝트 규칙 분석 문서 위치입니다.
+  "projectRulesAnalysisPath": "openapi/review/project-rules/analysis.md",
+
+  // project 명령이 읽는 프로젝트 규칙 파일 위치입니다.
+  "projectRulesPath": "openapi/config/project-rules.jsonc",
+
+  // project 후보 코드 출력 폴더입니다.
+  "projectGeneratedSrcDir": "openapi/project/src/openapi-generated",
+
+  // apply 명령이 반영할 실제 src 대상 위치입니다.
+  "applyTargetSrcDir": "src/openapi-generated"
+}

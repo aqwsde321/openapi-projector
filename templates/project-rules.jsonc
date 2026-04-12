@@ -1,0 +1,23 @@
+{
+  // standalone tool 기본 project-rules template 입니다.
+  // 각 프로젝트에서 이 파일을 복사해 수정합니다.
+  "api": {
+    "fetchApiImportPath": "@/shared/api",
+    "fetchApiSymbol": "fetchAPI",
+    "axiosConfigImportPath": "axios",
+    "axiosConfigTypeName": "AxiosRequestConfig",
+    "apiUrlsImportPath": "@/shared/constant",
+    "pathSource": "literal"
+  },
+  "types": {
+    "commonTypesImportPath": "@/shared/type",
+    "responseTypeName": "Response",
+    "pagedResponseTypeName": "PagedResponse",
+    "pageRequestTypeName": "IPageRequest"
+  },
+  "generation": {
+    "queryFlattenStrategy": "form_explode_object",
+    "responseWrapperStrategy": "jsend_to_response",
+    "multipartStrategy": "form-data"
+  }
+}
