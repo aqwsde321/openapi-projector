@@ -13,6 +13,9 @@
 
 - 대상 프로젝트에 적용하는 방법: [docs/02-target-project-usage.md](docs/02-target-project-usage.md)
 - `openapi-tool`과 `openapi/`의 차이: [docs/01-concepts.md](docs/01-concepts.md)
+- 제품 기획과 범위: [docs/05-product-plan.md](docs/05-product-plan.md)
+- 기능 요구사항: [docs/06-requirements-spec.md](docs/06-requirements-spec.md)
+- 현재 구현 갭 분석: [docs/07-gap-analysis.md](docs/07-gap-analysis.md)
 - 설정 파일 설명: [docs/04-config-reference.md](docs/04-config-reference.md)
 - 이 도구 자체를 수정하는 방법: [docs/03-maintainer-notes.md](docs/03-maintainer-notes.md)
 

@@ -83,5 +83,11 @@ node /path/to/openapi-workflow/bin/openapi-tool.mjs init
   - 도구 저장소 수정용 문서
 - `docs/04-config-reference.md`
   - 설정 필드 설명
+- `docs/05-product-plan.md`
+  - 제품 목표, 범위, 비목표
+- `docs/06-requirements-spec.md`
+  - 기능 요구사항과 완료 기준
+- `docs/07-gap-analysis.md`
+  - 현재 구현 대비 요구사항 갭 분석
 
 사용자 문서와 개발자 문서를 다시 섞지 않는 것이 중요합니다.
