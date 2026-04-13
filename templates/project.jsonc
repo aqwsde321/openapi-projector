@@ -15,8 +15,8 @@
   // review용 endpoint 문서 출력 폴더입니다.
   "docsDir": "openapi/review/docs",
 
-  // review용 raw endpoint helper 출력 폴더입니다.
-  "endpointsDir": "openapi/review/endpoints",
+  // review용 schema.ts 출력 위치입니다.
+  "generatedSchemaPath": "openapi/review/generated/schema.ts",
 
   // rules 명령이 만드는 프로젝트 규칙 분석 문서 위치입니다.
   "projectRulesAnalysisPath": "openapi/review/project-rules/analysis.md",

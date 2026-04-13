@@ -28,8 +28,8 @@
   - 사람이 보는 전체 endpoint 목록 Markdown 경로
 - `docsDir`
   - review용 endpoint 문서 출력 폴더
-- `endpointsDir`
-  - review용 raw endpoint helper 출력 폴더
+- `generatedSchemaPath`
+  - review용 `schema.ts` 출력 경로
 - `projectRulesAnalysisPath`
   - `rules` 명령이 생성하는 분석 문서 경로
 - `projectRulesPath`
@@ -60,30 +60,21 @@
   - config 타입 import 경로
 - `axiosConfigTypeName`
   - config 타입 이름
-- `apiUrlsImportPath`
-  - 향후 `API_URLS` 매핑에 사용할 import 경로
-- `pathSource`
-  - 현재는 보통 `literal`
+- `adapterStyle`
+  - underlying client 호출 방식
+  - `url-config`: `client(url, config)`
+  - `request-object`: `client({ url, ...config })`
+- `wrapperGrouping`
+  - MVP v2는 `"tag"`만 지원
+- `tagFileCase`
+  - MVP v2는 `"kebab"`만 지원
 
-### `types`
+### `layout`
 
-- `commonTypesImportPath`
-  - 공통 응답 타입 import 경로
-- `responseTypeName`
-  - 일반 응답 래퍼 타입 이름
-- `pagedResponseTypeName`
-  - 페이징 응답 래퍼 타입 이름
-- `pageRequestTypeName`
-  - 페이지 요청 공통 타입 이름
-
-### `generation`
-
-- `queryFlattenStrategy`
-  - query object flatten 전략
-- `responseWrapperStrategy`
-  - jsend 등 응답 래퍼를 어떤 프로젝트 타입으로 바꿀지
-- `multipartStrategy`
-  - multipart body 처리 전략
+- `schemaFileName`
+  - 후보 출력의 schema 파일명
+- `apiDirName`
+  - 후보 출력의 API wrapper 디렉터리명
 
 ## Config Discovery
 

@@ -42,9 +42,9 @@ Swagger/OpenAPI 원본을 받아서 review 산출물을 만듭니다.
 - `openapi/review/catalog`
 - `openapi/review/changes`
 - `openapi/review/docs`
-- `openapi/review/endpoints`
+- `openapi/review/generated/schema.ts`
 
-이 단계의 목적은 “스펙을 확인하고 검토할 수 있는 raw 결과물”을 만드는 것입니다.
+이 단계의 목적은 “스펙을 확인하고 검토할 수 있는 review 결과물”을 만드는 것입니다.
 
 ### 2. `rules`
 

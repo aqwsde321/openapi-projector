@@ -6,15 +6,15 @@
 
 입력:
 
-- OpenAPI JSON 또는 Swagger/OpenAPI URL
+- OpenAPI 3.0/3.1 JSON 또는 Swagger/OpenAPI URL
 - 적용 대상 프론트엔드 프로젝트 구조
 - 사람이 검토/수정 가능한 프로젝트 규칙 파일
 
 출력:
 
-- review용 catalog / docs / raw endpoint helper
+- review용 catalog / docs / `schema.ts`
 - 프로젝트 규칙 분석 문서
-- 프로젝트 맞춤 DTO/API 후보 코드
+- 프로젝트 맞춤 API wrapper 후보 코드
 - 실제 반영 가능한 apply 대상 파일
 
 ## 시스템 요구사항
@@ -69,35 +69,33 @@
   - method / path
   - summary / description
   - parameter 정보
-  - request DTO 구조
-  - response DTO 구조
-  - usage 예시
+  - request body media type
+  - success response media type
 
-### FR-B4. raw DTO/API 생성
+### FR-B4. review schema 생성
 
-- 시스템은 OpenAPI 스펙만으로 결정 가능한 raw DTO/API 파일을 생성해야 합니다.
-- DTO 생성은 schema, enum, array, object, ref, nullable, request/response를 처리해야 합니다.
-- API 생성은 path, query, body, multipart 조립을 지원해야 합니다.
+- 시스템은 OpenAPI 스펙만으로 결정 가능한 review용 `schema.ts` 파일을 생성해야 합니다.
+- MVP v2는 OpenAPI 3.0/3.1 JSON 입력만 지원합니다.
+- DTO 생성은 `openapi-typescript` 기반으로 처리해야 합니다.
 
 ### FR-B5. 재생성 가능성
 
-- 같은 스펙과 같은 설정이면 같은 raw 산출물이 생성되어야 합니다.
+- 같은 스펙과 같은 설정이면 같은 review 산출물이 생성되어야 합니다.
 
 ### C. 프로젝트 규칙 분석과 문서화
 
 ### FR-C1. 프로젝트 구조 분석
 
-- 시스템은 대상 프로젝트 구조를 분석해 feature 폴더와 API/model 위치를 요약해야 합니다.
-- 최소한 import 패턴, 디렉터리 레이아웃, 공통 타입 사용 현황을 수집해야 합니다.
+- 시스템은 대상 프로젝트 구조를 분석해 `fetchAPI`, request config 타입 import 후보를 요약해야 합니다.
+- `src/entities`가 없을 때도 `src` fallback 으로 동작해야 합니다.
 
 ### FR-C2. 규칙 분석 문서 생성
 
 - 시스템은 사람이 읽고 판단할 수 있는 분석 문서를 생성해야 합니다.
 - 분석 문서에는 최소한 아래가 포함되어야 합니다.
-  - feature layout 요약
   - 공통 API import 후보
-  - 공통 response type 후보
-  - model 패턴 통계
+  - request config type 후보
+  - wrapper/layout 고정 기본값
 
 ### FR-C3. 규칙 scaffold 생성
 
@@ -113,7 +111,7 @@
 
 ### FR-D1. 규칙 기반 후보 생성
 
-- 시스템은 OpenAPI 기반 raw 정보와 규칙 파일을 함께 사용해 프로젝트 맞춤 DTO/API 후보를 생성해야 합니다.
+- 시스템은 OpenAPI 기반 `schema.ts`와 규칙 파일을 함께 사용해 프로젝트 맞춤 API wrapper 후보를 생성해야 합니다.
 
 ### FR-D2. 반영 전 후보 영역 유지
 
@@ -125,9 +123,10 @@
 - 시스템은 최소한 아래 규칙을 생성 결과에 반영할 수 있어야 합니다.
   - fetch helper import 경로와 symbol
   - request config 타입
-  - 공통 response wrapper 타입
-  - query flatten 전략
-  - multipart 처리 전략
+  - adapter 호출 방식
+  - wrapper 분할 방식
+  - tag 파일 네이밍
+  - schema/API 출력 레이아웃
 
 ### FR-D4. manifest / summary 생성
 
@@ -171,7 +170,7 @@
 ### 1단계 완료 기준
 
 - `download`, `catalog`, `generate`가 동작한다.
-- OpenAPI만으로 raw DTO/API와 review 문서가 생성된다.
+- OpenAPI만으로 review 문서와 `schema.ts`가 생성된다.
 
 ### 2단계 완료 기준
 
@@ -187,7 +186,7 @@
 
 현재 구현이 충분하다고 보려면 아래 질문에 모두 “예”가 나와야 합니다.
 
-- raw DTO/API 생성이 OpenAPI만으로 안정적으로 되는가
+- review `schema.ts` 생성이 OpenAPI만으로 안정적으로 되는가
 - 규칙 분석 결과가 특정 프로젝트 가정에 과도하게 묶여 있지 않은가
 - 규칙 파일의 주요 항목이 실제 생성 결과에 반영되는가
 - 사람이 `apply` 전에 결과를 검토하고 수정할 수 있는가

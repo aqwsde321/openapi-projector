@@ -1,0 +1,108 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Fixture API 3.1",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/health/status": {
+      "get": {
+        "summary": "Read health status",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthStatus"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/profiles/{id}": {
+      "patch": {
+        "tags": ["Profiles"],
+        "operationId": "updateProfile",
+        "summary": "Update profile",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthStatus": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "message": {
+            "type": ["string", "null"]
+          }
+        }
+      },
+      "UpdateProfileRequest": {
+        "type": "object",
+        "required": ["nickname"],
+        "properties": {
+          "nickname": {
+            "type": "string"
+          },
+          "bio": {
+            "type": ["string", "null"]
+          }
+        }
+      },
+      "Profile": {
+        "type": "object",
+        "required": ["id", "nickname"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "bio": {
+            "type": ["string", "null"]
+          }
+        }
+      }
+    }
+  }
+}

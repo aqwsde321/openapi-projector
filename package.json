@@ -8,6 +8,11 @@
   },
   "scripts": {
     "help": "node ./bin/openapi-tool.mjs help",
-    "init": "node ./bin/openapi-tool.mjs init"
+    "init": "node ./bin/openapi-tool.mjs init",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5.9.3"
   }
 }

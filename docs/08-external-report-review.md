@@ -46,7 +46,7 @@
 - 현재 프로젝트:
   - OAS3 스타일 중심 구현
   - 특정 TypeScript 프론트엔드 구조를 가정한 규칙 분석
-  - raw DTO/API + project 후보 생성 중심
+  - review `schema.ts` + project API wrapper 생성 중심
 
 즉 방향은 맞지만, 지원 범위와 제품화 밀도는 아직 차이가 큽니다.
 

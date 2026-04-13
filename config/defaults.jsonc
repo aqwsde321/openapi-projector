@@ -6,7 +6,7 @@
   "catalogJsonPath": "openapi/review/catalog/endpoints.json",
   "catalogMarkdownPath": "openapi/review/catalog/endpoints.md",
   "docsDir": "openapi/review/docs",
-  "endpointsDir": "openapi/review/endpoints",
+  "generatedSchemaPath": "openapi/review/generated/schema.ts",
   "projectRulesAnalysisPath": "openapi/review/project-rules/analysis.md",
   "projectRulesPath": "openapi/config/project-rules.jsonc",
   "projectGeneratedSrcDir": "openapi/project/src/openapi-generated",

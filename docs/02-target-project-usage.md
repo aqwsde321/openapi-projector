@@ -50,7 +50,7 @@ node /path/to/openapi-workflow/bin/openapi-tool.mjs refresh
 - `openapi/review/changes/summary.md`
 - `openapi/review/catalog/endpoints.md`
 - `openapi/review/docs/*.md`
-- `openapi/review/endpoints/<id>/*`
+- `openapi/review/generated/schema.ts`
 
 ## 4. 프로젝트 규칙 분석
 
@@ -74,6 +74,9 @@ node /path/to/openapi-workflow/bin/openapi-tool.mjs project
 확인 위치:
 
 - `openapi/project/src/openapi-generated`
+- `openapi/project/src/openapi-generated/schema.ts`
+- `openapi/project/src/openapi-generated/apis/*.ts`
+- `openapi/project/src/openapi-generated/_internal/fetch-api-adapter.ts`
 - `openapi/project/summary.md`
 
 ## 6. 실제 `src` 반영

@@ -27,9 +27,9 @@
 - `refresh`
   - `download + catalog + generate`
 - `rules`
-  - 대상 프로젝트의 `src/entities` 등을 분석해 규칙 문서/scaffold 생성
+  - 대상 프로젝트의 `src/entities`를 우선 분석하고, 없으면 `src` fallback 으로 규칙 문서/scaffold 생성
 - `project`
-  - `project-rules.jsonc` 기준으로 project 후보 코드 생성
+  - `project-rules.jsonc` 기준으로 `schema.ts + tag별 API wrapper` 후보 코드 생성
 - `apply`
   - 후보 코드를 실제 `src`로 반영
 
@@ -42,12 +42,12 @@
 즉 최소한 아래는 계속 통과해야 합니다.
 
 ```bash
-node openapi-tool/bin/openapi-tool.mjs help
-node openapi-tool/bin/openapi-tool.mjs catalog
-node openapi-tool/bin/openapi-tool.mjs generate
-node openapi-tool/bin/openapi-tool.mjs rules
-node openapi-tool/bin/openapi-tool.mjs project
-node openapi-tool/bin/openapi-tool.mjs apply
+node ./bin/openapi-tool.mjs help
+node ./bin/openapi-tool.mjs catalog
+node ./bin/openapi-tool.mjs generate
+node ./bin/openapi-tool.mjs rules
+node ./bin/openapi-tool.mjs project
+node ./bin/openapi-tool.mjs apply
 ```
 
 ### 2. bootstrap 시나리오
