@@ -91,5 +91,7 @@ node /path/to/openapi-workflow/bin/openapi-tool.mjs init
   - 현재 구현 대비 요구사항 갭 분석
 - `docs/08-external-report-review.md`
   - 외부 설계 보고서 검토 및 채택 방향
+- `docs/09-external-report-original.md`
+  - 외부 설계 보고서 원문 보관
 
 사용자 문서와 개발자 문서를 다시 섞지 않는 것이 중요합니다.

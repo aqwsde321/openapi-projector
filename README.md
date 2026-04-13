@@ -17,6 +17,7 @@
 - 기능 요구사항: [docs/06-requirements-spec.md](docs/06-requirements-spec.md)
 - 현재 구현 갭 분석: [docs/07-gap-analysis.md](docs/07-gap-analysis.md)
 - 외부 설계 보고서 채택 정리: [docs/08-external-report-review.md](docs/08-external-report-review.md)
+- 외부 설계 보고서 원문 보관: [docs/09-external-report-original.md](docs/09-external-report-original.md)
 - 설정 파일 설명: [docs/04-config-reference.md](docs/04-config-reference.md)
 - 이 도구 자체를 수정하는 방법: [docs/03-maintainer-notes.md](docs/03-maintainer-notes.md)
 
