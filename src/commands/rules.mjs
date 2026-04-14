@@ -153,8 +153,9 @@ function buildRulesJsonc({
 
 const rulesCommand = {
   name: 'rules',
-  async run() {
-    const rootDir = process.cwd();
+  async run(options = {}) {
+    const context = Array.isArray(options) ? {} : (options.context ?? {});
+    const rootDir = context.targetRoot ?? process.cwd();
     const { projectConfig } = await loadProjectConfig(rootDir);
     const analysisPath = path.resolve(
       rootDir,

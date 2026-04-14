@@ -4,10 +4,10 @@ import { generateCommand } from './generate.mjs';
 
 const refreshCommand = {
   name: 'refresh',
-  async run() {
-    await downloadCommand.run();
-    await catalogCommand.run();
-    await generateCommand.run();
+  async run(options = {}) {
+    await downloadCommand.run(options);
+    await catalogCommand.run(options);
+    await generateCommand.run(options);
   },
 };
 

@@ -17,6 +17,7 @@ const HTTP_METHOD_ORDER = [
 const HTTP_METHODS = new Set(HTTP_METHOD_ORDER);
 const TOOL_ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DEFAULT_CONFIG_PATH = path.join(TOOL_ROOT_DIR, 'config', 'defaults.jsonc');
+const TOOL_LOCAL_CONFIG_PATH = path.join(TOOL_ROOT_DIR, '.openapi-tool.local.jsonc');
 const PROJECT_CONFIG_CANDIDATES = [
   'openapi.config.jsonc',
   'openapi/config/project.jsonc',
@@ -145,6 +146,31 @@ async function writeJson(filePath, data) {
 async function writeText(filePath, content) {
   await ensureDir(path.dirname(filePath));
   await fs.writeFile(filePath, content, 'utf8');
+}
+
+function replaceTopLevelJsoncValue(rawText, key, value) {
+  const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = new RegExp(`("${escapedKey}"\\s*:\\s*)([^\\n,]+)`, 'm');
+
+  if (!pattern.test(rawText)) {
+    return rawText;
+  }
+
+  return rawText.replace(pattern, `$1${JSON.stringify(value)}`);
+}
+
+function applyTopLevelJsoncOverrides(rawText, overrides) {
+  let nextText = rawText;
+
+  for (const [key, value] of Object.entries(overrides ?? {})) {
+    if (value === undefined) {
+      continue;
+    }
+
+    nextText = replaceTopLevelJsoncValue(nextText, key, value);
+  }
+
+  return nextText;
 }
 
 function deepClone(value) {
@@ -504,7 +530,7 @@ async function loadProjectConfig(rootDir) {
 }
 
 async function initProject(rootDir, options = {}) {
-  const { force = false } = options;
+  const { force = false, projectConfigOverrides = {} } = options;
   const projectConfigTargetPath = path.resolve(rootDir, 'openapi/config/project.jsonc');
   const projectRulesTemplatePath = path.join(TOOL_ROOT_DIR, 'templates', 'project-rules.jsonc');
   const projectConfigTemplatePath = path.join(TOOL_ROOT_DIR, 'templates', 'project.jsonc');
@@ -528,7 +554,12 @@ async function initProject(rootDir, options = {}) {
     fs.readFile(projectRulesTemplatePath, 'utf8'),
   ]);
 
-  await writeText(projectConfigTargetPath, projectConfigTemplate);
+  const projectConfigContents =
+    Object.keys(projectConfigOverrides).length > 0
+      ? applyTopLevelJsoncOverrides(projectConfigTemplate, projectConfigOverrides)
+      : projectConfigTemplate;
+
+  await writeText(projectConfigTargetPath, projectConfigContents);
 
   try {
     await fs.access(path.resolve(rootDir, 'openapi/config/project-rules.jsonc'));
@@ -574,6 +605,24 @@ async function loadProjectRules(rootDir, projectConfig) {
     projectRulesPath,
     projectRules,
   };
+}
+
+async function loadToolLocalConfig() {
+  try {
+    const toolLocalConfig = await readJson(TOOL_LOCAL_CONFIG_PATH);
+    return {
+      toolLocalConfigPath: TOOL_LOCAL_CONFIG_PATH,
+      toolLocalConfig,
+    };
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return {
+        toolLocalConfigPath: TOOL_LOCAL_CONFIG_PATH,
+        toolLocalConfig: null,
+      };
+    }
+    throw error;
+  }
 }
 
 function createTypeRenderer(refFormatter) {
@@ -751,6 +800,7 @@ export {
   isValidIdentifier,
   loadProjectConfig,
   loadProjectRules,
+  loadToolLocalConfig,
   normalizeText,
   quotePropertyName,
   readJson,

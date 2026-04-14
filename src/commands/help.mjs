@@ -17,6 +17,15 @@ const helpCommand = {
     console.log('');
     console.log('Usage:');
     console.log('  node ./bin/openapi-tool.mjs <command>');
+    console.log('  node ./bin/openapi-tool.mjs --project-root /path/to/service-app <command>');
+    console.log('  pnpm run openapi:<command>');
+    console.log('  npm run openapi:<command>');
+    console.log('');
+    console.log('First-time setup:');
+    console.log('  1. 도구 저장소 루트의 .openapi-tool.local.jsonc 를 엽니다.');
+    console.log('  2. projectRoot 를 대상 프로젝트 절대 경로로 채웁니다.');
+    console.log('  3. 필요하면 initDefaults.sourceUrl 도 같이 채웁니다.');
+    console.log('  4. 저장 후 init -> refresh -> rules -> project -> apply 순서로 실행합니다.');
     console.log('');
     console.log('Commands:');
     for (const [name, description] of commands) {
@@ -24,12 +33,23 @@ const helpCommand = {
     }
     console.log('');
     console.log('Execution model:');
+    console.log('  - help 를 제외한 모든 명령은 target project root 가 필요합니다.');
+    console.log('  - 우선순위: --project-root -> .openapi-tool.local.jsonc 의 projectRoot');
     console.log('  - config 탐색 순서: openapi.config.jsonc -> openapi/config/project.jsonc -> config/project.jsonc');
     console.log('  - review 산출물은 openapi/review 아래에 생성됩니다.');
     console.log('  - project 후보는 openapi/project 아래에 생성됩니다.');
     console.log('  - generate 는 review 문서와 schema.ts 만 생성합니다.');
     console.log('  - project 는 schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API 후보 코드를 생성합니다.');
+    console.log('  - apply 만 실제 대상 프로젝트 src 경로를 변경합니다.');
     console.log('  - 새 프로젝트 시작은 init 명령으로 bootstrap 합니다.');
+    console.log('');
+    console.log('Recommended flow:');
+    console.log('  init -> refresh -> rules -> project -> apply');
+    console.log('  예: pnpm run openapi:init -> pnpm run openapi:refresh -> pnpm run openapi:rules');
+    console.log('');
+    console.log('Docs:');
+    console.log('  - 대상 프로젝트 사용법: docs/02-target-project-usage.md');
+    console.log('  - 현재 구조/설정값: docs/10-current-structure-and-config.md');
   },
 };
 

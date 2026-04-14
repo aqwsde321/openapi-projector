@@ -9,6 +9,15 @@
   "scripts": {
     "help": "node ./bin/openapi-tool.mjs help",
     "init": "node ./bin/openapi-tool.mjs init",
+    "openapi:help": "node ./bin/openapi-tool.mjs help",
+    "openapi:init": "node ./bin/openapi-tool.mjs init",
+    "openapi:download": "node ./bin/openapi-tool.mjs download",
+    "openapi:catalog": "node ./bin/openapi-tool.mjs catalog",
+    "openapi:generate": "node ./bin/openapi-tool.mjs generate",
+    "openapi:rules": "node ./bin/openapi-tool.mjs rules",
+    "openapi:project": "node ./bin/openapi-tool.mjs project",
+    "openapi:apply": "node ./bin/openapi-tool.mjs apply",
+    "openapi:refresh": "node ./bin/openapi-tool.mjs refresh",
     "test": "node --test"
   },
   "dependencies": {

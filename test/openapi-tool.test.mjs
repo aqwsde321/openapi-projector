@@ -7,6 +7,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
+import { runCli } from '../src/cli.mjs';
 import { applyCommand } from '../src/commands/apply.mjs';
 import { generateCommand } from '../src/commands/generate.mjs';
 import { projectCommand } from '../src/commands/project.mjs';
@@ -110,6 +111,37 @@ async function assertExists(filePath) {
   await fs.access(filePath);
 }
 
+async function withToolLocalConfig(config, callback) {
+  const localConfigPath = path.join(REPO_ROOT, '.openapi-tool.local.jsonc');
+  let previous = null;
+  let existed = false;
+
+  try {
+    previous = await fs.readFile(localConfigPath, 'utf8');
+    existed = true;
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      throw error;
+    }
+  }
+
+  if (config === null) {
+    await fs.rm(localConfigPath, { force: true });
+  } else {
+    await fs.writeFile(localConfigPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
+  }
+
+  try {
+    return await callback(localConfigPath);
+  } finally {
+    if (existed) {
+      await fs.writeFile(localConfigPath, previous, 'utf8');
+    } else {
+      await fs.rm(localConfigPath, { force: true });
+    }
+  }
+}
+
 test(
   'generate creates review docs and schema.ts for OpenAPI 3.0',
   { concurrency: false },
@@ -132,6 +164,74 @@ test(
       assert.equal(docFiles.length, 2);
       assert.match(endpointDoc, /OperationId: `getUserById`/);
     });
+  },
+);
+
+test(
+  'cli init uses tool local config projectRoot and initDefaults',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-tool-cli-'));
+
+    try {
+      await withToolLocalConfig(
+        {
+          projectRoot: workspace,
+          initDefaults: {
+            sourceUrl: 'https://dev-api.example.com/v3/api-docs',
+            applyTargetSrcDir: 'src/custom-openapi-generated',
+          },
+        },
+        async () => {
+          await runCli(['init']);
+
+          const projectConfigSource = await fs.readFile(
+            path.join(workspace, 'openapi/config/project.jsonc'),
+            'utf8',
+          );
+
+          assert.match(projectConfigSource, /"sourceUrl": "https:\/\/dev-api\.example\.com\/v3\/api-docs"/);
+          assert.match(projectConfigSource, /"applyTargetSrcDir": "src\/custom-openapi-generated"/);
+        },
+      );
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli fails clearly when target project root is not configured',
+  { concurrency: false },
+  async () => {
+    await withToolLocalConfig(null, async () => {
+      await assert.rejects(
+        () => runCli(['project']),
+        /Target project root is not configured\./,
+      );
+    });
+  },
+);
+
+test(
+  'cli fails clearly when tool local config projectRoot is blank',
+  { concurrency: false },
+  async () => {
+    await withToolLocalConfig(
+      {
+        projectRoot: '',
+        initDefaults: {
+          sourceUrl: '',
+          applyTargetSrcDir: 'src/openapi-generated',
+        },
+      },
+      async () => {
+        await assert.rejects(
+          () => runCli(['project']),
+          /Target project root is not configured\./,
+        );
+      },
+    );
   },
 );
 

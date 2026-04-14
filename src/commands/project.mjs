@@ -43,8 +43,9 @@ function validateProjectRules(projectRules) {
 
 const projectCommand = {
   name: 'project',
-  async run() {
-    const rootDir = process.cwd();
+  async run(options = {}) {
+    const context = Array.isArray(options) ? {} : (options.context ?? {});
+    const rootDir = context.targetRoot ?? process.cwd();
     const { projectConfig } = await loadProjectConfig(rootDir);
     const { projectRulesPath, projectRules } = await loadProjectRules(rootDir, projectConfig);
 

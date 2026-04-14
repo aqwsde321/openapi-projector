@@ -5,8 +5,9 @@ import { cleanDir, ensureDir, loadProjectConfig, readJson } from '../core/openap
 
 const applyCommand = {
   name: 'apply',
-  async run() {
-    const rootDir = process.cwd();
+  async run(options = {}) {
+    const context = Array.isArray(options) ? {} : (options.context ?? {});
+    const rootDir = context.targetRoot ?? process.cwd();
     const { projectConfig } = await loadProjectConfig(rootDir);
     const applyTargetSrcDir = path.resolve(rootDir, projectConfig.applyTargetSrcDir);
     const projectGeneratedSrcDir = path.resolve(rootDir, projectConfig.projectGeneratedSrcDir);

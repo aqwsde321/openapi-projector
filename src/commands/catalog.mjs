@@ -13,8 +13,9 @@ const CATALOG_FORMAT_VERSION = 2;
 
 const catalogCommand = {
   name: 'catalog',
-  async run() {
-    const rootDir = process.cwd();
+  async run(options = {}) {
+    const context = Array.isArray(options) ? {} : (options.context ?? {});
+    const rootDir = context.targetRoot ?? process.cwd();
     const { projectConfig } = await loadProjectConfig(rootDir);
 
     const sourcePath = path.resolve(rootDir, projectConfig.sourcePath);

@@ -118,8 +118,9 @@ function renderEndpointDoc({ entry, spec }) {
 
 const generateCommand = {
   name: 'generate',
-  async run() {
-    const rootDir = process.cwd();
+  async run(options = {}) {
+    const context = Array.isArray(options) ? {} : (options.context ?? {});
+    const rootDir = context.targetRoot ?? process.cwd();
     const { projectConfig } = await loadProjectConfig(rootDir);
     const sourcePath = path.resolve(rootDir, projectConfig.sourcePath);
     const docsDir = path.resolve(rootDir, projectConfig.docsDir);

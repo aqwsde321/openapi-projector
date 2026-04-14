@@ -7,8 +7,9 @@ import {
 
 const downloadCommand = {
   name: 'download',
-  async run() {
-    const rootDir = process.cwd();
+  async run(options = {}) {
+    const context = Array.isArray(options) ? {} : (options.context ?? {});
+    const rootDir = context.targetRoot ?? process.cwd();
     const { projectConfig } = await loadProjectConfig(rootDir);
 
     const sourceUrl = projectConfig.sourceUrl;
