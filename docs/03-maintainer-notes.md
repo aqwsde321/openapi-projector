@@ -29,7 +29,7 @@
 - `rules`
   - 대상 프로젝트의 `src/entities`를 우선 분석하고, 없으면 `src` fallback 으로 규칙 문서/scaffold 생성
 - `project`
-  - `project-rules.jsonc` 기준으로 `schema.ts + tag별 API wrapper` 후보 코드 생성
+  - `project-rules.jsonc` 기준으로 `schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API` 후보 코드 생성
 - `apply`
   - 후보 코드를 실제 `src`로 반영
 

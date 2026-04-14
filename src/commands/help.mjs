@@ -5,7 +5,7 @@ const commands = [
   ['catalog', 'endpoint catalog 와 변경 요약 생성'],
   ['generate', 'review 문서와 schema.ts 생성'],
   ['rules', 'project 규칙 분석 문서와 scaffold 생성'],
-  ['project', '규칙 기반 API wrapper 후보 코드 생성'],
+  ['project', '규칙 기반 DTO/API 후보 코드 생성'],
   ['apply', 'project 후보를 실제 src 로 반영'],
   ['refresh', 'download + catalog + generate'],
 ];
@@ -28,7 +28,7 @@ const helpCommand = {
     console.log('  - review 산출물은 openapi/review 아래에 생성됩니다.');
     console.log('  - project 후보는 openapi/project 아래에 생성됩니다.');
     console.log('  - generate 는 review 문서와 schema.ts 만 생성합니다.');
-    console.log('  - project 는 schema.ts + tag별 API wrapper 를 생성합니다.');
+    console.log('  - project 는 schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API 후보 코드를 생성합니다.');
     console.log('  - 새 프로젝트 시작은 init 명령으로 bootstrap 합니다.');
   },
 };

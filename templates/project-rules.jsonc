@@ -7,10 +7,9 @@
     "axiosConfigTypeName": "AxiosRequestConfig",
     "adapterStyle": "url-config",
     "wrapperGrouping": "tag",
-    "tagFileCase": "kebab"
+    "tagFileCase": "title"
   },
   "layout": {
-    "schemaFileName": "schema.ts",
-    "apiDirName": "apis"
+    "schemaFileName": "schema.ts"
   }
 }

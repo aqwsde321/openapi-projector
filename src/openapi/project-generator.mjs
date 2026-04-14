@@ -3,14 +3,37 @@ import path from 'node:path';
 import {
   HTTP_METHOD_ORDER,
   buildEndpointCatalog,
+  collectRefs,
+  createTypeRenderer,
+  escapeComment,
   findPrimaryResponse,
   getByRef,
   getOperationParameters,
+  getRequestBodySchema,
+  getResponseSchema,
   normalizeText,
   toCamelCase,
   toKebabCase,
+  toPascalCase,
+  quotePropertyName,
   writeText,
 } from '../core/openapi-utils.mjs';
+
+function buildTagDirectoryName(tag, tagFileCase = 'title') {
+  const normalizedTag = normalizeText(tag) || 'default';
+
+  if (tagFileCase === 'title') {
+    const sanitized = normalizedTag
+      .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '-')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/[. ]+$/g, '');
+
+    return sanitized || 'default';
+  }
+
+  return toKebabCase(normalizedTag);
+}
 
 function resolveRequestBody(spec, requestBody) {
   if (!requestBody) {
@@ -179,6 +202,153 @@ function createUniqueName(baseName, usedNames) {
   return candidate;
 }
 
+function toPascalIdentifier(value) {
+  if (!value) {
+    return 'CallApi';
+  }
+
+  return `${value[0].toUpperCase()}${value.slice(1)}`;
+}
+
+function buildJsDoc(description, indent = '') {
+  const text = normalizeText(description);
+  if (!text) {
+    return [];
+  }
+
+  return [
+    `${indent}/**`,
+    ...text.split('\n').map((line) => `${indent} * ${escapeComment(line)}`),
+    `${indent} */`,
+  ];
+}
+
+function isSimpleObjectSchema(schema) {
+  return Boolean(
+    schema &&
+      (schema.type === 'object' || schema.properties || schema.additionalProperties) &&
+      !schema.oneOf &&
+      !schema.anyOf &&
+      !schema.allOf &&
+      !schema.enum,
+  );
+}
+
+function collectOperationSchemaNames(spec, operation) {
+  const names = new Set(
+    Array.from(
+      collectRefs(
+        {
+          parameters: operation.parameters ?? [],
+          requestBody: operation.requestBody ?? {},
+          successResponse: operation.successResponse ?? {},
+        },
+        new Set(),
+      ),
+    )
+      .filter((ref) => typeof ref === 'string' && ref.startsWith('#/components/schemas/'))
+      .map((ref) => ref.split('/').at(-1))
+      .filter((name) => name && spec.components?.schemas?.[name]),
+  );
+  const queue = [...names];
+
+  while (queue.length > 0) {
+    const name = queue.shift();
+    const schema = spec.components?.schemas?.[name];
+
+    if (!schema) {
+      continue;
+    }
+
+    for (const nestedRef of collectRefs(schema, new Set())) {
+      if (typeof nestedRef !== 'string' || !nestedRef.startsWith('#/components/schemas/')) {
+        continue;
+      }
+
+      const nestedName = nestedRef.split('/').at(-1);
+      if (!nestedName || names.has(nestedName) || !spec.components?.schemas?.[nestedName]) {
+        continue;
+      }
+
+      names.add(nestedName);
+      queue.push(nestedName);
+    }
+  }
+
+  return Array.from(names);
+}
+
+function buildLocalSchemaContext(spec, operation, dtoBaseName) {
+  const localSchemaNames = Array.from(new Set(collectOperationSchemaNames(spec, operation))).sort(
+    (left, right) => left.localeCompare(right),
+  );
+  const schemaNameMap = new Map(
+    localSchemaNames.map((name) => [name, `${dtoBaseName}${toPascalCase(name)}`]),
+  );
+  const renderer = createTypeRenderer((name) => schemaNameMap.get(name) ?? name);
+
+  return {
+    localSchemaNames,
+    schemaNameMap,
+    renderer,
+  };
+}
+
+function renderConcreteNamedSchema(name, schema, renderer, description) {
+  const lines = [...buildJsDoc(description)];
+
+  if (isSimpleObjectSchema(schema)) {
+    const properties = schema.properties ?? {};
+    const required = new Set(schema.required ?? []);
+    lines.push(`export interface ${name} {`);
+
+    for (const [propName, propSchema] of Object.entries(properties)) {
+      lines.push(...buildJsDoc(propSchema.description, '  '));
+      lines.push(
+        `  ${quotePropertyName(propName)}${required.has(propName) ? '' : '?'}: ${renderer.renderType(
+          propSchema,
+        )};`,
+      );
+    }
+
+    if (schema.additionalProperties) {
+      lines.push(`  [key: string]: ${renderer.renderType(schema.additionalProperties)};`);
+    }
+
+    if (Object.keys(properties).length === 0 && !schema.additionalProperties) {
+      lines.push('  [key: string]: unknown;');
+    }
+
+    lines.push('}');
+    return lines.join('\n');
+  }
+
+  lines.push(`export type ${name} = ${renderer.renderType(schema)};`);
+  return lines.join('\n');
+}
+
+function renderParameterDto(parameters, location, name, renderer) {
+  const selected = parameters.filter((parameter) => parameter.in === location);
+
+  if (selected.length === 0) {
+    return null;
+  }
+
+  const lines = [`export interface ${name} {`];
+
+  for (const parameter of selected) {
+    lines.push(...buildJsDoc(parameter.description, '  '));
+    lines.push(
+      `  ${quotePropertyName(parameter.name)}${parameter.required ? '' : '?'}: ${renderer.renderType(
+        parameter.schema,
+      )};`,
+    );
+  }
+
+  lines.push('}');
+  return lines.join('\n');
+}
+
 function buildOperationTypeRef(operation) {
   return `paths[${JSON.stringify(operation.path)}][${JSON.stringify(operation.method)}]`;
 }
@@ -277,10 +447,12 @@ export type JsonResponseForStatus<Operation, Status extends PropertyKey> =
 
 export function buildPath(
   template: string,
-  pathParams: Record<string, string | number | boolean | null | undefined>,
+  pathParams: object,
 ): string {
+  const source = pathParams as Record<string, string | number | boolean | null | undefined>;
+
   return template.replace(/\\{([^}]+)\\}/g, (_, key) => {
-    const value = pathParams[key];
+    const value = source[key];
 
     if (value === undefined || value === null) {
       throw new Error(\`Missing path parameter: \${key}\`);
@@ -391,19 +563,15 @@ function renderAdapterSource({
   ].join('\n');
 }
 
-function renderOperationSection({
-  operation,
-  functionName,
-}) {
-  const operationTypeName = `${functionName}Operation`;
-  const queryTypeName = `${functionName}QueryParams`;
-  const pathTypeName = `${functionName}PathParams`;
-  const headerTypeName = `${functionName}HeaderParams`;
-  const cookieTypeName = `${functionName}CookieParams`;
-  const bodyTypeName = `${functionName}RequestBody`;
-  const responseTypeName = `${functionName}Response`;
-  const argsTypeName = `${functionName}Args`;
-  const typeRef = buildOperationTypeRef(operation);
+function renderOperationSection({ spec, operation, functionName, dtoImportPath }) {
+  const dtoBaseName = toPascalIdentifier(functionName);
+  const queryTypeName = `${dtoBaseName}QueryParamsDto`;
+  const pathTypeName = `${dtoBaseName}PathParamsDto`;
+  const headerTypeName = `${dtoBaseName}HeaderParamsDto`;
+  const cookieTypeName = `${dtoBaseName}CookieParamsDto`;
+  const bodyTypeName = `${dtoBaseName}RequestDto`;
+  const responseTypeName = `${dtoBaseName}ResponseDto`;
+  const argsTypeName = `${dtoBaseName}ArgsDto`;
   const hasPathParams = hasKind(operation.parameters, null, 'path');
   const hasQueryParams = hasKind(operation.parameters, null, 'query');
   const hasHeaderParams = hasKind(operation.parameters, null, 'header');
@@ -422,85 +590,122 @@ function renderOperationSection({
   const cookieRequired = buildCookieRequired(operation.parameters);
   const bodyRequired = Boolean(operation.requestBody?.required);
   const docText = normalizeText(operation.summary || operation.description);
-  const requestContentType = operation.requestContentTypes[0] ?? null;
-  const requestBodyHelperType = isMultipartMediaType(requestContentType)
-    ? 'MultipartRequestBody'
-    : 'JsonRequestBody';
-  const lines = [
-    `type ${operationTypeName} = ${typeRef};`,
-    `type ${responseTypeName} = JsonResponseForStatus<${operationTypeName}, ${renderStatusLiteral(
-      operation.successStatus,
-    )}>;`,
-  ];
+  const requestSchema = getRequestBodySchema(spec, operation.requestBody);
+  const responseSchema = getResponseSchema(spec, operation.successResponse);
+  const schemaContext = buildLocalSchemaContext(spec, operation, dtoBaseName);
+  const dtoLines = [];
 
-  if (hasPathParams) {
-    lines.push(`type ${pathTypeName} = PathParams<${operationTypeName}>;`);
-  }
-
-  if (hasQueryParams) {
-    lines.push(`type ${queryTypeName} = QueryParams<${operationTypeName}>;`);
-  }
-
-  if (hasHeaderParams) {
-    lines.push(`type ${headerTypeName} = HeaderParams<${operationTypeName}>;`);
-  }
-
-  if (hasCookieParams) {
-    lines.push(`type ${cookieTypeName} = CookieParams<${operationTypeName}>;`);
-  }
-
-  if (hasRequestBody) {
-    lines.push(
-      `type ${bodyTypeName} = ${requestBodyHelperType}<${operationTypeName}>;`,
-    );
-  }
-
-  lines.push('');
-
-  if (docText) {
-    lines.push('/**');
-    for (const docLine of docText.split('\n')) {
-      lines.push(` * ${docLine}`);
+  if (schemaContext.localSchemaNames.length > 0) {
+    for (const localSchemaName of schemaContext.localSchemaNames) {
+      dtoLines.push(
+        renderConcreteNamedSchema(
+          schemaContext.schemaNameMap.get(localSchemaName),
+          spec.components.schemas[localSchemaName],
+          schemaContext.renderer,
+          spec.components.schemas[localSchemaName]?.description,
+        ),
+      );
+      dtoLines.push('');
     }
-    lines.push(' */');
   }
+
+  const pathDtoSource = hasPathParams
+    ? renderParameterDto(operation.parameters, 'path', pathTypeName, schemaContext.renderer)
+    : null;
+  const queryDtoSource = hasQueryParams
+    ? renderParameterDto(operation.parameters, 'query', queryTypeName, schemaContext.renderer)
+    : null;
+  const headerDtoSource = hasHeaderParams
+    ? renderParameterDto(operation.parameters, 'header', headerTypeName, schemaContext.renderer)
+    : null;
+  const cookieDtoSource = hasCookieParams
+    ? renderParameterDto(operation.parameters, 'cookie', cookieTypeName, schemaContext.renderer)
+    : null;
+
+  for (const block of [pathDtoSource, queryDtoSource, headerDtoSource, cookieDtoSource]) {
+    if (!block) {
+      continue;
+    }
+    dtoLines.push(block);
+    dtoLines.push('');
+  }
+
+  if (hasRequestBody && requestSchema) {
+    dtoLines.push(
+      renderConcreteNamedSchema(
+        bodyTypeName,
+        requestSchema,
+        schemaContext.renderer,
+        operation.requestBody?.description ?? docText,
+      ),
+    );
+    dtoLines.push('');
+  }
+
+  dtoLines.push(
+    renderConcreteNamedSchema(
+      responseTypeName,
+      responseSchema ?? {},
+      schemaContext.renderer,
+      operation.successResponse?.description ?? docText,
+    ),
+  );
+  dtoLines.push('');
 
   if (activeKinds > 1) {
-    lines.push(`interface ${argsTypeName} {`);
+    dtoLines.push(...buildJsDoc(docText));
+    dtoLines.push(`export interface ${argsTypeName} {`);
     if (hasPathParams) {
-      lines.push(`  pathParams${pathRequired ? '' : '?'}: ${pathTypeName};`);
+      dtoLines.push(`  pathParams${pathRequired ? '' : '?'}: ${pathTypeName};`);
     }
     if (hasQueryParams) {
-      lines.push(`  params${queryRequired ? '' : '?'}: ${queryTypeName};`);
+      dtoLines.push(`  params${queryRequired ? '' : '?'}: ${queryTypeName};`);
     }
     if (hasRequestBody) {
-      lines.push(`  data${bodyRequired ? '' : '?'}: ${bodyTypeName};`);
+      dtoLines.push(`  data${bodyRequired ? '' : '?'}: ${bodyTypeName};`);
     }
     if (hasHeaderParams) {
-      lines.push(`  headers${headerRequired ? '' : '?'}: ${headerTypeName};`);
+      dtoLines.push(`  headers${headerRequired ? '' : '?'}: ${headerTypeName};`);
     }
     if (hasCookieParams) {
-      lines.push(`  cookies${cookieRequired ? '' : '?'}: ${cookieTypeName};`);
+      dtoLines.push(`  cookies${cookieRequired ? '' : '?'}: ${cookieTypeName};`);
     }
-    lines.push('}');
-    lines.push('');
+    dtoLines.push('}');
+    dtoLines.push('');
+  }
+
+  const apiLines = [];
+  if (docText) {
+    apiLines.push('/**');
+    for (const docLine of docText.split('\n')) {
+      apiLines.push(` * ${docLine}`);
+    }
+    apiLines.push(' */');
   }
 
   let signature = '(config?: AxiosRequestConfig)';
+  const apiTypeImports = new Set([responseTypeName]);
+
   if (activeKinds === 1) {
     if (hasPathParams) {
       signature = `(${pathRequired ? 'pathParams' : 'pathParams?'}: ${pathTypeName}, config?: AxiosRequestConfig)`;
+      apiTypeImports.add(pathTypeName);
     } else if (hasQueryParams) {
       signature = `(${queryRequired ? 'params' : 'params?'}: ${queryTypeName}, config?: AxiosRequestConfig)`;
+      apiTypeImports.add(queryTypeName);
     } else if (hasRequestBody) {
       signature = `(${bodyRequired ? 'data' : 'data?'}: ${bodyTypeName}, config?: AxiosRequestConfig)`;
+      apiTypeImports.add(bodyTypeName);
     } else if (hasHeaderParams) {
       signature = `(${headerRequired ? 'headers' : 'headers?'}: ${headerTypeName}, config?: AxiosRequestConfig)`;
+      apiTypeImports.add(headerTypeName);
     } else if (hasCookieParams) {
       signature = `(${cookieRequired ? 'cookies' : 'cookies?'}: ${cookieTypeName}, config?: AxiosRequestConfig)`;
+      apiTypeImports.add(cookieTypeName);
     }
   } else if (activeKinds > 1) {
     signature = `(args: ${argsTypeName}, config?: AxiosRequestConfig)`;
+    apiTypeImports.add(argsTypeName);
   }
 
   const endpointExpression = hasPathParams
@@ -533,7 +738,7 @@ function renderOperationSection({
     );
   }
 
-  lines.push(
+  apiLines.push(
     `const ${functionName} = async ${signature}: Promise<${responseTypeName}> => {`,
     `  return fetchAPI<${responseTypeName}>(${endpointExpression}, {`,
     ...configEntries.map((entry) => `    ${entry},`),
@@ -544,58 +749,58 @@ function renderOperationSection({
   );
 
   return {
-    source: lines.join('\n'),
-    imports: [
+    apiSource: apiLines.join('\n'),
+    dtoSource: dtoLines.join('\n').trimEnd(),
+    apiImports: [
       `import { fetchAPI, type AxiosRequestConfig } from '../_internal/fetch-api-adapter';`,
-      `import type { paths } from '../schema';`,
-      `import type { CookieParams, HeaderParams, JsonRequestBody, JsonResponseForStatus, MultipartRequestBody, PathParams, QueryParams } from '../_internal/type-helpers';`,
+      `import type { ${Array.from(apiTypeImports).sort((left, right) => left.localeCompare(right)).join(', ')} } from '${dtoImportPath}';`,
       `import { buildPath, mergeRequestHeaders } from '../_internal/type-helpers';`,
     ],
   };
 }
 
-function renderTagWrapperSource({
-  tag,
-  operations,
-}) {
+function renderTagFolderOutputs({ spec, tag, operations }) {
   const usedNames = new Set();
-  const sections = [];
-  const importSet = new Set();
+  const endpointFiles = [];
 
   for (const operation of operations) {
     const functionName = createUniqueName(
       buildOperationSymbolBase(operation),
       usedNames,
     );
+    const endpointFileBase = toKebabCase(functionName);
     const rendered = renderOperationSection({
+      spec,
       operation,
       functionName,
+      dtoImportPath: `./${endpointFileBase}.dto`,
     });
 
-    for (const importLine of rendered.imports) {
-      importSet.add(importLine);
-    }
-
-    sections.push(rendered.source);
+    endpointFiles.push({
+      endpointFileBase,
+      apiSource: [...rendered.apiImports, '', rendered.apiSource, ''].join('\n'),
+      dtoSource: `${rendered.dtoSource}\n`,
+    });
   }
 
-  const lines = [
-    ...Array.from(importSet),
-    '',
-    `// Tag wrapper: ${tag}`,
-    '',
-    sections.join('\n\n'),
-    '',
-  ];
+  const indexLines = [];
+  for (const { endpointFileBase } of endpointFiles) {
+    indexLines.push(`export * from './${endpointFileBase}.dto';`);
+    indexLines.push(`export * from './${endpointFileBase}.api';`);
+  }
+  indexLines.push('');
 
-  return lines.join('\n');
+  return {
+    endpointFiles,
+    indexSource: indexLines.join('\n'),
+  };
 }
 
-function renderIndexSource(tagFileNames) {
+function renderIndexSource(tagDirectoryNames) {
   const lines = [`export * from './schema';`];
 
-  for (const tagFileName of tagFileNames) {
-    lines.push(`export * from './apis/${tagFileName}';`);
+  for (const tagDirectoryName of tagDirectoryNames) {
+    lines.push(`export * from ${JSON.stringify(`./${tagDirectoryName}`)};`);
   }
 
   lines.push('');
@@ -650,9 +855,7 @@ async function writeProjectOutputs({
   validateProjectOperations(operations);
 
   const schemaFileName = layoutRules.schemaFileName ?? 'schema.ts';
-  const apiDirName = layoutRules.apiDirName ?? 'apis';
   const schemaOutputPath = path.join(projectGeneratedSrcDir, schemaFileName);
-  const apiOutputDir = path.join(projectGeneratedSrcDir, apiDirName);
   const helperOutputPath = path.join(projectGeneratedSrcDir, '_internal', 'type-helpers.ts');
   const adapterOutputPath = path.join(projectGeneratedSrcDir, '_internal', 'fetch-api-adapter.ts');
   const indexOutputPath = path.join(projectGeneratedSrcDir, 'index.ts');
@@ -697,7 +900,10 @@ async function writeProjectOutputs({
   });
 
   for (const operation of operations) {
-    const tagFileName = toKebabCase(operation.tag || 'default');
+    const tagFileName = buildTagDirectoryName(
+      operation.tag || 'default',
+      apiRules.tagFileCase ?? 'title',
+    );
     if (!tagFileMap.has(tagFileName)) {
       tagFileMap.set(tagFileName, []);
     }
@@ -709,25 +915,51 @@ async function writeProjectOutputs({
   );
 
   for (const tagFileName of sortedTagFileNames) {
-    const source = renderTagWrapperSource({
+    const tagDirectoryPath = path.join(projectGeneratedSrcDir, tagFileName);
+    const tagIndexPath = path.join(tagDirectoryPath, 'index.ts');
+    const renderedTag = renderTagFolderOutputs({
+      spec,
       tag: tagFileName,
       operations: tagFileMap.get(tagFileName),
     });
-    const filePath = path.join(apiOutputDir, `${tagFileName}.ts`);
+    for (const endpointFile of renderedTag.endpointFiles) {
+      const dtoFilePath = path.join(tagDirectoryPath, `${endpointFile.endpointFileBase}.dto.ts`);
+      const apiFilePath = path.join(tagDirectoryPath, `${endpointFile.endpointFileBase}.api.ts`);
 
-    await writeText(filePath, source);
+      await writeText(dtoFilePath, endpointFile.dtoSource);
+      manifestFiles.push({
+        kind: 'dto',
+        generated: path.relative(rootDir, dtoFilePath).replaceAll(path.sep, '/'),
+        target: path
+          .join(applyTargetSrcDir, tagFileName, `${endpointFile.endpointFileBase}.dto.ts`)
+          .replaceAll(path.sep, '/'),
+        summary: `tag=${tagFileName} endpoint=${endpointFile.endpointFileBase}`,
+      });
 
+      await writeText(apiFilePath, endpointFile.apiSource);
+      manifestFiles.push({
+        kind: 'api',
+        generated: path.relative(rootDir, apiFilePath).replaceAll(path.sep, '/'),
+        target: path
+          .join(applyTargetSrcDir, tagFileName, `${endpointFile.endpointFileBase}.api.ts`)
+          .replaceAll(path.sep, '/'),
+        summary: `tag=${tagFileName} endpoint=${endpointFile.endpointFileBase}`,
+      });
+    }
+
+    await writeText(tagIndexPath, renderedTag.indexSource);
     manifestFiles.push({
-      kind: 'api',
-      generated: path.relative(rootDir, filePath).replaceAll(path.sep, '/'),
-      target: path
-        .join(applyTargetSrcDir, apiDirName, `${tagFileName}.ts`)
-        .replaceAll(path.sep, '/'),
+      kind: 'index',
+      generated: path.relative(rootDir, tagIndexPath).replaceAll(path.sep, '/'),
+      target: path.join(applyTargetSrcDir, tagFileName, 'index.ts').replaceAll(path.sep, '/'),
       summary: `tag=${tagFileName}`,
     });
   }
 
-  await writeText(indexOutputPath, renderIndexSource(sortedTagFileNames));
+  await writeText(
+    indexOutputPath,
+    renderIndexSource(sortedTagFileNames),
+  );
   manifestFiles.push({
     kind: 'index',
     generated: path.relative(rootDir, indexOutputPath).replaceAll(path.sep, '/'),

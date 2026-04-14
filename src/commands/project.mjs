@@ -19,7 +19,7 @@ function toPosixPath(value) {
 
 function validateProjectRules(projectRules) {
   const wrapperGrouping = projectRules?.api?.wrapperGrouping ?? 'tag';
-  const tagFileCase = projectRules?.api?.tagFileCase ?? 'kebab';
+  const tagFileCase = projectRules?.api?.tagFileCase ?? 'title';
   const adapterStyle = projectRules?.api?.adapterStyle ?? 'url-config';
 
   if (wrapperGrouping !== 'tag') {
@@ -28,9 +28,9 @@ function validateProjectRules(projectRules) {
     );
   }
 
-  if (tagFileCase !== 'kebab') {
+  if (!['kebab', 'title'].includes(tagFileCase)) {
     throw new Error(
-      `Unsupported api.tagFileCase: ${tagFileCase}\nMVP v2 only supports "kebab".`,
+      `Unsupported api.tagFileCase: ${tagFileCase}\nMVP v2 supports "kebab" or "title".`,
     );
   }
 

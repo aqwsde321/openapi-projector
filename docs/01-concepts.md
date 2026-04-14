@@ -60,6 +60,8 @@ Swagger/OpenAPI 원본을 받아서 review 산출물을 만듭니다.
 `project-rules.jsonc`를 읽어, 실제 프로젝트에 적용할 후보 코드를 `openapi/` 안에 생성합니다.
 
 - `openapi/project/src/openapi-generated`
+- `openapi/project/src/openapi-generated/<tag>/<endpoint>.dto.ts`
+- `openapi/project/src/openapi-generated/<tag>/<endpoint>.api.ts`
 - `openapi/project/summary.md`
 
 이 단계의 목적은 “실제 src 반영 전 마지막 후보”를 만드는 것입니다.

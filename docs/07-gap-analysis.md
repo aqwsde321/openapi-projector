@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 1 | OpenAPI만으로 결정 가능한 review 산출물과 `schema.ts` 생성 | 85~90% |
 | 2 | 현재 프로젝트 구조 파악 후 규칙 문서화 | 60~65% |
-| 3 | 1번 결과 + 2번 규칙으로 프로젝트 컨벤션에 맞는 파일 생성 | 75~80% |
+| 3 | 1번 결과 + 2번 규칙으로 프로젝트 컨벤션에 맞는 파일 생성 | 80~85% |
 
 종합하면 방향은 맞습니다.
 
@@ -71,7 +71,7 @@
 
 이미 가능한 것:
 
-- `project`로 `schema.ts + tag별 API wrapper` 생성
+- `project`로 `schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API` 생성
 - `manifest.json`, `summary.md` 생성
 - `apply`로 실제 target 경로 반영
 
@@ -82,9 +82,9 @@
 
 핵심 갭:
 
-- 출력 구조는 `schema.ts + apis/* + _internal/fetch-api-adapter.ts + _internal/type-helpers.ts + index.ts`로 고정
+- 출력 구조는 `schema.ts + <tag>/<endpoint>.dto.ts + <tag>/<endpoint>.api.ts + <tag>/index.ts + _internal/* + index.ts`로 고정
 - wrapper 분할은 현재 `tag`만 지원
-- `application/json`이 아닌 body/response, cookie, multipart 는 범위 밖으로 명시적 실패 처리
+- 성공 응답은 여전히 JSON 계열만 지원하고, multiple media type 선택 로직은 미지원
 
 즉 “규칙 파일이 존재한다”와 “여러 프로젝트 규칙을 폭넓게 흡수한다” 사이에 아직 갭이 있습니다.
 
@@ -141,7 +141,7 @@
 
 ### 3. 생성 결과 구조가 의도적으로 고정돼 있음
 
-현재 후보 코드와 apply 대상은 `schema.ts + apis/* + _internal/*` 구조를 고정으로 사용합니다.
+현재 후보 코드와 apply 대상은 `schema.ts + <tag>/<endpoint>.dto.ts + <tag>/<endpoint>.api.ts + _internal/*` 구조를 고정으로 사용합니다.
 
 영향:
 
@@ -224,6 +224,6 @@
 
 - 1단계는 꽤 잘 만들어짐
 - 2단계는 기본 규칙 문서화는 가능하지만 일반화가 더 필요함
-- 3단계는 `schema.ts + tag별 API wrapper`까지 동작하지만 지원 범위는 MVP 수준임
+- 3단계는 `schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API`까지 동작하지만 지원 범위는 MVP 수준임
 
 즉 이 저장소는 “목표와 다른 프로젝트”가 아니라, “MVP v2 기준 핵심 경로는 구현됐고 이제 입력 범위 확장과 규칙 일반화가 남은 프로젝트”입니다.

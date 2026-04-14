@@ -14,7 +14,7 @@
 
 - review용 catalog / docs / `schema.ts`
 - 프로젝트 규칙 분석 문서
-- 프로젝트 맞춤 API wrapper 후보 코드
+- 프로젝트 맞춤 DTO/API 후보 코드
 - 실제 반영 가능한 apply 대상 파일
 
 ## 시스템 요구사항
@@ -111,7 +111,7 @@
 
 ### FR-D1. 규칙 기반 후보 생성
 
-- 시스템은 OpenAPI 기반 `schema.ts`와 규칙 파일을 함께 사용해 프로젝트 맞춤 API wrapper 후보를 생성해야 합니다.
+- 시스템은 OpenAPI 기반 `schema.ts`와 규칙 파일을 함께 사용해 프로젝트 맞춤 DTO/API 후보를 생성해야 합니다.
 
 ### FR-D2. 반영 전 후보 영역 유지
 
@@ -126,7 +126,7 @@
   - adapter 호출 방식
   - wrapper 분할 방식
   - tag 파일 네이밍
-  - schema/API 출력 레이아웃
+  - schema/DTO/API 출력 레이아웃
 
 ### FR-D4. manifest / summary 생성
 

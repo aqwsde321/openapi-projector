@@ -67,14 +67,14 @@
 - `wrapperGrouping`
   - MVP v2는 `"tag"`만 지원
 - `tagFileCase`
-  - MVP v2는 `"kebab"`만 지원
+  - `"title"`: 원본 tag title을 최대한 유지해 폴더명으로 사용
+  - `"kebab"`: tag를 kebab-case slug로 변환
 
 ### `layout`
 
 - `schemaFileName`
   - 후보 출력의 schema 파일명
-- `apiDirName`
-  - 후보 출력의 API wrapper 디렉터리명
+  - 나머지 후보 출력 구조는 현재 `태그 폴더 + 엔드포인트별 api/dto 파일`로 고정됩니다.
 
 ## Config Discovery
 

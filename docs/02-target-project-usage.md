@@ -75,7 +75,9 @@ node /path/to/openapi-workflow/bin/openapi-tool.mjs project
 
 - `openapi/project/src/openapi-generated`
 - `openapi/project/src/openapi-generated/schema.ts`
-- `openapi/project/src/openapi-generated/apis/*.ts`
+- `openapi/project/src/openapi-generated/<tag>/<endpoint>.dto.ts`
+- `openapi/project/src/openapi-generated/<tag>/<endpoint>.api.ts`
+- `openapi/project/src/openapi-generated/<tag>/index.ts`
 - `openapi/project/src/openapi-generated/_internal/fetch-api-adapter.ts`
 - `openapi/project/summary.md`
 

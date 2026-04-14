@@ -68,11 +68,10 @@ async function setupWorkspace({
           axiosConfigTypeName: 'AxiosRequestConfig',
           adapterStyle: 'url-config',
           wrapperGrouping: 'tag',
-          tagFileCase: 'kebab',
+          tagFileCase: 'title',
         },
         layout: {
           schemaFileName: 'schema.ts',
-          apiDirName: 'apis',
         },
       },
     );
@@ -175,23 +174,35 @@ test(
       await runInWorkspace(workspace, () => projectCommand.run());
 
       const generatedRoot = path.join(workspace, 'openapi/project/src/openapi-generated');
-      const defaultApiPath = path.join(generatedRoot, 'apis/default.ts');
-      const profilesApiPath = path.join(generatedRoot, 'apis/profiles.ts');
+      const defaultDtoPath = path.join(generatedRoot, 'default/get-health-status.dto.ts');
+      const profilesDtoPath = path.join(generatedRoot, 'profiles/update-profile.dto.ts');
+      const defaultApiPath = path.join(generatedRoot, 'default/get-health-status.api.ts');
+      const profilesApiPath = path.join(generatedRoot, 'profiles/update-profile.api.ts');
+      const defaultIndexPath = path.join(generatedRoot, 'default/index.ts');
+      const profilesIndexPath = path.join(generatedRoot, 'profiles/index.ts');
       const adapterPath = path.join(generatedRoot, '_internal/fetch-api-adapter.ts');
 
       await assertExists(path.join(generatedRoot, 'schema.ts'));
+      await assertExists(defaultDtoPath);
+      await assertExists(profilesDtoPath);
       await assertExists(defaultApiPath);
       await assertExists(profilesApiPath);
+      await assertExists(defaultIndexPath);
+      await assertExists(profilesIndexPath);
       await assertExists(adapterPath);
       await assertExists(path.join(generatedRoot, '_internal/type-helpers.ts'));
       await assertExists(path.join(generatedRoot, 'index.ts'));
 
       const defaultApiSource = await fs.readFile(defaultApiPath, 'utf8');
+      const defaultDtoSource = await fs.readFile(defaultDtoPath, 'utf8');
       const profilesApiSource = await fs.readFile(profilesApiPath, 'utf8');
       const adapterSource = await fs.readFile(adapterPath, 'utf8');
       assert.match(defaultApiSource, /const getHealthStatus = async/);
+      assert.match(defaultApiSource, /from '\.\/get-health-status\.dto'/);
       assert.match(defaultApiSource, /from '\.\.\/_internal\/fetch-api-adapter'/);
+      assert.match(defaultDtoSource, /export type GetHealthStatusResponseDto =/);
       assert.match(profilesApiSource, /const updateProfile = async/);
+      assert.match(profilesApiSource, /from '\.\/update-profile\.dto'/);
       assert.match(adapterSource, /runtimeFetchAPI<T>\(url, config\)/);
 
       await execFileAsync(process.execPath, [
@@ -204,8 +215,10 @@ test(
       await runInWorkspace(workspace, () => applyCommand.run());
 
       await assertExists(path.join(workspace, 'src/openapi-generated/schema.ts'));
-      await assertExists(path.join(workspace, 'src/openapi-generated/apis/default.ts'));
-      await assertExists(path.join(workspace, 'src/openapi-generated/apis/profiles.ts'));
+      await assertExists(path.join(workspace, 'src/openapi-generated/default/get-health-status.dto.ts'));
+      await assertExists(path.join(workspace, 'src/openapi-generated/profiles/update-profile.dto.ts'));
+      await assertExists(path.join(workspace, 'src/openapi-generated/default/get-health-status.api.ts'));
+      await assertExists(path.join(workspace, 'src/openapi-generated/profiles/update-profile.api.ts'));
       await assertExists(
         path.join(workspace, 'src/openapi-generated/_internal/fetch-api-adapter.ts'),
       );
@@ -242,7 +255,194 @@ test(
         assert.match(analysisSource, /Analysis root: `src`/);
         assert.match(rulesSource, /"fetchApiImportPath": "@\/shared\/http"/);
         assert.match(rulesSource, /"axiosConfigImportPath": "@\/shared\/http-types"/);
+        assert.match(rulesSource, /"tagFileCase": "title"/);
         assert.doesNotMatch(rulesSource, /apiUrlsImportPath/);
+      },
+    );
+  },
+);
+
+test(
+  'project can use raw tag titles as folder names',
+  { concurrency: false },
+  async () => {
+    const spec = await readFixtureJson('oas30.json');
+    spec.paths['/banner'] = {
+      get: {
+        tags: ['199 - [BOS]원문 노출 API'],
+        operationId: 'getBanner',
+        responses: {
+          200: {
+            description: 'OK',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    id: {
+                      type: 'number',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const extraFiles = [
+      {
+        path: 'openapi/project/src/test-support/http.ts',
+        content: `export type AxiosRequestConfig = {\n  headers?: Record<string, string>;\n  params?: unknown;\n  data?: unknown;\n  method?: string;\n};\n`,
+      },
+      {
+        path: 'openapi/project/src/test-support/fetch-api.ts',
+        content: `import type { AxiosRequestConfig } from './http';\n\nexport async function fetchAPI<T>(_url: string, _config: AxiosRequestConfig): Promise<T> {\n  return undefined as T;\n}\n`,
+      },
+      {
+        path: 'openapi/project/src/tsconfig.json',
+        content: JSON.stringify(
+          {
+            compilerOptions: {
+              target: 'ES2022',
+              module: 'ESNext',
+              moduleResolution: 'Bundler',
+              strict: true,
+              noEmit: true,
+              lib: ['ES2022', 'DOM'],
+            },
+            include: ['openapi-generated/**/*.ts', 'test-support/**/*.ts'],
+          },
+          null,
+          2,
+        ),
+      },
+    ];
+
+    await withWorkspace(
+      {
+        spec,
+        extraFiles,
+        rules: {
+          api: {
+            fetchApiImportPath: '../../test-support/fetch-api',
+            fetchApiSymbol: 'fetchAPI',
+            axiosConfigImportPath: '../../test-support/http',
+            axiosConfigTypeName: 'AxiosRequestConfig',
+            adapterStyle: 'url-config',
+            wrapperGrouping: 'tag',
+            tagFileCase: 'title',
+          },
+          layout: {
+            schemaFileName: 'schema.ts',
+          },
+        },
+      },
+      async (workspace) => {
+        await runInWorkspace(workspace, () => generateCommand.run());
+        await runInWorkspace(workspace, () => projectCommand.run());
+
+        const tagDir = path.join(
+          workspace,
+          'openapi/project/src/openapi-generated/199 - [BOS]원문 노출 API',
+        );
+        const rootIndexSource = await fs.readFile(
+          path.join(workspace, 'openapi/project/src/openapi-generated/index.ts'),
+          'utf8',
+        );
+
+        await assertExists(path.join(tagDir, 'get-banner.dto.ts'));
+        await assertExists(path.join(tagDir, 'get-banner.api.ts'));
+        assert.match(rootIndexSource, /export \* from "\.\/199 - \[BOS\]원문 노출 API";/);
+
+        await execFileAsync(process.execPath, [
+          TSC_CLI,
+          '--noEmit',
+          '-p',
+          path.join(workspace, 'openapi/project/src/tsconfig.json'),
+        ]);
+      },
+    );
+  },
+);
+
+test(
+  'rules auto-migrates legacy kebab tagFileCase to title',
+  { concurrency: false },
+  async () => {
+    const spec = await readFixtureJson('oas30.json');
+    spec.paths['/banner'] = {
+      get: {
+        tags: ['199 - [BOS]원문 노출 API'],
+        operationId: 'getBanner',
+        responses: {
+          200: {
+            description: 'OK',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    id: {
+                      type: 'number',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace(
+      {
+        spec,
+        rules: {
+          api: {
+            fetchApiImportPath: '../../test-support/fetch-api',
+            fetchApiSymbol: 'fetchAPI',
+            axiosConfigImportPath: '../../test-support/http',
+            axiosConfigTypeName: 'AxiosRequestConfig',
+            adapterStyle: 'url-config',
+            wrapperGrouping: 'tag',
+            tagFileCase: 'kebab',
+          },
+          layout: {
+            schemaFileName: 'schema.ts',
+          },
+        },
+        extraFiles: [
+          {
+            path: 'openapi/project/src/test-support/http.ts',
+            content: `export type AxiosRequestConfig = {\n  headers?: Record<string, string>;\n  params?: unknown;\n  data?: unknown;\n  method?: string;\n};\n`,
+          },
+          {
+            path: 'openapi/project/src/test-support/fetch-api.ts',
+            content: `import type { AxiosRequestConfig } from './http';\n\nexport async function fetchAPI<T>(_url: string, _config: AxiosRequestConfig): Promise<T> {\n  return undefined as T;\n}\n`,
+          },
+        ],
+      },
+      async (workspace) => {
+        await runInWorkspace(workspace, () => rulesCommand.run());
+
+        const migratedRulesSource = await fs.readFile(
+          path.join(workspace, 'openapi/config/project-rules.jsonc'),
+          'utf8',
+        );
+        assert.match(migratedRulesSource, /"tagFileCase": "title"/);
+        assert.doesNotMatch(migratedRulesSource, /"tagFileCase": "kebab"/);
+
+        await runInWorkspace(workspace, () => generateCommand.run());
+        await runInWorkspace(workspace, () => projectCommand.run());
+
+        await assertExists(
+          path.join(
+            workspace,
+            'openapi/project/src/openapi-generated/199 - [BOS]원문 노출 API/get-banner.dto.ts',
+          ),
+        );
       },
     );
   },
@@ -269,7 +469,6 @@ test(
           },
           layout: {
             schemaFileName: 'schema.ts',
-            apiDirName: 'apis',
           },
         },
         extraFiles: [
@@ -310,6 +509,11 @@ test(
         );
 
         assert.match(adapterSource, /runtimeFetchAPI<T>\(\{ url, \.\.\.config \}\)/);
+        const userApiSource = await fs.readFile(
+          path.join(workspace, 'openapi/project/src/openapi-generated/users/get-user-by-id.api.ts'),
+          'utf8',
+        );
+        assert.match(userApiSource, /from '\.\/get-user-by-id\.dto'/);
 
         await execFileAsync(process.execPath, [
           TSC_CLI,
@@ -356,13 +560,76 @@ test(
       const devApiSource = await fs.readFile(
         path.join(
           workspace,
-          'openapi/project/src/openapi-generated/apis/dev.ts',
+          'openapi/project/src/openapi-generated/Dev/get-dev-error-codes.api.ts',
         ),
         'utf8',
       );
 
       assert.match(devApiSource, /const getDevErrorCodes = async/);
       assert.doesNotMatch(devApiSource, /void/);
+    });
+  },
+);
+
+test(
+  'project expands nested component schemas inside dto files',
+  { concurrency: false },
+  async () => {
+    const spec = await readFixtureJson('oas30.json');
+    spec.components ??= {};
+    spec.components.schemas ??= {};
+    spec.components.schemas.NestedLeaf = {
+      type: 'object',
+      properties: {
+        value: {
+          type: 'string',
+        },
+      },
+    };
+    spec.components.schemas.NestedWrapper = {
+      type: 'object',
+      properties: {
+        item: {
+          $ref: '#/components/schemas/NestedLeaf',
+        },
+      },
+    };
+    spec.paths['/nested'] = {
+      get: {
+        tags: ['Nested'],
+        operationId: 'getNested',
+        responses: {
+          200: {
+            description: 'OK',
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/NestedWrapper',
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => generateCommand.run());
+      await runInWorkspace(workspace, () => projectCommand.run());
+
+      const nestedDtoSource = await fs.readFile(
+        path.join(
+          workspace,
+          'openapi/project/src/openapi-generated/Nested/get-nested.dto.ts',
+        ),
+        'utf8',
+      );
+
+      assert.match(nestedDtoSource, /export interface GetNestedNestedWrapper \{/);
+      assert.match(nestedDtoSource, /item\?: GetNestedNestedLeaf;/);
+      assert.match(nestedDtoSource, /export interface GetNestedNestedLeaf \{/);
+      assert.match(nestedDtoSource, /value\?: string;/);
+      assert.match(nestedDtoSource, /export type GetNestedResponseDto = GetNestedNestedWrapper;/);
     });
   },
 );
@@ -408,7 +675,7 @@ test(
       const sessionApiSource = await fs.readFile(
         path.join(
           workspace,
-          'openapi/project/src/openapi-generated/apis/sessions.ts',
+          'openapi/project/src/openapi-generated/Sessions/get-session.api.ts',
         ),
         'utf8',
       );
@@ -420,10 +687,18 @@ test(
         'utf8',
       );
 
-      assert.match(sessionApiSource, /cookies: getSessionCookieParams/);
+      assert.match(sessionApiSource, /\(cookies: GetSessionCookieParamsDto, config\?: AxiosRequestConfig\)/);
       assert.match(sessionApiSource, /mergeRequestHeaders/);
       assert.match(helperSource, /export type CookieParams<Operation>/);
       assert.match(helperSource, /export function buildCookieHeader/);
+      const sessionDtoSource = await fs.readFile(
+        path.join(
+          workspace,
+          'openapi/project/src/openapi-generated/Sessions/get-session.dto.ts',
+        ),
+        'utf8',
+      );
+      assert.match(sessionDtoSource, /export interface GetSessionCookieParamsDto \{/);
     });
   },
 );
@@ -504,7 +779,7 @@ test(
       const uploadApiSource = await fs.readFile(
         path.join(
           workspace,
-          'openapi/project/src/openapi-generated/apis/uploads.ts',
+          'openapi/project/src/openapi-generated/Uploads/upload-file.api.ts',
         ),
         'utf8',
       );
@@ -515,12 +790,21 @@ test(
         ),
         'utf8',
       );
+      const uploadDtoSource = await fs.readFile(
+        path.join(
+          workspace,
+          'openapi/project/src/openapi-generated/Uploads/upload-file.dto.ts',
+        ),
+        'utf8',
+      );
 
       assert.match(uploadApiSource, /const uploadFile = async/);
-      assert.match(uploadApiSource, /type uploadFileRequestBody = MultipartRequestBody<uploadFileOperation>;/);
-      assert.match(uploadApiSource, /\(data: uploadFileRequestBody, config\?: AxiosRequestConfig\)/);
+      assert.match(uploadApiSource, /\(data: UploadFileRequestDto, config\?: AxiosRequestConfig\)/);
       assert.match(uploadApiSource, /data: data,/);
+      assert.match(uploadApiSource, /from '\.\/upload-file\.dto'/);
       assert.match(helperSource, /export type MultipartRequestBody<Operation>/);
+      assert.match(uploadDtoSource, /export interface UploadFileRequestDto \{/);
+      assert.match(uploadDtoSource, /file\?: File;/);
 
       await execFileAsync(process.execPath, [
         TSC_CLI,

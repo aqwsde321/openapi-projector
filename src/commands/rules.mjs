@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { ensureDir, loadProjectConfig, writeText } from '../core/openapi-utils.mjs';
+import { ensureDir, loadProjectConfig, readJson, writeJson, writeText } from '../core/openapi-utils.mjs';
 
 async function pathExists(targetPath) {
   try {
@@ -117,7 +117,7 @@ function renderAnalysisMarkdown({
     '## MVP v2 fixed defaults',
     '',
     '- wrapper grouping: `tag`',
-    '- tag file case: `kebab`',
+    '- tag file case: `title`',
     '- schema file name: `schema.ts`',
     '- api dir name: `apis`',
     '',
@@ -141,7 +141,7 @@ function buildRulesJsonc({
     "axiosConfigTypeName": ${JSON.stringify(axiosConfigTypeName)},
     "adapterStyle": "url-config",
     "wrapperGrouping": "tag",
-    "tagFileCase": "kebab"
+    "tagFileCase": "title"
   },
   "layout": {
     "schemaFileName": "schema.ts",
@@ -194,6 +194,7 @@ const rulesCommand = {
     );
 
     let scaffoldCreated = false;
+    let rulesMigrated = false;
     if (!(await pathExists(rulesPath))) {
       scaffoldCreated = true;
       await ensureDir(path.dirname(rulesPath));
@@ -207,11 +208,31 @@ const rulesCommand = {
           axiosConfigTypeName,
         }),
       );
+    } else {
+      const existingRules = await readJson(rulesPath);
+      const nextRules = {
+        ...existingRules,
+        api: {
+          ...(existingRules.api ?? {}),
+          tagFileCase:
+            existingRules?.api?.tagFileCase === 'kebab' ||
+            existingRules?.api?.tagFileCase == null
+              ? 'title'
+              : existingRules.api.tagFileCase,
+        },
+      };
+
+      if (JSON.stringify(existingRules) !== JSON.stringify(nextRules)) {
+        rulesMigrated = true;
+        await writeJson(rulesPath, nextRules);
+      }
     }
 
     console.log(`Updated project rules analysis: ${analysisPath}`);
     if (scaffoldCreated) {
       console.log(`Created project rules scaffold: ${rulesPath}`);
+    } else if (rulesMigrated) {
+      console.log(`Migrated project rules defaults: ${rulesPath}`);
     } else {
       console.log(`Preserved existing project rules: ${rulesPath}`);
     }
