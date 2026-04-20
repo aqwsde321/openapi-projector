@@ -280,8 +280,6 @@ test(
       const profilesApiPath = path.join(generatedRoot, 'profiles/update-profile.api.ts');
       const defaultIndexPath = path.join(generatedRoot, 'default/index.ts');
       const profilesIndexPath = path.join(generatedRoot, 'profiles/index.ts');
-      const adapterPath = path.join(generatedRoot, '_internal/fetch-api-adapter.ts');
-
       await assertExists(path.join(generatedRoot, 'schema.ts'));
       await assertExists(defaultDtoPath);
       await assertExists(profilesDtoPath);
@@ -289,21 +287,18 @@ test(
       await assertExists(profilesApiPath);
       await assertExists(defaultIndexPath);
       await assertExists(profilesIndexPath);
-      await assertExists(adapterPath);
-      await assertExists(path.join(generatedRoot, '_internal/type-helpers.ts'));
       await assertExists(path.join(generatedRoot, 'index.ts'));
 
       const defaultApiSource = await fs.readFile(defaultApiPath, 'utf8');
       const defaultDtoSource = await fs.readFile(defaultDtoPath, 'utf8');
       const profilesApiSource = await fs.readFile(profilesApiPath, 'utf8');
-      const adapterSource = await fs.readFile(adapterPath, 'utf8');
-      assert.match(defaultApiSource, /const getHealthStatus = async/);
+      assert.match(defaultApiSource, /export const getHealthStatus = async/);
       assert.match(defaultApiSource, /from '\.\/get-health-status\.dto'/);
-      assert.match(defaultApiSource, /from '\.\.\/_internal\/fetch-api-adapter'/);
-      assert.match(defaultDtoSource, /export type GetHealthStatusResponseDto =/);
-      assert.match(profilesApiSource, /const updateProfile = async/);
+      assert.match(defaultApiSource, /from '\.\.\/\.\.\/test-support\/fetch-api'/);
+      assert.match(defaultDtoSource, /export interface GetHealthStatusResponseDto \{/);
+      assert.match(profilesApiSource, /export const updateProfile = async/);
       assert.match(profilesApiSource, /from '\.\/update-profile\.dto'/);
-      assert.match(adapterSource, /runtimeFetchAPI<T>\(url, config\)/);
+      assert.match(profilesApiSource, /method: "PATCH"/);
 
       await execFileAsync(process.execPath, [
         TSC_CLI,
@@ -319,9 +314,6 @@ test(
       await assertExists(path.join(workspace, 'src/openapi-generated/profiles/update-profile.dto.ts'));
       await assertExists(path.join(workspace, 'src/openapi-generated/default/get-health-status.api.ts'));
       await assertExists(path.join(workspace, 'src/openapi-generated/profiles/update-profile.api.ts'));
-      await assertExists(
-        path.join(workspace, 'src/openapi-generated/_internal/fetch-api-adapter.ts'),
-      );
     });
   },
 );
@@ -354,9 +346,9 @@ test(
 
         assert.match(analysisSource, /Analysis root: `src`/);
         assert.match(rulesSource, /"fetchApiImportPath": "@\/shared\/http"/);
-        assert.match(rulesSource, /"axiosConfigImportPath": "@\/shared\/http-types"/);
         assert.match(rulesSource, /"tagFileCase": "title"/);
         assert.doesNotMatch(rulesSource, /apiUrlsImportPath/);
+        assert.doesNotMatch(rulesSource, /axiosConfigImportPath/);
       },
     );
   },
@@ -549,7 +541,7 @@ test(
 );
 
 test(
-  'project can generate request-object adapter style',
+  'project can generate request-object runtime call style without internal adapter files',
   { concurrency: false },
   async () => {
     const spec = await readFixtureJson('oas30.json');
@@ -600,19 +592,15 @@ test(
         await runInWorkspace(workspace, () => generateCommand.run());
         await runInWorkspace(workspace, () => projectCommand.run());
 
-        const adapterSource = await fs.readFile(
-          path.join(
-            workspace,
-            'openapi/project/src/openapi-generated/_internal/fetch-api-adapter.ts',
-          ),
-          'utf8',
-        );
-
-        assert.match(adapterSource, /runtimeFetchAPI<T>\(\{ url, \.\.\.config \}\)/);
         const userApiSource = await fs.readFile(
           path.join(workspace, 'openapi/project/src/openapi-generated/users/get-user-by-id.api.ts'),
           'utf8',
         );
+        assert.doesNotMatch(userApiSource, /_internal\/fetch-api-adapter/);
+        assert.match(userApiSource, /import \{ request as fetchAPI \} from '\.\.\/\.\.\/test-support\/request-client'/);
+        assert.match(userApiSource, /await fetchAPI<GetUserByIdResponseDto>\(\{/);
+        assert.match(userApiSource, /const \{ id \} = requestDto;/);
+        assert.match(userApiSource, /url: `\/users\/\$\{id\}`/);
         assert.match(userApiSource, /from '\.\/get-user-by-id\.dto'/);
 
         await execFileAsync(process.execPath, [
@@ -684,7 +672,14 @@ test(
         value: {
           type: 'string',
         },
+        level: {
+          $ref: '#/components/schemas/UserAdminLevel',
+        },
       },
+    };
+    spec.components.schemas.UserAdminLevel = {
+      type: 'string',
+      enum: ['USER', 'ADMIN'],
     };
     spec.components.schemas.NestedWrapper = {
       type: 'object',
@@ -725,11 +720,82 @@ test(
         'utf8',
       );
 
-      assert.match(nestedDtoSource, /export interface GetNestedNestedWrapper \{/);
-      assert.match(nestedDtoSource, /item\?: GetNestedNestedLeaf;/);
-      assert.match(nestedDtoSource, /export interface GetNestedNestedLeaf \{/);
+      assert.match(nestedDtoSource, /export interface NestedLeaf \{/);
+      assert.match(nestedDtoSource, /item\?: NestedLeaf;/);
       assert.match(nestedDtoSource, /value\?: string;/);
-      assert.match(nestedDtoSource, /export type GetNestedResponseDto = GetNestedNestedWrapper;/);
+      assert.match(nestedDtoSource, /level\?: UserAdminLevel;/);
+      assert.match(nestedDtoSource, /export type UserAdminLevel = "USER" \| "ADMIN";/);
+      assert.match(nestedDtoSource, /export interface GetNestedResponseDto \{/);
+    });
+  },
+);
+
+test(
+  'project strips controller prefixes from operationId-based names',
+  { concurrency: false },
+  async () => {
+    const spec = await readFixtureJson('oas30.json');
+    spec.paths['/admin/corporate-members/{userId}'] = {
+      get: {
+        tags: ['Admin'],
+        operationId: 'AdminCorporateController_getAdminCorporateMember',
+        parameters: [
+          {
+            name: 'userId',
+            in: 'path',
+            required: true,
+            schema: {
+              type: 'string',
+            },
+          },
+        ],
+        responses: {
+          200: {
+            description: 'OK',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    row: {
+                      type: 'string',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => generateCommand.run());
+      await runInWorkspace(workspace, () => projectCommand.run());
+
+      const dtoSource = await fs.readFile(
+        path.join(
+          workspace,
+          'openapi/project/src/openapi-generated/Admin/get-admin-corporate-member.dto.ts',
+        ),
+        'utf8',
+      );
+      const apiSource = await fs.readFile(
+        path.join(
+          workspace,
+          'openapi/project/src/openapi-generated/Admin/get-admin-corporate-member.api.ts',
+        ),
+        'utf8',
+      );
+
+      assert.match(dtoSource, /export interface GetAdminCorporateMemberRequestDto \{/);
+      assert.match(dtoSource, /export interface GetAdminCorporateMemberResponseDto \{/);
+      assert.match(apiSource, /export const getAdminCorporateMember = async/);
+      assert.match(apiSource, /const \{ userId \} = requestDto;/);
+      assert.match(apiSource, /\/admin\/corporate-members\/\$\{userId\}/);
+      assert.doesNotMatch(apiSource, /requestDto\["userId"\]/);
+      assert.doesNotMatch(dtoSource, /AdminCorporateControllerGetAdminCorporateMember/);
+      assert.doesNotMatch(apiSource, /adminCorporateControllerGetAdminCorporateMember/);
     });
   },
 );
@@ -779,18 +845,9 @@ test(
         ),
         'utf8',
       );
-      const helperSource = await fs.readFile(
-        path.join(
-          workspace,
-          'openapi/project/src/openapi-generated/_internal/type-helpers.ts',
-        ),
-        'utf8',
-      );
-
-      assert.match(sessionApiSource, /\(cookies: GetSessionCookieParamsDto, config\?: AxiosRequestConfig\)/);
-      assert.match(sessionApiSource, /mergeRequestHeaders/);
-      assert.match(helperSource, /export type CookieParams<Operation>/);
-      assert.match(helperSource, /export function buildCookieHeader/);
+      assert.match(sessionApiSource, /export const getSession = async \(requestDto: GetSessionRequestDto\)/);
+      assert.match(sessionApiSource, /cookieEntries.length > 0/);
+      assert.match(sessionApiSource, /headers\.Cookie = cookieEntries\.join\('\; '\)/);
       const sessionDtoSource = await fs.readFile(
         path.join(
           workspace,
@@ -798,7 +855,8 @@ test(
         ),
         'utf8',
       );
-      assert.match(sessionDtoSource, /export interface GetSessionCookieParamsDto \{/);
+      assert.match(sessionDtoSource, /export interface GetSessionRequestDto \{/);
+      assert.match(sessionDtoSource, /sessionId: string;/);
     });
   },
 );
@@ -883,13 +941,6 @@ test(
         ),
         'utf8',
       );
-      const helperSource = await fs.readFile(
-        path.join(
-          workspace,
-          'openapi/project/src/openapi-generated/_internal/type-helpers.ts',
-        ),
-        'utf8',
-      );
       const uploadDtoSource = await fs.readFile(
         path.join(
           workspace,
@@ -898,11 +949,9 @@ test(
         'utf8',
       );
 
-      assert.match(uploadApiSource, /const uploadFile = async/);
-      assert.match(uploadApiSource, /\(data: UploadFileRequestDto, config\?: AxiosRequestConfig\)/);
-      assert.match(uploadApiSource, /data: data,/);
+      assert.match(uploadApiSource, /export const uploadFile = async \(requestDto: UploadFileRequestDto\)/);
+      assert.match(uploadApiSource, /data: requestDto,/);
       assert.match(uploadApiSource, /from '\.\/upload-file\.dto'/);
-      assert.match(helperSource, /export type MultipartRequestBody<Operation>/);
       assert.match(uploadDtoSource, /export interface UploadFileRequestDto \{/);
       assert.match(uploadDtoSource, /file\?: File;/);
 

@@ -95,7 +95,6 @@ function renderAnalysisMarkdown({
   analysisRoot,
   totalTsFiles,
   fetchApiImportStats,
-  axiosConfigImportStats,
   rulesPath,
 }) {
   return [
@@ -109,10 +108,6 @@ function renderAnalysisMarkdown({
     '## fetchAPI import candidates',
     '',
     renderStatsList(fetchApiImportStats),
-    '',
-    '## AxiosRequestConfig import candidates',
-    '',
-    renderStatsList(axiosConfigImportStats),
     '',
     '## MVP v2 fixed defaults',
     '',
@@ -128,8 +123,6 @@ function buildRulesJsonc({
   analysisPath,
   fetchApiImportPath,
   fetchApiSymbol,
-  axiosConfigImportPath,
-  axiosConfigTypeName,
 }) {
   return `{
   // MVP v2 project-rules scaffold 입니다.
@@ -137,8 +130,6 @@ function buildRulesJsonc({
   "api": {
     "fetchApiImportPath": ${JSON.stringify(fetchApiImportPath)},
     "fetchApiSymbol": ${JSON.stringify(fetchApiSymbol)},
-    "axiosConfigImportPath": ${JSON.stringify(axiosConfigImportPath)},
-    "axiosConfigTypeName": ${JSON.stringify(axiosConfigTypeName)},
     "adapterStyle": "url-config",
     "wrapperGrouping": "tag",
     "tagFileCase": "title"
@@ -176,11 +167,8 @@ const rulesCommand = {
       : [];
 
     const fetchApiImportStats = await collectNamedImportStats(tsFiles, ['fetchAPI']);
-    const axiosConfigImportStats = await collectNamedImportStats(tsFiles, ['AxiosRequestConfig']);
     const fetchApiImportPath = findMostUsedImportPath(fetchApiImportStats) ?? '@/shared/api';
-    const axiosConfigImportPath = findMostUsedImportPath(axiosConfigImportStats) ?? 'axios';
     const fetchApiSymbol = 'fetchAPI';
-    const axiosConfigTypeName = 'AxiosRequestConfig';
 
     await writeText(
       analysisPath,
@@ -189,7 +177,6 @@ const rulesCommand = {
         analysisRoot: toPosixPath(path.relative(rootDir, analysisRoot)),
         totalTsFiles: tsFiles.length,
         fetchApiImportStats,
-        axiosConfigImportStats,
         rulesPath: toPosixPath(path.relative(rootDir, rulesPath)),
       }),
     );
@@ -205,8 +192,6 @@ const rulesCommand = {
           analysisPath: toPosixPath(path.relative(rootDir, analysisPath)),
           fetchApiImportPath,
           fetchApiSymbol,
-          axiosConfigImportPath,
-          axiosConfigTypeName,
         }),
       );
     } else {

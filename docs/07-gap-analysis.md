@@ -82,7 +82,7 @@
 
 핵심 갭:
 
-- 출력 구조는 `schema.ts + <tag>/<endpoint>.dto.ts + <tag>/<endpoint>.api.ts + <tag>/index.ts + _internal/* + index.ts`로 고정
+- 출력 구조는 `schema.ts + <tag>/<endpoint>.dto.ts + <tag>/<endpoint>.api.ts + <tag>/index.ts + index.ts`로 고정
 - wrapper 분할은 현재 `tag`만 지원
 - 성공 응답은 여전히 JSON 계열만 지원하고, multiple media type 선택 로직은 미지원
 
@@ -141,7 +141,7 @@
 
 ### 3. 생성 결과 구조가 의도적으로 고정돼 있음
 
-현재 후보 코드와 apply 대상은 `schema.ts + <tag>/<endpoint>.dto.ts + <tag>/<endpoint>.api.ts + _internal/*` 구조를 고정으로 사용합니다.
+현재 후보 코드와 apply 대상은 `schema.ts + <tag>/<endpoint>.dto.ts + <tag>/<endpoint>.api.ts` 구조를 고정으로 사용합니다.
 
 영향:
 

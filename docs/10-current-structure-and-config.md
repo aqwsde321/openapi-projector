@@ -32,9 +32,6 @@ openapi/
     src/
       openapi-generated/
         schema.ts
-        _internal/
-          fetch-api-adapter.ts
-          type-helpers.ts
         <tag>/
           <endpoint>.dto.ts
           <endpoint>.api.ts
@@ -54,9 +51,6 @@ openapi/project/src/openapi-generated/
     get-user-by-id.dto.ts
     get-user-by-id.api.ts
     index.ts
-  _internal/
-    fetch-api-adapter.ts
-    type-helpers.ts
   schema.ts
   index.ts
 ```
@@ -105,7 +99,6 @@ openapi/project/src/openapi-generated/
 
 - `openapi/project/src/openapi-generated/<tag>/<endpoint>.dto.ts`
 - `openapi/project/src/openapi-generated/<tag>/<endpoint>.api.ts`
-- `openapi/project/src/openapi-generated/_internal/*`
 - `openapi/project/manifest.json`
 - `openapi/project/summary.md`
 

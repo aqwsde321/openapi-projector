@@ -93,7 +93,6 @@ npm run openapi:project
 - `openapi/project/src/openapi-generated`
 - `openapi/project/src/openapi-generated/<tag>/<endpoint>.dto.ts`
 - `openapi/project/src/openapi-generated/<tag>/<endpoint>.api.ts`
-- `openapi/project/src/openapi-generated/_internal/fetch-api-adapter.ts`
 - `openapi/project/summary.md`
 
 ## 6. 실제 `src` 반영

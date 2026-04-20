@@ -87,8 +87,6 @@
 | --- | --- | --- |
 | `api.fetchApiImportPath` | 기존 fetch helper import 경로 | `@/shared/api` |
 | `api.fetchApiSymbol` | fetch helper 이름 | `fetchAPI` |
-| `api.axiosConfigImportPath` | request config 타입 import 경로 | `axios` |
-| `api.axiosConfigTypeName` | request config 타입 이름 | `AxiosRequestConfig` |
 | `api.adapterStyle` | runtime client 호출 방식 | `url-config`, `request-object` |
 | `api.tagFileCase` | 태그 폴더명 방식 | `title`, `kebab` |
 

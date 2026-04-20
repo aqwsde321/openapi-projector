@@ -3,8 +3,6 @@
   "api": {
     "fetchApiImportPath": "@/shared/api",
     "fetchApiSymbol": "fetchAPI",
-    "axiosConfigImportPath": "axios",
-    "axiosConfigTypeName": "AxiosRequestConfig",
     "adapterStyle": "url-config",
     "wrapperGrouping": "tag",
     "tagFileCase": "title"

@@ -184,8 +184,26 @@ function hasKind(parameters, requestBody, location) {
   return parameters.some((parameter) => parameter.in === location);
 }
 
+function normalizeOperationNameSource(value) {
+  const text = normalizeText(value);
+  if (!text) {
+    return '';
+  }
+
+  const withoutHttpVerbSuffix = text.replace(
+    /Using(?:GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)$/i,
+    '',
+  );
+  const withoutControllerPrefix = withoutHttpVerbSuffix.replace(
+    /^[A-Za-z0-9]+Controller(?:[_-]|(?=[A-Z]))?/,
+    '',
+  );
+
+  return withoutControllerPrefix || withoutHttpVerbSuffix || text;
+}
+
 function buildOperationSymbolBase(operation) {
-  const fallback = operation.operationId || operation.endpointId;
+  const fallback = normalizeOperationNameSource(operation.operationId) || operation.endpointId;
   return toCamelCase(fallback);
 }
 
@@ -232,66 +250,6 @@ function isSimpleObjectSchema(schema) {
       !schema.allOf &&
       !schema.enum,
   );
-}
-
-function collectOperationSchemaNames(spec, operation) {
-  const names = new Set(
-    Array.from(
-      collectRefs(
-        {
-          parameters: operation.parameters ?? [],
-          requestBody: operation.requestBody ?? {},
-          successResponse: operation.successResponse ?? {},
-        },
-        new Set(),
-      ),
-    )
-      .filter((ref) => typeof ref === 'string' && ref.startsWith('#/components/schemas/'))
-      .map((ref) => ref.split('/').at(-1))
-      .filter((name) => name && spec.components?.schemas?.[name]),
-  );
-  const queue = [...names];
-
-  while (queue.length > 0) {
-    const name = queue.shift();
-    const schema = spec.components?.schemas?.[name];
-
-    if (!schema) {
-      continue;
-    }
-
-    for (const nestedRef of collectRefs(schema, new Set())) {
-      if (typeof nestedRef !== 'string' || !nestedRef.startsWith('#/components/schemas/')) {
-        continue;
-      }
-
-      const nestedName = nestedRef.split('/').at(-1);
-      if (!nestedName || names.has(nestedName) || !spec.components?.schemas?.[nestedName]) {
-        continue;
-      }
-
-      names.add(nestedName);
-      queue.push(nestedName);
-    }
-  }
-
-  return Array.from(names);
-}
-
-function buildLocalSchemaContext(spec, operation, dtoBaseName) {
-  const localSchemaNames = Array.from(new Set(collectOperationSchemaNames(spec, operation))).sort(
-    (left, right) => left.localeCompare(right),
-  );
-  const schemaNameMap = new Map(
-    localSchemaNames.map((name) => [name, `${dtoBaseName}${toPascalCase(name)}`]),
-  );
-  const renderer = createTypeRenderer((name) => schemaNameMap.get(name) ?? name);
-
-  return {
-    localSchemaNames,
-    schemaNameMap,
-    renderer,
-  };
 }
 
 function renderConcreteNamedSchema(name, schema, renderer, description) {
@@ -349,250 +307,310 @@ function renderParameterDto(parameters, location, name, renderer) {
   return lines.join('\n');
 }
 
-function buildOperationTypeRef(operation) {
-  return `paths[${JSON.stringify(operation.path)}][${JSON.stringify(operation.method)}]`;
-}
-
-function renderStatusLiteral(status) {
-  if (/^\d+$/.test(String(status))) {
-    return String(Number(status));
+function resolveSchema(spec, schema) {
+  if (!schema) {
+    return null;
   }
 
-  return JSON.stringify(status);
+  return schema.$ref ? getByRef(spec, schema.$ref) : schema;
 }
 
-function renderTypeHelpersSource() {
-  return `type WildcardContent = {
-  "*/*": unknown;
-};
+function splitTypeNameTokens(value) {
+  return String(value).match(/[A-Z]+(?=[A-Z][a-z]|[0-9]|$)|[A-Z]?[a-z]+|[0-9]+/g) ?? [];
+}
 
-type JsonContent = {
-  "application/json": unknown;
-};
+function shortenSchemaTypeName(name) {
+  const tokens = splitTypeNameTokens(name).filter((token) => token !== 'Dto');
+  const used = new Set();
+  const compacted = [];
 
-type MultipartContent = {
-  "multipart/form-data": unknown;
-};
+  for (const token of tokens) {
+    const normalized = token.toLowerCase();
+    if (used.has(normalized)) {
+      continue;
+    }
+    used.add(normalized);
+    compacted.push(token);
+  }
 
-type PlusJsonContent = {
-  [key: \`\${string}+json\`]: unknown;
-};
+  return compacted.join('') || toPascalCase(name);
+}
 
-type ExtractJsonPayload<Content> =
-  Content extends JsonContent
-    ? Content["application/json"]
-    : Content extends WildcardContent
-      ? Content["*/*"]
-      : Content extends PlusJsonContent
-        ? Content[keyof Content & \`\${string}+json\`]
-        : never;
+function createUniqueTypeName(baseName, usedNames) {
+  const normalizedBaseName = toPascalCase(baseName || 'GeneratedType');
+  let candidate = normalizedBaseName;
+  let index = 2;
 
-type ExtractMultipartPayload<Content> =
-  Content extends MultipartContent
-    ? Content["multipart/form-data"]
-    : never;
+  while (usedNames.has(candidate)) {
+    candidate = `${normalizedBaseName}${index}`;
+    index += 1;
+  }
 
-export type PathParams<Operation> =
-  Operation extends { parameters: infer Params }
-    ? Params extends { path?: infer T }
-      ? T
-      : never
-    : never;
+  usedNames.add(candidate);
+  return candidate;
+}
 
-export type QueryParams<Operation> =
-  Operation extends { parameters: infer Params }
-    ? Params extends { query?: infer T }
-      ? T
-      : never
-    : never;
+function buildFieldEntriesFromParameters(parameters, location) {
+  return parameters
+    .filter((parameter) => parameter.in === location)
+    .map((parameter) => ({
+      name: parameter.name,
+      required: parameter.required,
+      schema: parameter.schema,
+      description: parameter.description,
+    }));
+}
 
-export type HeaderParams<Operation> =
-  Operation extends { parameters: infer Params }
-    ? Params extends { header?: infer T }
-      ? T
-      : never
-    : never;
+function buildFieldEntriesFromSchema(schema) {
+  const properties = schema?.properties ?? {};
+  const required = new Set(schema?.required ?? []);
 
-export type CookieParams<Operation> =
-  Operation extends { parameters: infer Params }
-    ? Params extends { cookie?: infer T }
-      ? T
-      : never
-    : never;
+  return Object.entries(properties).map(([name, propertySchema]) => ({
+    name,
+    required: required.has(name),
+    schema: propertySchema,
+    description: propertySchema.description,
+  }));
+}
 
-export type JsonRequestBody<Operation> =
-  Operation extends { requestBody?: infer Body }
-    ? Body extends { content: infer Content }
-      ? ExtractJsonPayload<Content>
-      : never
-    : never;
+function hasDuplicateFieldNames(entries) {
+  const seen = new Set();
 
-export type MultipartRequestBody<Operation> =
-  Operation extends { requestBody?: infer Body }
-    ? Body extends { content: infer Content }
-      ? ExtractMultipartPayload<Content>
-      : never
-    : never;
+  for (const entry of entries) {
+    const key = String(entry.name);
+    if (seen.has(key)) {
+      return true;
+    }
+    seen.add(key);
+  }
 
-export type JsonResponseForStatus<Operation, Status extends PropertyKey> =
-  Operation extends { responses: infer Responses }
-    ? Status extends keyof Responses
-      ? Responses[Status] extends { content: infer Content }
-        ? [ExtractJsonPayload<Content>] extends [never]
-          ? void
-          : ExtractJsonPayload<Content>
-        : void
-      : never
-    : never;
+  return false;
+}
 
-export function buildPath(
-  template: string,
-  pathParams: object,
-): string {
-  const source = pathParams as Record<string, string | number | boolean | null | undefined>;
+function buildLocalSchemaContext(spec, operation, reservedNames = []) {
+  const refs = new Set();
 
-  return template.replace(/\\{([^}]+)\\}/g, (_, key) => {
-    const value = source[key];
+  for (const parameter of operation.parameters ?? []) {
+    collectRefs(parameter.schema, refs);
+  }
 
-    if (value === undefined || value === null) {
-      throw new Error(\`Missing path parameter: \${key}\`);
+  const requestSchema = resolveSchema(spec, getRequestBodySchema(spec, operation.requestBody));
+  const responseSchema = resolveSchema(spec, getResponseSchema(spec, operation.successResponse));
+
+  collectRefs(requestSchema, refs);
+  collectRefs(responseSchema, refs);
+
+  const localSchemaNames = new Set(
+    Array.from(refs)
+      .filter((ref) => typeof ref === 'string' && ref.startsWith('#/components/schemas/'))
+      .map((ref) => ref.split('/').at(-1))
+      .filter((name) => name && spec.components?.schemas?.[name]),
+  );
+  const queuedSchemaNames = [...localSchemaNames];
+
+  while (queuedSchemaNames.length > 0) {
+    const schemaName = queuedSchemaNames.shift();
+    const schema = schemaName ? spec.components?.schemas?.[schemaName] : null;
+
+    if (!schema) {
+      continue;
     }
 
-    return encodeURIComponent(String(value));
+    const nestedRefs = new Set();
+    collectRefs(schema, nestedRefs);
+
+    for (const nestedRef of nestedRefs) {
+      if (
+        typeof nestedRef !== 'string' ||
+        !nestedRef.startsWith('#/components/schemas/')
+      ) {
+        continue;
+      }
+
+      const nestedSchemaName = nestedRef.split('/').at(-1);
+      if (!nestedSchemaName || !spec.components?.schemas?.[nestedSchemaName]) {
+        continue;
+      }
+
+      if (localSchemaNames.has(nestedSchemaName)) {
+        continue;
+      }
+
+      localSchemaNames.add(nestedSchemaName);
+      queuedSchemaNames.push(nestedSchemaName);
+    }
+  }
+
+  const sortedLocalSchemaNames = Array.from(localSchemaNames).sort((left, right) =>
+    left.localeCompare(right),
+  );
+
+  const usedTypeNames = new Set(reservedNames);
+  const schemaNameMap = new Map(
+    sortedLocalSchemaNames.map((name) => [
+      name,
+      createUniqueTypeName(shortenSchemaTypeName(name), usedTypeNames),
+    ]),
+  );
+  const renderer = createTypeRenderer((name) => schemaNameMap.get(name) ?? name);
+
+  return {
+    localSchemaNames: sortedLocalSchemaNames,
+    schemaNameMap,
+    renderer,
+  };
+}
+
+function renderInlineRequestDtoSource({
+  name,
+  description,
+  fields,
+  renderer,
+}) {
+  const lines = [...buildJsDoc(description), `export interface ${name} {`];
+
+  for (const field of fields) {
+    lines.push(...buildJsDoc(field.description, '  '));
+    lines.push(
+      `  ${quotePropertyName(field.name)}${field.required ? '' : '?'}: ${renderer.renderType(
+        field.schema,
+      )};`,
+    );
+  }
+
+  lines.push('}');
+  return lines.join('\n');
+}
+
+function renderNestedRequestDtoSource({
+  name,
+  description,
+  pathFields,
+  queryFields,
+  headerFields,
+  cookieFields,
+  bodyTypeName,
+  hasRequestBody,
+  bodyRequired,
+  renderer,
+}) {
+  const lines = [...buildJsDoc(description), `export interface ${name} {`];
+
+  const groups = [
+    ['pathParams', 'path parameters', pathFields, true],
+    ['params', 'query parameters', queryFields, false],
+    ['headers', 'header parameters', headerFields, false],
+    ['cookies', 'cookie parameters', cookieFields, false],
+  ];
+
+  for (const [propertyName, label, fields, required] of groups) {
+    if (fields.length === 0) {
+      continue;
+    }
+
+    lines.push(...buildJsDoc(label, '  '));
+    lines.push(`  ${propertyName}${required ? '' : '?'}: {`);
+    for (const field of fields) {
+      lines.push(...buildJsDoc(field.description, '    '));
+      lines.push(
+        `    ${quotePropertyName(field.name)}${field.required ? '' : '?'}: ${renderer.renderType(
+          field.schema,
+        )};`,
+      );
+    }
+    lines.push('  };');
+  }
+
+  if (hasRequestBody && bodyTypeName) {
+    lines.push(...buildJsDoc('request body', '  '));
+    lines.push(`  data${bodyRequired ? '' : '?'}: ${bodyTypeName};`);
+  }
+
+  lines.push('}');
+  return lines.join('\n');
+}
+
+function getDestructuredLocalName(propertyName) {
+  if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(propertyName)) {
+    return propertyName;
+  }
+
+  return toCamelCase(propertyName);
+}
+
+function buildPathTemplateExpression(template, getValueExpression) {
+  return `\`${template.replace(
+    /\{([^}]+)\}/g,
+    (_, key) => `\${${getValueExpression(key)}}`,
+  )}\``;
+}
+
+function buildObjectLiteral(entries, sourceExpression) {
+  return `{ ${entries
+    .map((entry) => `${JSON.stringify(entry.name)}: ${sourceExpression}[${JSON.stringify(entry.name)}]`)
+    .join(', ')} }`;
+}
+
+function buildDestructuringEntries(entries) {
+  return entries.map((entry) => {
+    const propertyName = String(entry.name);
+    if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(propertyName)) {
+      return propertyName;
+    }
+    return `${JSON.stringify(propertyName)}: ${getDestructuredLocalName(propertyName)}`;
   });
 }
 
-function isObjectRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function toHeaderRecord(value: unknown): Record<string, string> {
-  if (!isObjectRecord(value)) {
-    return {};
-  }
-
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([, item]) => item !== undefined && item !== null)
-      .map(([key, item]) => [key, String(item)]),
-  );
-}
-
-export function buildCookieHeader(
-  cookieParams: Record<string, string | number | boolean | null | undefined> | undefined,
-): string | undefined {
-  if (!cookieParams) {
-    return undefined;
-  }
-
-  const entries = Object.entries(cookieParams)
-    .filter(([, value]) => value !== undefined && value !== null)
-    .map(([key, value]) => encodeURIComponent(key) + '=' + encodeURIComponent(String(value)));
-
-  return entries.length > 0 ? entries.join('; ') : undefined;
-}
-
-export function mergeRequestHeaders(
-  baseHeaders: unknown,
-  headerParams: unknown,
-  cookieParams: Record<string, string | number | boolean | null | undefined> | undefined,
-): Record<string, string> | undefined {
-  const mergedHeaders = {
-    ...toHeaderRecord(baseHeaders),
-    ...toHeaderRecord(headerParams),
-  };
-  const cookieHeader = buildCookieHeader(cookieParams);
-
-  if (!cookieHeader) {
-    return Object.keys(mergedHeaders).length > 0 ? mergedHeaders : undefined;
-  }
-
-  const existingCookie =
-    typeof mergedHeaders.Cookie === 'string'
-      ? mergedHeaders.Cookie
-      : typeof mergedHeaders.cookie === 'string'
-        ? mergedHeaders.cookie
-        : undefined;
-
-  mergedHeaders.Cookie = existingCookie ? existingCookie + '; ' + cookieHeader : cookieHeader;
-
-  return mergedHeaders;
-}
-`;
-}
-
-function renderAdapterSource({
+function renderOperationSection({
+  spec,
+  operation,
+  functionName,
+  dtoImportPath,
   runtimeFetchImportPath,
   runtimeFetchSymbol,
-  runtimeConfigImportPath,
-  runtimeConfigTypeName,
-  adapterStyle,
+  runtimeCallStyle,
 }) {
-  const importLines = [];
-
-  if (runtimeConfigImportPath === runtimeFetchImportPath) {
-    importLines.push(
-      `import { ${runtimeFetchSymbol} as runtimeFetchAPI, type ${runtimeConfigTypeName} as RuntimeRequestConfig } from '${runtimeFetchImportPath}';`,
-    );
-  } else {
-    importLines.push(
-      `import { ${runtimeFetchSymbol} as runtimeFetchAPI } from '${runtimeFetchImportPath}';`,
-    );
-    importLines.push(
-      `import type { ${runtimeConfigTypeName} as RuntimeRequestConfig } from '${runtimeConfigImportPath}';`,
-    );
-  }
-
-  const callExpression =
-    adapterStyle === 'request-object'
-      ? `runtimeFetchAPI<T>({ url, ...config })`
-      : `runtimeFetchAPI<T>(url, config)`;
-
-  return [
-    ...importLines,
-    '',
-    'export type AxiosRequestConfig = RuntimeRequestConfig;',
-    '',
-    'export async function fetchAPI<T>(',
-    '  url: string,',
-    '  config: AxiosRequestConfig,',
-    '): Promise<T> {',
-    `  return ${callExpression};`,
-    '}',
-    '',
-  ].join('\n');
-}
-
-function renderOperationSection({ spec, operation, functionName, dtoImportPath }) {
   const dtoBaseName = toPascalIdentifier(functionName);
-  const queryTypeName = `${dtoBaseName}QueryParamsDto`;
-  const pathTypeName = `${dtoBaseName}PathParamsDto`;
-  const headerTypeName = `${dtoBaseName}HeaderParamsDto`;
-  const cookieTypeName = `${dtoBaseName}CookieParamsDto`;
   const bodyTypeName = `${dtoBaseName}RequestDto`;
   const responseTypeName = `${dtoBaseName}ResponseDto`;
-  const argsTypeName = `${dtoBaseName}ArgsDto`;
-  const hasPathParams = hasKind(operation.parameters, null, 'path');
-  const hasQueryParams = hasKind(operation.parameters, null, 'query');
-  const hasHeaderParams = hasKind(operation.parameters, null, 'header');
-  const hasCookieParams = hasKind(operation.parameters, null, 'cookie');
-  const hasRequestBody = hasKind([], operation.requestBody, 'body');
-  const activeKinds = [
-    hasPathParams,
-    hasQueryParams,
-    hasHeaderParams,
-    hasCookieParams,
-    hasRequestBody,
-  ].filter(Boolean).length;
-  const pathRequired = buildPathParamsRequired(operation.parameters);
-  const queryRequired = buildQueryRequired(operation.parameters);
-  const headerRequired = buildHeaderRequired(operation.parameters);
-  const cookieRequired = buildCookieRequired(operation.parameters);
+  const requestShapeName = `${dtoBaseName}Body`;
+  const pathFields = buildFieldEntriesFromParameters(operation.parameters, 'path');
+  const queryFields = buildFieldEntriesFromParameters(operation.parameters, 'query');
+  const headerFields = buildFieldEntriesFromParameters(operation.parameters, 'header');
+  const cookieFields = buildFieldEntriesFromParameters(operation.parameters, 'cookie');
+  const requestSchema = resolveSchema(spec, getRequestBodySchema(spec, operation.requestBody));
+  const responseSchema = resolveSchema(spec, getResponseSchema(spec, operation.successResponse));
+  const bodyFields =
+    requestSchema && isSimpleObjectSchema(requestSchema)
+      ? buildFieldEntriesFromSchema(requestSchema)
+      : [];
+  const hasRequestBody = Boolean(requestSchema);
+  const hasAnyParams =
+    pathFields.length > 0 ||
+    queryFields.length > 0 ||
+    headerFields.length > 0 ||
+    cookieFields.length > 0;
+  const hasAnyInputs = hasAnyParams || hasRequestBody;
+  const renderRequestAsBodyOnly = hasRequestBody && !hasAnyParams;
+  const canFlattenRequest =
+    hasAnyInputs &&
+    (!hasRequestBody ||
+      (isSimpleObjectSchema(requestSchema) &&
+        !hasDuplicateFieldNames([
+          ...pathFields,
+          ...queryFields,
+          ...headerFields,
+          ...cookieFields,
+          ...bodyFields,
+        ])));
+  const usesNestedRequest = hasAnyInputs && !renderRequestAsBodyOnly && !canFlattenRequest;
   const bodyRequired = Boolean(operation.requestBody?.required);
   const docText = normalizeText(operation.summary || operation.description);
-  const requestSchema = getRequestBodySchema(spec, operation.requestBody);
-  const responseSchema = getResponseSchema(spec, operation.successResponse);
-  const schemaContext = buildLocalSchemaContext(spec, operation, dtoBaseName);
+  const schemaContext = buildLocalSchemaContext(spec, operation, [
+    bodyTypeName,
+    responseTypeName,
+    requestShapeName,
+  ]);
   const dtoLines = [];
 
   if (schemaContext.localSchemaNames.length > 0) {
@@ -609,28 +627,7 @@ function renderOperationSection({ spec, operation, functionName, dtoImportPath }
     }
   }
 
-  const pathDtoSource = hasPathParams
-    ? renderParameterDto(operation.parameters, 'path', pathTypeName, schemaContext.renderer)
-    : null;
-  const queryDtoSource = hasQueryParams
-    ? renderParameterDto(operation.parameters, 'query', queryTypeName, schemaContext.renderer)
-    : null;
-  const headerDtoSource = hasHeaderParams
-    ? renderParameterDto(operation.parameters, 'header', headerTypeName, schemaContext.renderer)
-    : null;
-  const cookieDtoSource = hasCookieParams
-    ? renderParameterDto(operation.parameters, 'cookie', cookieTypeName, schemaContext.renderer)
-    : null;
-
-  for (const block of [pathDtoSource, queryDtoSource, headerDtoSource, cookieDtoSource]) {
-    if (!block) {
-      continue;
-    }
-    dtoLines.push(block);
-    dtoLines.push('');
-  }
-
-  if (hasRequestBody && requestSchema) {
+  if (renderRequestAsBodyOnly && requestSchema) {
     dtoLines.push(
       renderConcreteNamedSchema(
         bodyTypeName,
@@ -638,6 +635,44 @@ function renderOperationSection({ spec, operation, functionName, dtoImportPath }
         schemaContext.renderer,
         operation.requestBody?.description ?? docText,
       ),
+    );
+    dtoLines.push('');
+  } else if (canFlattenRequest) {
+    dtoLines.push(
+      renderInlineRequestDtoSource({
+        name: bodyTypeName,
+        description: operation.requestBody?.description ?? docText,
+        fields: [...pathFields, ...queryFields, ...headerFields, ...cookieFields, ...bodyFields],
+        renderer: schemaContext.renderer,
+      }),
+    );
+    dtoLines.push('');
+  } else if (usesNestedRequest) {
+    if (hasRequestBody && requestSchema) {
+      dtoLines.push(
+        renderConcreteNamedSchema(
+          requestShapeName,
+          requestSchema,
+          schemaContext.renderer,
+          operation.requestBody?.description ?? docText,
+        ),
+      );
+      dtoLines.push('');
+    }
+
+    dtoLines.push(
+      renderNestedRequestDtoSource({
+        name: bodyTypeName,
+        description: operation.requestBody?.description ?? docText,
+        pathFields,
+        queryFields,
+        headerFields,
+        cookieFields,
+        bodyTypeName: hasRequestBody ? requestShapeName : null,
+        hasRequestBody,
+        bodyRequired,
+        renderer: schemaContext.renderer,
+      }),
     );
     dtoLines.push('');
   }
@@ -652,28 +687,6 @@ function renderOperationSection({ spec, operation, functionName, dtoImportPath }
   );
   dtoLines.push('');
 
-  if (activeKinds > 1) {
-    dtoLines.push(...buildJsDoc(docText));
-    dtoLines.push(`export interface ${argsTypeName} {`);
-    if (hasPathParams) {
-      dtoLines.push(`  pathParams${pathRequired ? '' : '?'}: ${pathTypeName};`);
-    }
-    if (hasQueryParams) {
-      dtoLines.push(`  params${queryRequired ? '' : '?'}: ${queryTypeName};`);
-    }
-    if (hasRequestBody) {
-      dtoLines.push(`  data${bodyRequired ? '' : '?'}: ${bodyTypeName};`);
-    }
-    if (hasHeaderParams) {
-      dtoLines.push(`  headers${headerRequired ? '' : '?'}: ${headerTypeName};`);
-    }
-    if (hasCookieParams) {
-      dtoLines.push(`  cookies${cookieRequired ? '' : '?'}: ${cookieTypeName};`);
-    }
-    dtoLines.push('}');
-    dtoLines.push('');
-  }
-
   const apiLines = [];
   if (docText) {
     apiLines.push('/**');
@@ -683,83 +696,145 @@ function renderOperationSection({ spec, operation, functionName, dtoImportPath }
     apiLines.push(' */');
   }
 
-  let signature = '(config?: AxiosRequestConfig)';
+  let signature = `(): Promise<${responseTypeName}>`;
   const apiTypeImports = new Set([responseTypeName]);
+  const usesRestQuery =
+    canFlattenRequest &&
+    pathFields.length > 0 &&
+    queryFields.length > 0 &&
+    headerFields.length === 0 &&
+    cookieFields.length === 0 &&
+    !hasRequestBody;
+  const usesRestBody =
+    canFlattenRequest &&
+    pathFields.length > 0 &&
+    queryFields.length === 0 &&
+    headerFields.length === 0 &&
+    cookieFields.length === 0 &&
+    hasRequestBody;
+  const usesPathDestructure = pathFields.length > 0 && !usesNestedRequest;
 
-  if (activeKinds === 1) {
-    if (hasPathParams) {
-      signature = `(${pathRequired ? 'pathParams' : 'pathParams?'}: ${pathTypeName}, config?: AxiosRequestConfig)`;
-      apiTypeImports.add(pathTypeName);
-    } else if (hasQueryParams) {
-      signature = `(${queryRequired ? 'params' : 'params?'}: ${queryTypeName}, config?: AxiosRequestConfig)`;
-      apiTypeImports.add(queryTypeName);
-    } else if (hasRequestBody) {
-      signature = `(${bodyRequired ? 'data' : 'data?'}: ${bodyTypeName}, config?: AxiosRequestConfig)`;
-      apiTypeImports.add(bodyTypeName);
-    } else if (hasHeaderParams) {
-      signature = `(${headerRequired ? 'headers' : 'headers?'}: ${headerTypeName}, config?: AxiosRequestConfig)`;
-      apiTypeImports.add(headerTypeName);
-    } else if (hasCookieParams) {
-      signature = `(${cookieRequired ? 'cookies' : 'cookies?'}: ${cookieTypeName}, config?: AxiosRequestConfig)`;
-      apiTypeImports.add(cookieTypeName);
-    }
-  } else if (activeKinds > 1) {
-    signature = `(args: ${argsTypeName}, config?: AxiosRequestConfig)`;
-    apiTypeImports.add(argsTypeName);
+  if (hasAnyInputs) {
+    signature = `(requestDto: ${bodyTypeName}): Promise<${responseTypeName}>`;
+    apiTypeImports.add(bodyTypeName);
   }
 
-  const endpointExpression = hasPathParams
-    ? `buildPath(${JSON.stringify(operation.path)}, ${activeKinds === 1 ? 'pathParams' : 'args.pathParams'})`
+  const endpointExpression = pathFields.length > 0
+    ? buildPathTemplateExpression(operation.path, (key) => {
+        if (usesNestedRequest) {
+          return `requestDto.pathParams[${JSON.stringify(key)}]`;
+        }
+
+        if (usesPathDestructure) {
+          return getDestructuredLocalName(key);
+        }
+
+        return `requestDto[${JSON.stringify(key)}]`;
+      })
     : JSON.stringify(operation.path);
 
-  const configEntries = ['...(config ?? {})', `method: ${JSON.stringify(operation.method.toUpperCase())}`];
+  const functionBodyLines = [];
 
-  if (hasQueryParams) {
-    configEntries.push(`params: ${activeKinds === 1 ? 'params' : 'args.params'}`);
-  }
-
-  if (hasRequestBody) {
-    configEntries.push(`data: ${activeKinds === 1 ? 'data' : 'args.data'}`);
-  }
-
-  if (hasHeaderParams || hasCookieParams) {
-    const headerExpression = hasHeaderParams
-      ? activeKinds === 1
-        ? 'headers'
-        : 'args.headers'
-      : 'undefined';
-    const cookieExpression = hasCookieParams
-      ? activeKinds === 1
-        ? 'cookies'
-        : 'args.cookies'
-      : 'undefined';
-    configEntries.push(
-      `headers: mergeRequestHeaders(config?.headers, ${headerExpression}, ${cookieExpression})`,
+  if (usesRestQuery || usesRestBody) {
+    functionBodyLines.push(
+      `  const { ${buildDestructuringEntries(pathFields).join(', ')}, ...${
+        usesRestQuery ? 'params' : 'data'
+      } } = requestDto;`,
+    );
+  } else if (usesPathDestructure) {
+    functionBodyLines.push(
+      `  const { ${buildDestructuringEntries(pathFields).join(', ')} } = requestDto;`,
     );
   }
 
-  apiLines.push(
-    `const ${functionName} = async ${signature}: Promise<${responseTypeName}> => {`,
-    `  return fetchAPI<${responseTypeName}>(${endpointExpression}, {`,
-    ...configEntries.map((entry) => `    ${entry},`),
-    '  });',
-    '};',
-    '',
-    `export { ${functionName} };`,
-  );
+  if (headerFields.length > 0) {
+    const headerSource = usesNestedRequest
+      ? 'requestDto.headers ?? {}'
+      : buildObjectLiteral(headerFields, 'requestDto');
+    functionBodyLines.push(
+      `  const headers = Object.fromEntries(Object.entries(${headerSource}).filter(([, value]) => value !== undefined && value !== null).map(([key, value]) => [key, String(value)])) as Record<string, string>;`,
+    );
+  }
+
+  if (cookieFields.length > 0) {
+    const cookieSource = usesNestedRequest
+      ? 'requestDto.cookies ?? {}'
+      : buildObjectLiteral(cookieFields, 'requestDto');
+    functionBodyLines.push(
+      `  const cookieEntries = Object.entries(${cookieSource}).filter(([, value]) => value !== undefined && value !== null).map(([key, value]) => \`\${encodeURIComponent(key)}=\${encodeURIComponent(String(value))}\`);`,
+    );
+    if (headerFields.length === 0) {
+      functionBodyLines.push('  const headers = {} as Record<string, string>;');
+    }
+    functionBodyLines.push("  if (cookieEntries.length > 0) headers.Cookie = cookieEntries.join('; ');");
+  }
+
+  const configEntries = [`method: ${JSON.stringify(operation.method.toUpperCase())}`];
+
+  if (queryFields.length > 0) {
+    configEntries.push(
+      usesRestQuery
+        ? 'params'
+        : `params: ${usesNestedRequest ? 'requestDto.params' : buildObjectLiteral(queryFields, 'requestDto')}`,
+    );
+  }
+
+  if (hasRequestBody) {
+    if (renderRequestAsBodyOnly) {
+      configEntries.push('data: requestDto');
+    } else if (usesRestBody) {
+      configEntries.push('data');
+    } else if (usesNestedRequest) {
+      configEntries.push('data: requestDto.data');
+    } else {
+      configEntries.push(`data: ${buildObjectLiteral(bodyFields, 'requestDto')}`);
+    }
+  }
+
+  if (headerFields.length > 0 || cookieFields.length > 0) {
+    configEntries.push('headers: Object.keys(headers).length > 0 ? headers : undefined');
+  }
+
+  if (runtimeCallStyle === 'request-object') {
+    apiLines.push(
+      `export const ${functionName} = async ${signature} => {`,
+      ...functionBodyLines,
+      `  const response = await fetchAPI<${responseTypeName}>({`,
+      `    url: ${endpointExpression},`,
+      ...configEntries.map((entry) => `    ${entry},`),
+      '  });',
+      '  return response;',
+      '};',
+    );
+  } else {
+    apiLines.push(
+      `export const ${functionName} = async ${signature} => {`,
+      ...functionBodyLines,
+      `  const response = await fetchAPI<${responseTypeName}>(${endpointExpression}, {`,
+      ...configEntries.map((entry) => `    ${entry},`),
+      '  });',
+      '  return response;',
+      '};',
+    );
+  }
 
   return {
     apiSource: apiLines.join('\n'),
     dtoSource: dtoLines.join('\n').trimEnd(),
     apiImports: [
-      `import { fetchAPI, type AxiosRequestConfig } from '../_internal/fetch-api-adapter';`,
+      `import { ${runtimeFetchSymbol} as fetchAPI } from '${runtimeFetchImportPath}';`,
       `import type { ${Array.from(apiTypeImports).sort((left, right) => left.localeCompare(right)).join(', ')} } from '${dtoImportPath}';`,
-      `import { buildPath, mergeRequestHeaders } from '../_internal/type-helpers';`,
     ],
   };
 }
 
-function renderTagFolderOutputs({ spec, tag, operations }) {
+function renderTagFolderOutputs({
+  spec,
+  operations,
+  runtimeFetchImportPath,
+  runtimeFetchSymbol,
+  runtimeCallStyle,
+}) {
   const usedNames = new Set();
   const endpointFiles = [];
 
@@ -774,6 +849,9 @@ function renderTagFolderOutputs({ spec, tag, operations }) {
       operation,
       functionName,
       dtoImportPath: `./${endpointFileBase}.dto`,
+      runtimeFetchImportPath,
+      runtimeFetchSymbol,
+      runtimeCallStyle,
     });
 
     endpointFiles.push({
@@ -856,12 +934,9 @@ async function writeProjectOutputs({
 
   const schemaFileName = layoutRules.schemaFileName ?? 'schema.ts';
   const schemaOutputPath = path.join(projectGeneratedSrcDir, schemaFileName);
-  const helperOutputPath = path.join(projectGeneratedSrcDir, '_internal', 'type-helpers.ts');
-  const adapterOutputPath = path.join(projectGeneratedSrcDir, '_internal', 'fetch-api-adapter.ts');
   const indexOutputPath = path.join(projectGeneratedSrcDir, 'index.ts');
   const tagFileMap = new Map();
   const manifestFiles = [];
-  const adapterStyle = apiRules.adapterStyle ?? 'url-config';
 
   await writeText(schemaOutputPath, schemaContents);
   manifestFiles.push({
@@ -869,33 +944,6 @@ async function writeProjectOutputs({
     generated: path.relative(rootDir, schemaOutputPath).replaceAll(path.sep, '/'),
     target: path
       .join(applyTargetSrcDir, schemaFileName)
-      .replaceAll(path.sep, '/'),
-  });
-
-  await writeText(helperOutputPath, renderTypeHelpersSource());
-  manifestFiles.push({
-    kind: 'internal',
-    generated: path.relative(rootDir, helperOutputPath).replaceAll(path.sep, '/'),
-    target: path
-      .join(applyTargetSrcDir, '_internal', 'type-helpers.ts')
-      .replaceAll(path.sep, '/'),
-  });
-
-  await writeText(
-    adapterOutputPath,
-    renderAdapterSource({
-      runtimeFetchImportPath: apiRules.fetchApiImportPath ?? '@/shared/api',
-      runtimeFetchSymbol: apiRules.fetchApiSymbol ?? 'fetchAPI',
-      runtimeConfigImportPath: apiRules.axiosConfigImportPath ?? 'axios',
-      runtimeConfigTypeName: apiRules.axiosConfigTypeName ?? 'AxiosRequestConfig',
-      adapterStyle,
-    }),
-  );
-  manifestFiles.push({
-    kind: 'internal',
-    generated: path.relative(rootDir, adapterOutputPath).replaceAll(path.sep, '/'),
-    target: path
-      .join(applyTargetSrcDir, '_internal', 'fetch-api-adapter.ts')
       .replaceAll(path.sep, '/'),
   });
 
@@ -919,8 +967,10 @@ async function writeProjectOutputs({
     const tagIndexPath = path.join(tagDirectoryPath, 'index.ts');
     const renderedTag = renderTagFolderOutputs({
       spec,
-      tag: tagFileName,
       operations: tagFileMap.get(tagFileName),
+      runtimeFetchImportPath: apiRules.fetchApiImportPath ?? '@/shared/api',
+      runtimeFetchSymbol: apiRules.fetchApiSymbol ?? 'fetchAPI',
+      runtimeCallStyle: apiRules.adapterStyle === 'request-object' ? 'request-object' : 'url-config',
     });
     for (const endpointFile of renderedTag.endpointFiles) {
       const dtoFilePath = path.join(tagDirectoryPath, `${endpointFile.endpointFileBase}.dto.ts`);
@@ -985,7 +1035,6 @@ async function writeProjectOutputs({
 export {
   collectProjectOperations,
   renderProjectSummary,
-  renderTypeHelpersSource,
   validateProjectOperations,
   writeProjectOutputs,
 };
