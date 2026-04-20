@@ -8,7 +8,6 @@ import { catalogCommand } from './commands/catalog.mjs';
 import { generateCommand } from './commands/generate.mjs';
 import { rulesCommand } from './commands/rules.mjs';
 import { projectCommand } from './commands/project.mjs';
-import { applyCommand } from './commands/apply.mjs';
 import { refreshCommand } from './commands/refresh.mjs';
 
 const commandMap = new Map([
@@ -19,7 +18,6 @@ const commandMap = new Map([
   ['generate', generateCommand],
   ['rules', rulesCommand],
   ['project', projectCommand],
-  ['apply', applyCommand],
   ['refresh', refreshCommand],
 ]);
 

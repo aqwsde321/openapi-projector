@@ -30,8 +30,6 @@
   - 대상 프로젝트의 `src/entities`를 우선 분석하고, 없으면 `src` fallback 으로 규칙 문서/scaffold 생성
 - `project`
   - `project-rules.jsonc` 기준으로 `schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API` 후보 코드 생성
-- `apply`
-  - 후보 코드를 실제 `src`로 반영
 
 ## 개발 시 확인할 것
 
@@ -47,7 +45,6 @@ node ./bin/openapi-tool.mjs catalog
 node ./bin/openapi-tool.mjs generate
 node ./bin/openapi-tool.mjs rules
 node ./bin/openapi-tool.mjs project
-node ./bin/openapi-tool.mjs apply
 ```
 
 ### 2. bootstrap 시나리오

@@ -16,7 +16,6 @@
     "openapi:generate": "node ./bin/openapi-tool.mjs generate",
     "openapi:rules": "node ./bin/openapi-tool.mjs rules",
     "openapi:project": "node ./bin/openapi-tool.mjs project",
-    "openapi:apply": "node ./bin/openapi-tool.mjs apply",
     "openapi:refresh": "node ./bin/openapi-tool.mjs refresh",
     "test": "node --test"
   },

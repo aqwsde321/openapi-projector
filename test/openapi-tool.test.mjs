@@ -8,7 +8,6 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 import { runCli } from '../src/cli.mjs';
-import { applyCommand } from '../src/commands/apply.mjs';
 import { generateCommand } from '../src/commands/generate.mjs';
 import { projectCommand } from '../src/commands/project.mjs';
 import { rulesCommand } from '../src/commands/rules.mjs';
@@ -65,8 +64,6 @@ async function setupWorkspace({
         api: {
           fetchApiImportPath: '../../test-support/fetch-api',
           fetchApiSymbol: 'fetchAPI',
-          axiosConfigImportPath: '../../test-support/http',
-          axiosConfigTypeName: 'AxiosRequestConfig',
           adapterStyle: 'url-config',
           wrapperGrouping: 'tag',
           tagFileCase: 'title',
@@ -236,18 +233,14 @@ test(
 );
 
 test(
-  'project creates schema and tag wrappers, then apply copies them',
+  'project creates schema, tag wrappers, and manifest for manual handoff',
   { concurrency: false },
   async () => {
     const spec = await readFixtureJson('oas31.json');
     const extraFiles = [
       {
-        path: 'openapi/project/src/test-support/http.ts',
-        content: `export type AxiosRequestConfig = {\n  headers?: Record<string, string>;\n  params?: unknown;\n  data?: unknown;\n  method?: string;\n};\n`,
-      },
-      {
         path: 'openapi/project/src/test-support/fetch-api.ts',
-        content: `import type { AxiosRequestConfig } from './http';\n\nexport async function fetchAPI<T>(_url: string, _config: AxiosRequestConfig): Promise<T> {\n  return undefined as T;\n}\n`,
+        content: `export type RequestConfig = {\n  headers?: Record<string, string>;\n  params?: unknown;\n  data?: unknown;\n  method?: string;\n};\n\nexport async function fetchAPI<T>(_url: string, _config: RequestConfig): Promise<T> {\n  return undefined as T;\n}\n`,
       },
       {
         path: 'openapi/project/src/tsconfig.json',
@@ -280,6 +273,7 @@ test(
       const profilesApiPath = path.join(generatedRoot, 'profiles/update-profile.api.ts');
       const defaultIndexPath = path.join(generatedRoot, 'default/index.ts');
       const profilesIndexPath = path.join(generatedRoot, 'profiles/index.ts');
+      const manifestPath = path.join(workspace, 'openapi/project/manifest.json');
       await assertExists(path.join(generatedRoot, 'schema.ts'));
       await assertExists(defaultDtoPath);
       await assertExists(profilesDtoPath);
@@ -288,6 +282,7 @@ test(
       await assertExists(defaultIndexPath);
       await assertExists(profilesIndexPath);
       await assertExists(path.join(generatedRoot, 'index.ts'));
+      await assertExists(manifestPath);
 
       const defaultApiSource = await fs.readFile(defaultApiPath, 'utf8');
       const defaultDtoSource = await fs.readFile(defaultDtoPath, 'utf8');
@@ -306,14 +301,6 @@ test(
         '-p',
         path.join(workspace, 'openapi/project/src/tsconfig.json'),
       ]);
-
-      await runInWorkspace(workspace, () => applyCommand.run());
-
-      await assertExists(path.join(workspace, 'src/openapi-generated/schema.ts'));
-      await assertExists(path.join(workspace, 'src/openapi-generated/default/get-health-status.dto.ts'));
-      await assertExists(path.join(workspace, 'src/openapi-generated/profiles/update-profile.dto.ts'));
-      await assertExists(path.join(workspace, 'src/openapi-generated/default/get-health-status.api.ts'));
-      await assertExists(path.join(workspace, 'src/openapi-generated/profiles/update-profile.api.ts'));
     });
   },
 );

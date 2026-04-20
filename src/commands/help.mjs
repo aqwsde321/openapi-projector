@@ -6,7 +6,6 @@ const commands = [
   ['generate', 'review 문서와 schema.ts 생성'],
   ['rules', 'project 규칙 분석 문서와 scaffold 생성'],
   ['project', '규칙 기반 DTO/API 후보 코드 생성'],
-  ['apply', 'project 후보를 실제 src 로 반영'],
   ['refresh', 'download + catalog + generate'],
 ];
 
@@ -25,7 +24,7 @@ const helpCommand = {
     console.log('  1. .openapi-tool.local.example.jsonc 를 .openapi-tool.local.jsonc 로 복사합니다.');
     console.log('  2. projectRoot 를 대상 프로젝트 절대 경로로 채웁니다.');
     console.log('  3. 필요하면 initDefaults.sourceUrl 도 같이 채웁니다.');
-    console.log('  4. 저장 후 init -> refresh -> rules -> project -> apply 순서로 실행합니다.');
+    console.log('  4. 저장 후 init -> refresh -> rules -> project 순서로 실행합니다.');
     console.log('');
     console.log('Commands:');
     for (const [name, description] of commands) {
@@ -40,11 +39,11 @@ const helpCommand = {
     console.log('  - project 후보는 openapi/project 아래에 생성됩니다.');
     console.log('  - generate 는 review 문서와 schema.ts 만 생성합니다.');
     console.log('  - project 는 schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API 후보 코드를 생성합니다.');
-    console.log('  - apply 만 실제 대상 프로젝트 src 경로를 변경합니다.');
+    console.log('  - 실제 반영은 사람이거나 AI가 openapi/project 결과를 보고 진행합니다.');
     console.log('  - 새 프로젝트 시작은 init 명령으로 bootstrap 합니다.');
     console.log('');
     console.log('Recommended flow:');
-    console.log('  init -> refresh -> rules -> project -> apply');
+    console.log('  init -> refresh -> rules -> project');
     console.log('  예: pnpm run openapi:init -> pnpm run openapi:refresh -> pnpm run openapi:rules');
     console.log('');
     console.log('Docs:');

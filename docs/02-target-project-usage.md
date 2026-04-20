@@ -99,15 +99,11 @@ npm run openapi:project
 - `openapi/project/src/openapi-generated/<tag>/<endpoint>.api.ts`
 - `openapi/project/summary.md`
 
-## 6. 실제 `src` 반영
+## 6. 실제 프로젝트 반영
 
-```bash
-npm run openapi:apply
-```
-
-기본 반영 위치:
-
-- `src/openapi-generated`
+- `project` 결과는 `openapi/project/src/openapi-generated` 아래에 생성됩니다.
+- 실제 프로젝트 반영은 사람이거나 AI가 이 후보 코드를 보고 진행합니다.
+- `openapi/project/manifest.json`, `openapi/project/summary.md` 를 참고하면 권장 반영 경로를 확인할 수 있습니다.
 
 ## 권장 순서
 
@@ -119,15 +115,10 @@ npm run openapi:rules
 # project-rules.jsonc 검토
 
 npm run openapi:project
-
-# openapi/project/src/openapi-generated 검토
-
-npm run openapi:apply
 ```
 
 ## 꼭 기억할 점
 
 - `help`를 제외한 모든 명령은 `projectRoot`가 있어야 실행됩니다.
 - `projectRoot`는 `.openapi-tool.local.jsonc` 또는 `--project-root`로 정합니다.
-- `apply` 전까지는 대상 프로젝트 실제 `src`를 건드리지 않습니다.
-- 실제 코드 변경은 `apply`에서만 일어납니다.
+- 이 도구는 실제 앱 코드에 자동 복사하지 않고, 검토 가능한 후보 코드 생성까지를 담당합니다.

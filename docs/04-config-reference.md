@@ -35,7 +35,7 @@
 | --- | --- |
 | `projectRoot` | 대상 프로젝트 절대 경로 |
 | `initDefaults.sourceUrl` | OpenAPI JSON 요청 URL |
-| `initDefaults.applyTargetSrcDir` | `init` 시 기본 반영 경로. 비워 두면 `src/openapi-generated` 사용 |
+| `initDefaults.applyTargetSrcDir` | `init` 시 기본 권장 반영 경로. 비워 두면 `src/openapi-generated` 사용 |
 
 주의:
 
@@ -53,7 +53,7 @@
 - OpenAPI 원본 위치
 - review 산출물 위치
 - project 후보 위치
-- apply 대상 위치
+- 권장 반영 위치
 
 ### 자주 보는 값
 
@@ -63,7 +63,7 @@
 | `sourcePath` | 내려받은 OpenAPI JSON 저장 경로 |
 | `generatedSchemaPath` | review용 `schema.ts` 출력 경로 |
 | `projectGeneratedSrcDir` | `project` 후보 코드 생성 경로 |
-| `applyTargetSrcDir` | `apply` 반영 경로 |
+| `applyTargetSrcDir` | 사람이거나 AI가 반영할 때 참고하는 권장 경로 |
 
 ### 보통 안 건드리는 값
 

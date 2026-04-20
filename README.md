@@ -68,21 +68,9 @@ npm run openapi:rules
 npm run openapi:project
 ```
 
-여기까지는 검토 단계입니다.
-
 - `rules` 뒤: `openapi/config/project-rules.jsonc` 확인
 - `project` 뒤: `openapi/project/src/openapi-generated` 확인
-
-### 3. 실제 반영
-
-```bash
-npm run openapi:apply
-```
-
-- `apply`는 마지막 단계입니다.
-- 이 명령부터 대상 프로젝트 실제 `src`를 변경합니다.
-- `project` 결과를 확인한 뒤에만 실행하는 것이 맞습니다.
-- `apply` 뒤: `src/openapi-generated` 확인
+- 실제 반영은 `openapi/project/src/openapi-generated` 후보 코드를 보고 사람이거나 AI가 진행합니다.
 
 ## 단계별 설명
 
@@ -97,7 +85,7 @@ npm run openapi:apply
 의미:
 
 - `project.jsonc`
-  - OpenAPI 원본 URL, review 출력 위치, apply 대상 경로 같은 실행 설정
+  - OpenAPI 원본 URL, review 출력 위치, 권장 반영 경로 같은 실행 설정
 - `project-rules.jsonc`
   - 대상 프로젝트 HTTP client import 경로, adapter 방식, 폴더명 규칙 같은 프로젝트 맞춤 설정
 - `.gitignore`
@@ -158,21 +146,9 @@ npm run openapi:apply
 - `<endpoint>.api.ts`
   - 엔드포인트 API wrapper 파일
 - `manifest.json`
-  - `apply`가 복사할 파일 목록
+  - 사람이거나 AI가 반영할 때 참고할 파일 목록
 - `summary.md`
   - 이번 생성 결과 요약 문서
-
-### 5. `npm run openapi:apply`
-
-동작:
-
-- `project` 결과를 대상 프로젝트 실제 `src/openapi-generated`로 복사합니다.
-- 이 단계부터 실제 앱 코드가 변경됩니다.
-
-핵심 원칙:
-
-- `apply` 전까지는 대상 프로젝트 실제 `src`를 건드리지 않습니다.
-- 실제 코드 변경은 `apply`에서만 일어납니다.
 
 ## 추가 문서
 

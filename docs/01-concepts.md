@@ -17,21 +17,9 @@
 
 ## 어디서 실행해야 하나
 
-도구는 **현재 작업 디렉터리 기준**으로 동작합니다.
+도구는 **도구 저장소 루트에서 실행**합니다.
 
-따라서:
-
-- 도구 저장소 안에서 실행하면, 그 저장소 안에 `openapi/`가 생깁니다.
-- 어떤 서비스 프로젝트에 적용하려면, 반드시 **그 서비스 프로젝트 루트로 이동한 뒤** 실행해야 합니다.
-
-예:
-
-```bash
-cd /path/to/service-app
-node /path/to/openapi-workflow/bin/openapi-tool.mjs init
-```
-
-그러면 `/path/to/service-app/openapi/`가 생성됩니다.
+어느 서비스 프로젝트를 조작할지는 `.openapi-tool.local.jsonc` 또는 `--project-root`로 지정합니다.
 
 ## 단계별 역할
 
@@ -66,12 +54,5 @@ Swagger/OpenAPI 원본을 받아서 review 산출물을 만듭니다.
 
 이 단계의 목적은 “실제 src 반영 전 마지막 후보”를 만드는 것입니다.
 
-### 4. `apply`
-
-후보 코드를 실제 `src` 경로에 반영합니다.
-
-기본 대상:
-
-- `src/openapi-generated`
-
-즉 `apply` 전까지는 실제 앱 코드를 건드리지 않는 것이 원칙입니다.
+즉 이 도구의 역할은 `project` 단계까지 검토 가능한 후보 코드를 만드는 것입니다.
+실제 프로젝트 반영은 사람이거나 AI가 별도로 진행합니다.

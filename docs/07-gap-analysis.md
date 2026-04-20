@@ -73,12 +73,10 @@
 
 - `project`로 `schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API` 생성
 - `manifest.json`, `summary.md` 생성
-- `apply`로 실제 target 경로 반영
 
 근거:
 
 - 후보 생성: [src/commands/project.mjs](../src/commands/project.mjs)
-- 실제 반영: [src/commands/apply.mjs](../src/commands/apply.mjs)
 
 핵심 갭:
 
@@ -108,8 +106,8 @@
 | FR-D2 반영 전 후보 영역 유지 | 충족 | `openapi/project`에 후보 생성 |
 | FR-D3 프로젝트 컨벤션 반영 | 부분 충족 | 핵심 규칙은 반영하나 지원 범위는 좁음 |
 | FR-D4 manifest / summary 생성 | 충족 | 구현됨 |
-| FR-E1 apply | 충족 | manifest 기준 복사 적용 |
-| FR-E2 review-first 원칙 | 충족 | `apply` 전 후보 검토 흐름 유지 |
+| FR-E1 실제 반영 정보 제공 | 충족 | manifest와 summary로 반영 정보 제공 |
+| FR-E2 review-first 원칙 | 충족 | 후보 코드 검토 후 사람이거나 AI가 반영 |
 
 ## 비기능 요구사항 상태
 
@@ -117,7 +115,7 @@
 | --- | --- | --- |
 | NFR-1 결정성 | 충족 | fixture 테스트와 deterministic 생성 경로 확보 |
 | NFR-2 명시성 | 부분 충족 | 규칙 파일은 있으나 일부 규칙은 미연결 |
-| NFR-3 안전성 | 부분 충족 | `apply`가 target root 전체를 비움 |
+| NFR-3 안전성 | 충족 | 자동 복사 대신 후보 생성까지만 담당 |
 | NFR-4 재사용성 | 부분 충족 | 특정 프로젝트 구조 의존성이 큼 |
 | NFR-5 유지보수성 | 부분 충족 | 명령은 얇아졌지만 config/schema validation 은 미구현 |
 
@@ -141,7 +139,7 @@
 
 ### 3. 생성 결과 구조가 의도적으로 고정돼 있음
 
-현재 후보 코드와 apply 대상은 `schema.ts + <tag>/<endpoint>.dto.ts + <tag>/<endpoint>.api.ts` 구조를 고정으로 사용합니다.
+현재 후보 코드와 권장 반영 대상은 `schema.ts + <tag>/<endpoint>.dto.ts + <tag>/<endpoint>.api.ts` 구조를 고정으로 사용합니다.
 
 영향:
 
@@ -156,15 +154,6 @@
 영향:
 
 - deterministic generator 라는 목표 대비 신뢰성이 약함
-
-### 5. `apply`의 안전성이 제한적
-
-현재 `apply`는 target root 를 비운 후 manifest 기반으로 복사합니다.
-
-영향:
-
-- 사용자가 기대하지 않은 파일 손실 가능성이 있음
-- 부분 적용 전략이나 dry-run 전략이 없음
 
 ## 우선순위 제안
 
@@ -203,18 +192,6 @@
 이유:
 
 - 현재 구조가 고정적인 만큼, 확장 전략을 따로 설계해야 합니다.
-
-### P4. `apply` 안전장치 추가
-
-권장 작업:
-
-- dry-run
-- overwrite 전략 선택
-- manifest 외 파일 보존 옵션
-
-이유:
-
-- 실사용 단계로 가려면 안전성이 필요합니다.
 
 ## 결론
 

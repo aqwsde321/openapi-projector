@@ -893,7 +893,7 @@ function renderProjectSummary(manifest) {
     `- Source OpenAPI: ${manifest.sourcePath}`,
     `- Project rules: ${manifest.projectRulesPath}`,
     `- Review schema: ${manifest.generatedSchemaPath}`,
-    `- Apply target root: ${manifest.applyTargetSrcDir}`,
+    `- Suggested target root: ${manifest.applyTargetSrcDir}`,
     `- Total endpoints: ${manifest.totalEndpoints}`,
     '',
     '## Generated Files',

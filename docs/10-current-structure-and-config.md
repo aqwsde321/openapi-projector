@@ -14,13 +14,11 @@
    - 대상 프로젝트 규칙 분석
 3. `project`
    - 실제 반영 전 DTO/API 후보 코드 생성
-4. `apply`
-   - 후보 코드를 `src/openapi-generated`로 복사
 
 핵심 원칙:
 
-- `apply` 전까지는 대상 프로젝트 실제 `src`를 건드리지 않습니다.
-- `project` 단계 결과를 먼저 검토하고, 괜찮을 때만 `apply` 합니다.
+- 이 도구는 검토 가능한 후보 코드 생성까지를 담당합니다.
+- 실제 프로젝트 반영은 사람이거나 AI가 `project` 결과를 보고 진행합니다.
 
 ## 현재 생성 구조
 
@@ -101,13 +99,5 @@ openapi/project/src/openapi-generated/
 - `openapi/project/src/openapi-generated/<tag>/<endpoint>.api.ts`
 - `openapi/project/manifest.json`
 - `openapi/project/summary.md`
-
-### `apply`
-
-`project` 결과를 실제 `src`로 복사
-
-기본 대상:
-
-- `src/openapi-generated`
 
 설정값은 [04-config-reference.md](./04-config-reference.md)만 보면 됩니다.
