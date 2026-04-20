@@ -8,10 +8,12 @@
 
 파일:
 
+- `.openapi-tool.local.example.jsonc`
 - `.openapi-tool.local.jsonc`
 
 역할:
 
+- 예시 템플릿 제공
 - 어느 프로젝트를 조작할지 결정
 - `init` 시 대상 프로젝트 설정의 기본값을 채워 넣음
 

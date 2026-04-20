@@ -91,7 +91,7 @@ async function runCli(argv) {
     throw new Error(
       [
         'Target project root is not configured.',
-        `Set "projectRoot" in ${toolLocalConfigPath} or pass --project-root /path/to/service-app.`,
+        `Create ${toolLocalConfigPath} from .openapi-tool.local.example.jsonc and set "projectRoot", or pass --project-root /path/to/service-app.`,
       ].join('\n'),
     );
   }

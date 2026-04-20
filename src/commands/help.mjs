@@ -22,7 +22,7 @@ const helpCommand = {
     console.log('  npm run openapi:<command>');
     console.log('');
     console.log('First-time setup:');
-    console.log('  1. 도구 저장소 루트의 .openapi-tool.local.jsonc 를 엽니다.');
+    console.log('  1. .openapi-tool.local.example.jsonc 를 .openapi-tool.local.jsonc 로 복사합니다.');
     console.log('  2. projectRoot 를 대상 프로젝트 절대 경로로 채웁니다.');
     console.log('  3. 필요하면 initDefaults.sourceUrl 도 같이 채웁니다.');
     console.log('  4. 저장 후 init -> refresh -> rules -> project -> apply 순서로 실행합니다.');

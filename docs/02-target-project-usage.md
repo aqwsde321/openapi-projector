@@ -10,9 +10,13 @@
 - 어느 프로젝트를 조작할지는 도구 저장소 루트의 `.openapi-tool.local.jsonc` 로 정합니다.
 - 대상 프로젝트 루트로 직접 이동해서 실행할 필요는 없습니다.
 
-## 1. `.openapi-tool.local.jsonc` 수정
+## 1. `.openapi-tool.local.example.jsonc` 복사
 
-먼저 이 파일만 엽니다.
+```bash
+cp .openapi-tool.local.example.jsonc .openapi-tool.local.jsonc
+```
+
+그 다음 `.openapi-tool.local.jsonc` 를 수정합니다.
 
 ```jsonc
 {
