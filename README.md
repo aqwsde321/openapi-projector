@@ -70,6 +70,7 @@ npm run openapi:project
 
 - `rules` 뒤: `openapi/config/project-rules.jsonc` 확인
 - `project` 뒤: `openapi/project/src/openapi-generated` 확인
+- 지원하지 않는 endpoint가 있으면 생성에서 제외되고 `openapi/project/summary.md` 에 이유가 기록됩니다.
 - 실제 반영은 `openapi/project/src/openapi-generated` 후보 코드를 보고 사람이거나 AI가 진행합니다.
 
 ## 단계별 설명
@@ -149,6 +150,7 @@ npm run openapi:project
   - 사람이거나 AI가 반영할 때 참고할 파일 목록
 - `summary.md`
   - 이번 생성 결과 요약 문서
+  - 생성에서 제외된 endpoint가 있으면 이유도 같이 기록
 
 ## 추가 문서
 

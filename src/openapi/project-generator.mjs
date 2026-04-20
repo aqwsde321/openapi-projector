@@ -112,7 +112,10 @@ function collectProjectOperations(spec) {
   return operations;
 }
 
-function validateProjectOperations(operations) {
+function classifyProjectOperations(operations) {
+  const supportedOperations = [];
+  const skippedOperations = [];
+
   for (const operation of operations) {
     const unsupportedReasons = [];
 
@@ -144,14 +147,21 @@ function validateProjectOperations(operations) {
     }
 
     if (unsupportedReasons.length > 0) {
-      throw new Error(
-        [
-          `Unsupported operation in MVP v2: ${operation.method.toUpperCase()} ${operation.path}`,
-          `Reasons: ${unsupportedReasons.join(', ')}`,
-        ].join('\n'),
-      );
+      skippedOperations.push({
+        method: operation.method.toUpperCase(),
+        path: operation.path,
+        reasons: unsupportedReasons,
+      });
+      continue;
     }
+
+    supportedOperations.push(operation);
   }
+
+  return {
+    supportedOperations,
+    skippedOperations,
+  };
 }
 
 function buildPathParamsRequired(parameters) {
@@ -894,6 +904,8 @@ function renderProjectSummary(manifest) {
     `- Project rules: ${manifest.projectRulesPath}`,
     `- Review schema: ${manifest.generatedSchemaPath}`,
     `- Total endpoints: ${manifest.totalEndpoints}`,
+    `- Generated endpoints: ${manifest.generatedEndpoints}`,
+    `- Skipped endpoints: ${manifest.skippedEndpoints}`,
     '',
     '## Generated Files',
     '',
@@ -903,6 +915,18 @@ function renderProjectSummary(manifest) {
     lines.push(
       `- [${entry.kind}] \`${entry.generated}\`${entry.summary ? ` (${entry.summary})` : ''}`,
     );
+  }
+
+  if (manifest.skippedOperations.length > 0) {
+    lines.push('');
+    lines.push('## Skipped Operations');
+    lines.push('');
+
+    for (const skippedOperation of manifest.skippedOperations) {
+      lines.push(
+        `- \`${skippedOperation.method} ${skippedOperation.path}\`: ${skippedOperation.reasons.join(', ')}`,
+      );
+    }
   }
 
   lines.push('');
@@ -928,7 +952,7 @@ async function writeProjectOutputs({
     throw new Error('No endpoints found in OpenAPI spec');
   }
 
-  validateProjectOperations(operations);
+  const { supportedOperations, skippedOperations } = classifyProjectOperations(operations);
 
   const schemaFileName = layoutRules.schemaFileName ?? 'schema.ts';
   const schemaOutputPath = path.join(projectGeneratedSrcDir, schemaFileName);
@@ -942,7 +966,7 @@ async function writeProjectOutputs({
     generated: path.relative(rootDir, schemaOutputPath).replaceAll(path.sep, '/'),
   });
 
-  for (const operation of operations) {
+  for (const operation of supportedOperations) {
     const tagFileName = buildTagDirectoryName(
       operation.tag || 'default',
       apiRules.tagFileCase ?? 'title',
@@ -1010,6 +1034,9 @@ async function writeProjectOutputs({
     projectRulesPath,
     projectGeneratedSrcDir: path.relative(rootDir, projectGeneratedSrcDir).replaceAll(path.sep, '/'),
     totalEndpoints: operations.length,
+    generatedEndpoints: supportedOperations.length,
+    skippedEndpoints: skippedOperations.length,
+    skippedOperations,
     files: manifestFiles,
   };
 
@@ -1020,7 +1047,7 @@ async function writeProjectOutputs({
 
 export {
   collectProjectOperations,
+  classifyProjectOperations,
   renderProjectSummary,
-  validateProjectOperations,
   writeProjectOutputs,
 };

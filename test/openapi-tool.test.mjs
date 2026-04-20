@@ -953,7 +953,7 @@ test(
 );
 
 test(
-  'project fails clearly for non-json success responses',
+  'project skips unsupported non-json success responses and records warnings',
   { concurrency: false },
   async () => {
     const spec = await readFixtureJson('oas30.json');
@@ -978,11 +978,33 @@ test(
 
     await withWorkspace({ spec }, async (workspace) => {
       await runInWorkspace(workspace, () => generateCommand.run());
+      await runInWorkspace(workspace, () => projectCommand.run());
+
+      const generatedRoot = path.join(workspace, 'openapi/project/src/openapi-generated');
+      const summarySource = await fs.readFile(
+        path.join(workspace, 'openapi/project/summary.md'),
+        'utf8',
+      );
+      const manifest = JSON.parse(
+        await fs.readFile(path.join(workspace, 'openapi/project/manifest.json'), 'utf8'),
+      );
 
       await assert.rejects(
-        () => runInWorkspace(workspace, () => projectCommand.run()),
-        /response media type text\/csv/,
+        () => fs.access(path.join(generatedRoot, 'Reports/export-report.api.ts')),
+        /ENOENT/,
       );
+      assert.equal(manifest.totalEndpoints, 3);
+      assert.equal(manifest.generatedEndpoints, 2);
+      assert.equal(manifest.skippedEndpoints, 1);
+      assert.deepEqual(manifest.skippedOperations, [
+        {
+          method: 'GET',
+          path: '/reports/export',
+          reasons: ['response media type text/csv'],
+        },
+      ]);
+      assert.match(summarySource, /## Skipped Operations/);
+      assert.match(summarySource, /`GET \/reports\/export`: response media type text\/csv/);
     });
   },
 );
