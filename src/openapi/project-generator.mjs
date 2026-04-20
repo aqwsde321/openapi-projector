@@ -893,7 +893,6 @@ function renderProjectSummary(manifest) {
     `- Source OpenAPI: ${manifest.sourcePath}`,
     `- Project rules: ${manifest.projectRulesPath}`,
     `- Review schema: ${manifest.generatedSchemaPath}`,
-    `- Suggested target root: ${manifest.applyTargetSrcDir}`,
     `- Total endpoints: ${manifest.totalEndpoints}`,
     '',
     '## Generated Files',
@@ -902,7 +901,7 @@ function renderProjectSummary(manifest) {
 
   for (const entry of manifest.files) {
     lines.push(
-      `- [${entry.kind}] \`${entry.generated}\` -> \`${entry.target}\`${entry.summary ? ` (${entry.summary})` : ''}`,
+      `- [${entry.kind}] \`${entry.generated}\`${entry.summary ? ` (${entry.summary})` : ''}`,
     );
   }
 
@@ -919,7 +918,6 @@ async function writeProjectOutputs({
   projectManifestPath,
   projectSummaryPath,
   projectRulesPath,
-  applyTargetSrcDir,
   generatedSchemaPath,
   apiRules,
   layoutRules,
@@ -942,9 +940,6 @@ async function writeProjectOutputs({
   manifestFiles.push({
     kind: 'schema',
     generated: path.relative(rootDir, schemaOutputPath).replaceAll(path.sep, '/'),
-    target: path
-      .join(applyTargetSrcDir, schemaFileName)
-      .replaceAll(path.sep, '/'),
   });
 
   for (const operation of operations) {
@@ -980,9 +975,6 @@ async function writeProjectOutputs({
       manifestFiles.push({
         kind: 'dto',
         generated: path.relative(rootDir, dtoFilePath).replaceAll(path.sep, '/'),
-        target: path
-          .join(applyTargetSrcDir, tagFileName, `${endpointFile.endpointFileBase}.dto.ts`)
-          .replaceAll(path.sep, '/'),
         summary: `tag=${tagFileName} endpoint=${endpointFile.endpointFileBase}`,
       });
 
@@ -990,9 +982,6 @@ async function writeProjectOutputs({
       manifestFiles.push({
         kind: 'api',
         generated: path.relative(rootDir, apiFilePath).replaceAll(path.sep, '/'),
-        target: path
-          .join(applyTargetSrcDir, tagFileName, `${endpointFile.endpointFileBase}.api.ts`)
-          .replaceAll(path.sep, '/'),
         summary: `tag=${tagFileName} endpoint=${endpointFile.endpointFileBase}`,
       });
     }
@@ -1001,7 +990,6 @@ async function writeProjectOutputs({
     manifestFiles.push({
       kind: 'index',
       generated: path.relative(rootDir, tagIndexPath).replaceAll(path.sep, '/'),
-      target: path.join(applyTargetSrcDir, tagFileName, 'index.ts').replaceAll(path.sep, '/'),
       summary: `tag=${tagFileName}`,
     });
   }
@@ -1013,7 +1001,6 @@ async function writeProjectOutputs({
   manifestFiles.push({
     kind: 'index',
     generated: path.relative(rootDir, indexOutputPath).replaceAll(path.sep, '/'),
-    target: path.join(applyTargetSrcDir, 'index.ts').replaceAll(path.sep, '/'),
   });
 
   const manifest = {
@@ -1022,7 +1009,6 @@ async function writeProjectOutputs({
     generatedSchemaPath,
     projectRulesPath,
     projectGeneratedSrcDir: path.relative(rootDir, projectGeneratedSrcDir).replaceAll(path.sep, '/'),
-    applyTargetSrcDir,
     totalEndpoints: operations.length,
     files: manifestFiles,
   };

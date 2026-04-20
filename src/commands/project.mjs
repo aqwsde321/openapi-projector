@@ -57,8 +57,6 @@ const projectCommand = {
     const projectRootDir = path.resolve(projectGeneratedSrcDir, '..', '..');
     const projectManifestPath = path.join(projectRootDir, 'manifest.json');
     const projectSummaryPath = path.join(projectRootDir, 'summary.md');
-    const applyTargetSrcDir = toPosixPath(projectConfig.applyTargetSrcDir);
-
     const spec = await loadSupportedOpenApiSpec(sourcePath);
 
     let schemaContents;
@@ -84,7 +82,6 @@ const projectCommand = {
       projectManifestPath,
       projectSummaryPath,
       projectRulesPath: toPosixPath(path.relative(rootDir, projectRulesPath)),
-      applyTargetSrcDir,
       generatedSchemaPath: toPosixPath(path.relative(rootDir, generatedSchemaPath)),
       apiRules: projectRules.api ?? {},
       layoutRules: projectRules.layout ?? {},

@@ -9,6 +9,5 @@
   "generatedSchemaPath": "openapi/review/generated/schema.ts",
   "projectRulesAnalysisPath": "openapi/review/project-rules/analysis.md",
   "projectRulesPath": "openapi/config/project-rules.jsonc",
-  "projectGeneratedSrcDir": "openapi/project/src/openapi-generated",
-  "applyTargetSrcDir": "src/openapi-generated"
+  "projectGeneratedSrcDir": "openapi/project/src/openapi-generated"
 }

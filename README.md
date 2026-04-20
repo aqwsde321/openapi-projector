@@ -85,7 +85,7 @@ npm run openapi:project
 의미:
 
 - `project.jsonc`
-  - OpenAPI 원본 URL, review 출력 위치, 권장 반영 경로 같은 실행 설정
+  - OpenAPI 원본 URL, review 출력 위치 같은 실행 설정
 - `project-rules.jsonc`
   - 대상 프로젝트 HTTP client import 경로, adapter 방식, 폴더명 규칙 같은 프로젝트 맞춤 설정
 - `.gitignore`
@@ -172,7 +172,6 @@ npm run openapi:project
   - `sourceUrl`
   - `sourcePath`
   - `projectGeneratedSrcDir`
-  - `applyTargetSrcDir`
 - `openapi/config/project-rules.jsonc`
   - `fetchApiImportPath`
   - `fetchApiSymbol`

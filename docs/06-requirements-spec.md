@@ -130,7 +130,7 @@
 
 ### FR-D4. manifest / summary 생성
 
-- 시스템은 생성된 파일 목록과 권장 반영 경로를 manifest 및 summary 문서로 남겨야 합니다.
+- 시스템은 생성된 후보 파일 목록을 manifest 및 summary 문서로 남겨야 합니다.
 
 ### E. 실제 반영 지원
 

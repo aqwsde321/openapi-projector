@@ -45,7 +45,6 @@ async function setupWorkspace({
     projectRulesAnalysisPath: 'openapi/review/project-rules/analysis.md',
     projectRulesPath: 'openapi/config/project-rules.jsonc',
     projectGeneratedSrcDir: 'openapi/project/src/openapi-generated',
-    applyTargetSrcDir: 'src/openapi-generated',
   };
 
   await writeJsonFile(
@@ -176,7 +175,6 @@ test(
           projectRoot: workspace,
           initDefaults: {
             sourceUrl: 'https://dev-api.example.com/v3/api-docs',
-            applyTargetSrcDir: 'src/custom-openapi-generated',
           },
         },
         async () => {
@@ -188,7 +186,6 @@ test(
           );
 
           assert.match(projectConfigSource, /"sourceUrl": "https:\/\/dev-api\.example\.com\/v3\/api-docs"/);
-          assert.match(projectConfigSource, /"applyTargetSrcDir": "src\/custom-openapi-generated"/);
         },
       );
     } finally {
@@ -219,7 +216,6 @@ test(
         projectRoot: '',
         initDefaults: {
           sourceUrl: '',
-          applyTargetSrcDir: 'src/openapi-generated',
         },
       },
       async () => {
@@ -287,6 +283,7 @@ test(
       const defaultApiSource = await fs.readFile(defaultApiPath, 'utf8');
       const defaultDtoSource = await fs.readFile(defaultDtoPath, 'utf8');
       const profilesApiSource = await fs.readFile(profilesApiPath, 'utf8');
+      const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
       assert.match(defaultApiSource, /export const getHealthStatus = async/);
       assert.match(defaultApiSource, /from '\.\/get-health-status\.dto'/);
       assert.match(defaultApiSource, /from '\.\.\/\.\.\/test-support\/fetch-api'/);
@@ -294,6 +291,9 @@ test(
       assert.match(profilesApiSource, /export const updateProfile = async/);
       assert.match(profilesApiSource, /from '\.\/update-profile\.dto'/);
       assert.match(profilesApiSource, /method: "PATCH"/);
+      assert.equal(manifest.projectGeneratedSrcDir, 'openapi/project/src/openapi-generated');
+      assert.equal('suggestedTargetSrcDir' in manifest, false);
+      assert.ok(manifest.files.every((entry) => !('target' in entry)));
 
       await execFileAsync(process.execPath, [
         TSC_CLI,

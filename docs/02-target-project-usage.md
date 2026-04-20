@@ -22,8 +22,7 @@ cp .openapi-tool.local.example.jsonc .openapi-tool.local.jsonc
 {
   "projectRoot": "",
   "initDefaults": {
-    "sourceUrl": "",
-    "applyTargetSrcDir": ""
+    "sourceUrl": ""
   }
 }
 ```
@@ -42,8 +41,7 @@ cp .openapi-tool.local.example.jsonc .openapi-tool.local.jsonc
 {
   "projectRoot": "/path/to/service-app",
   "initDefaults": {
-    "sourceUrl": "https://dev-api.example.com/v3/api-docs",
-    "applyTargetSrcDir": ""
+    "sourceUrl": "https://dev-api.example.com/v3/api-docs"
   }
 }
 ```
@@ -103,7 +101,7 @@ npm run openapi:project
 
 - `project` 결과는 `openapi/project/src/openapi-generated` 아래에 생성됩니다.
 - 실제 프로젝트 반영은 사람이거나 AI가 이 후보 코드를 보고 진행합니다.
-- `openapi/project/manifest.json`, `openapi/project/summary.md` 를 참고하면 권장 반영 경로를 확인할 수 있습니다.
+- `openapi/project/manifest.json`, `openapi/project/summary.md` 를 참고하면 생성된 후보 파일 목록을 확인할 수 있습니다.
 
 ## 권장 순서
 

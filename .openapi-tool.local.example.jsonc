@@ -5,8 +5,6 @@
   "initDefaults": {
     // init 시 대상 프로젝트 openapi/config/project.jsonc 의 기본값으로 채웁니다.
     // 여기에 Swagger UI 주소가 아니라 OpenAPI JSON 요청 URL(예: /v3/api-docs)을 적습니다.
-    "sourceUrl": "",
-    // 비워 두면 대상 프로젝트 기본값(src/openapi-generated)을 사용합니다.
-    "applyTargetSrcDir": ""
+    "sourceUrl": ""
   }
 }
