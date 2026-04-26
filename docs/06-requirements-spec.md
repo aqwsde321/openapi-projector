@@ -1,6 +1,6 @@
 # Requirements Specification
 
-이 문서는 `openapi-workflow`의 기능 요구사항을 정의합니다.
+이 문서는 `openapi-projector`의 기능 요구사항을 정의합니다.
 
 ## 범위
 

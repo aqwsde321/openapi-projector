@@ -1,4 +1,4 @@
-# openapi-workflow
+# openapi-projector
 
 OpenAPI 스펙으로부터 프론트엔드용 `DTO/API 후보 코드`를 만드는 standalone CLI 도구입니다.
 

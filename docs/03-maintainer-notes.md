@@ -55,7 +55,7 @@ node ./bin/openapi-tool.mjs project
 
 ```bash
 cd /tmp/smoke-project
-node /path/to/openapi-workflow/bin/openapi-tool.mjs init
+node /path/to/openapi-projector/bin/openapi-tool.mjs init
 ```
 
 ### 3. config discovery

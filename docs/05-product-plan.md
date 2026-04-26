@@ -1,10 +1,10 @@
 # Product Plan
 
-이 문서는 `openapi-workflow`가 무엇을 만들려는 도구인지, 어떤 문제를 풀고 어떤 범위를 목표로 하는지 정의합니다.
+이 문서는 `openapi-projector`가 무엇을 만들려는 도구인지, 어떤 문제를 풀고 어떤 범위를 목표로 하는지 정의합니다.
 
 ## 한 줄 정의
 
-`openapi-workflow`는 OpenAPI 스펙을 입력으로 받아, 프론트엔드 프로젝트에 맞는 TypeScript DTO/API 파일 생성까지 단계적으로 지원하는 CLI 워크플로우입니다.
+`openapi-projector`는 OpenAPI 스펙을 입력으로 받아, 프론트엔드 프로젝트에 맞는 TypeScript DTO/API 파일 생성까지 단계적으로 지원하는 CLI 워크플로우입니다.
 
 ## 문제 정의
 
