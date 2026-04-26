@@ -2,7 +2,7 @@
 
 이 문서는 **설정값만** 설명합니다.
 
-실제 사용 순서는 [02-target-project-usage.md](./02-target-project-usage.md), 현재 구조는 [10-current-structure-and-config.md](./10-current-structure-and-config.md)를 보면 됩니다.
+빠른 사용법은 [README](../README.md), 현재 구조는 [10-current-structure-and-config.md](./10-current-structure-and-config.md)를 보면 됩니다.
 
 ## 1. 도구 저장소 로컬 설정
 

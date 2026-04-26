@@ -79,8 +79,6 @@ node /path/to/openapi-projector/bin/openapi-tool.mjs init
   - 대상 프로젝트 사용자가 먼저 읽는 문서
 - `docs/01-concepts.md`
   - 도구 vs 작업 폴더 개념 설명
-- `docs/02-target-project-usage.md`
-  - 실제 적용 절차
 - `docs/03-maintainer-notes.md`
   - 도구 저장소 수정용 문서
 - `docs/04-config-reference.md`
@@ -91,10 +89,6 @@ node /path/to/openapi-projector/bin/openapi-tool.mjs init
   - 기능 요구사항과 완료 기준
 - `docs/07-gap-analysis.md`
   - 현재 구현 대비 요구사항 갭 분석
-- `docs/08-external-report-review.md`
-  - 외부 설계 보고서 검토 및 채택 방향
-- `docs/09-external-report-original.md`
-  - 외부 설계 보고서 원문 보관
 - `docs/10-current-structure-and-config.md`
   - 현재 MVP v2 구조와 설정값 빠른 참조
 

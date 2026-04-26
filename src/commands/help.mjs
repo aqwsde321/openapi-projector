@@ -51,7 +51,7 @@ const helpCommand = {
     console.log('  상세 단계가 필요하면 init -> refresh -> rules -> project');
     console.log('');
     console.log('Docs:');
-    console.log('  - 대상 프로젝트 사용법: docs/02-target-project-usage.md');
+    console.log('  - 빠른 사용법: README.md');
     console.log('  - 현재 구조/설정값: docs/10-current-structure-and-config.md');
   },
 };

@@ -76,12 +76,12 @@ OpenAPI 스펙만으로 결정 가능한 정보를 사용해 아래 산출물을
 
 ## 기본 사용 흐름
 
-1. `init`
-2. `refresh`
-3. `rules`
-4. `project`
+1. `doctor`
+   - 로컬 설정과 대상 프로젝트 준비 상태 점검
+2. `prepare`
+   - 필요하면 `init` 후 `refresh -> rules -> project`까지 실행
 
-세부 의미:
+세부 단계를 나눠 실행할 때의 의미:
 
 - `refresh`
   - OpenAPI 다운로드, catalog 생성, review 산출물 생성

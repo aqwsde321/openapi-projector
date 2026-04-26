@@ -2,7 +2,7 @@
 
 이 문서는 **현재 생성 구조와 명령 책임**만 빠르게 보여줍니다.
 
-실행 순서는 [02-target-project-usage.md](./02-target-project-usage.md), 설정 필드는 [04-config-reference.md](./04-config-reference.md)를 보면 됩니다.
+빠른 사용법은 [README](../README.md), 설정 필드는 [04-config-reference.md](./04-config-reference.md)를 보면 됩니다.
 
 ## 한눈에 보기
 
