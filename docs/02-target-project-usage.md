@@ -7,16 +7,17 @@
 ## 전제
 
 - 명령은 **도구 저장소 루트에서 실행**합니다.
-- 어느 프로젝트를 조작할지는 도구 저장소 루트의 `.openapi-tool.local.jsonc` 로 정합니다.
+- 어느 프로젝트를 조작할지는 도구 저장소 루트의 `.openapi-projector.local.jsonc` 로 정합니다.
+- 기존 `.openapi-tool.local.jsonc` 도 fallback으로 계속 지원합니다.
 - 대상 프로젝트 루트로 직접 이동해서 실행할 필요는 없습니다.
 
-## 1. `.openapi-tool.local.example.jsonc` 복사
+## 1. `.openapi-projector.local.example.jsonc` 복사
 
 ```bash
-cp .openapi-tool.local.example.jsonc .openapi-tool.local.jsonc
+cp .openapi-projector.local.example.jsonc .openapi-projector.local.jsonc
 ```
 
-그 다음 `.openapi-tool.local.jsonc` 를 수정합니다.
+그 다음 `.openapi-projector.local.jsonc` 를 수정합니다.
 
 ```jsonc
 {
@@ -46,7 +47,29 @@ cp .openapi-tool.local.example.jsonc .openapi-tool.local.jsonc
 }
 ```
 
-## 2. bootstrap 생성
+## 2. 상태 점검
+
+```bash
+npm run openapi:doctor
+```
+
+실제 OpenAPI URL 접근까지 확인하려면:
+
+```bash
+node ./bin/openapi-tool.mjs doctor --check-url
+```
+
+## 3. 원샷 후보 생성
+
+```bash
+npm run openapi:prepare
+```
+
+`prepare`는 대상 프로젝트에 `project.jsonc`가 없으면 `init`을 먼저 실행하고, 이후 `refresh -> rules -> project`를 순서대로 실행합니다.
+
+## 4. 세부 단계로 실행하고 싶을 때
+
+### 4-1. bootstrap 생성
 
 ```bash
 npm run openapi:init
@@ -58,7 +81,7 @@ npm run openapi:init
 - `openapi/config/project-rules.jsonc`
 - `openapi/.gitignore`
 
-## 3. review 산출물 생성
+### 4-2. review 산출물 생성
 
 ```bash
 npm run openapi:refresh
@@ -71,7 +94,7 @@ npm run openapi:refresh
 - `openapi/review/docs/*.md`
 - `openapi/review/generated/schema.ts`
 
-## 4. 프로젝트 규칙 분석
+### 4-3. 프로젝트 규칙 분석
 
 ```bash
 npm run openapi:rules
@@ -84,7 +107,7 @@ npm run openapi:rules
 
 이 단계 뒤에 `project-rules.jsonc`를 검토합니다.
 
-## 5. DTO/API 후보 코드 생성
+### 4-4. DTO/API 후보 코드 생성
 
 ```bash
 npm run openapi:project
@@ -97,7 +120,7 @@ npm run openapi:project
 - `openapi/project/src/openapi-generated/<tag>/<endpoint>.api.ts`
 - `openapi/project/summary.md`
 
-## 6. 실제 프로젝트 반영
+## 5. 실제 프로젝트 반영
 
 - `project` 결과는 `openapi/project/src/openapi-generated` 아래에 생성됩니다.
 - 실제 프로젝트 반영은 사람이거나 AI가 이 후보 코드를 보고 진행합니다.
@@ -106,17 +129,12 @@ npm run openapi:project
 ## 권장 순서
 
 ```bash
-npm run openapi:init
-npm run openapi:refresh
-npm run openapi:rules
-
-# project-rules.jsonc 검토
-
-npm run openapi:project
+npm run openapi:doctor
+npm run openapi:prepare
 ```
 
 ## 꼭 기억할 점
 
-- `help`를 제외한 모든 명령은 `projectRoot`가 있어야 실행됩니다.
-- `projectRoot`는 `.openapi-tool.local.jsonc` 또는 `--project-root`로 정합니다.
+- `help`, `doctor`를 제외한 모든 명령은 `projectRoot`가 있어야 실행됩니다.
+- `projectRoot`는 `.openapi-projector.local.jsonc`, legacy `.openapi-tool.local.jsonc`, 또는 `--project-root`로 정합니다.
 - 이 도구는 실제 앱 코드에 자동 복사하지 않고, 검토 가능한 후보 코드 생성까지를 담당합니다.

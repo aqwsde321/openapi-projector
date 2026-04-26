@@ -8,6 +8,8 @@
 
 파일:
 
+- `.openapi-projector.local.example.jsonc`
+- `.openapi-projector.local.jsonc`
 - `.openapi-tool.local.example.jsonc`
 - `.openapi-tool.local.jsonc`
 
@@ -16,6 +18,11 @@
 - 예시 템플릿 제공
 - 어느 프로젝트를 조작할지 결정
 - `init` 시 대상 프로젝트 설정의 기본값을 채워 넣음
+
+탐색 우선순위:
+
+1. `.openapi-projector.local.jsonc`
+2. `.openapi-tool.local.jsonc` legacy fallback
 
 기본 템플릿:
 
@@ -37,7 +44,7 @@
 
 주의:
 
-- `projectRoot`가 비어 있으면 `help`를 제외한 명령은 실행되지 않습니다.
+- `projectRoot`가 비어 있으면 `help`, `doctor`를 제외한 명령은 실행되지 않습니다.
 - `sourceUrl`은 Swagger UI 주소가 아니라 OpenAPI JSON 요청 URL입니다.
 
 ## 2. 대상 프로젝트 `project.jsonc`

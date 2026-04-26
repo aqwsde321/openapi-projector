@@ -1,4 +1,5 @@
 node_modules/
+.openapi-projector.local.jsonc
 .openapi-tool.local.jsonc
 
 # macOS

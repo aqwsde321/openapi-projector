@@ -30,6 +30,10 @@
   - 대상 프로젝트의 `src/entities`를 우선 분석하고, 없으면 `src` fallback 으로 규칙 문서/scaffold 생성
 - `project`
   - `project-rules.jsonc` 기준으로 `schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API` 후보 코드 생성
+- `doctor`
+  - 로컬 설정, 대상 프로젝트 config, 다운로드된 OpenAPI JSON, project-rules 준비 상태 점검
+- `prepare`
+  - `init` 필요 시 생성 후 `refresh -> rules -> project` 원샷 실행
 
 ## 개발 시 확인할 것
 
@@ -45,6 +49,7 @@ node ./bin/openapi-tool.mjs catalog
 node ./bin/openapi-tool.mjs generate
 node ./bin/openapi-tool.mjs rules
 node ./bin/openapi-tool.mjs project
+node ./bin/openapi-tool.mjs doctor
 ```
 
 ### 2. bootstrap 시나리오

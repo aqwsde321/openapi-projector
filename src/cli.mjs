@@ -9,6 +9,8 @@ import { generateCommand } from './commands/generate.mjs';
 import { rulesCommand } from './commands/rules.mjs';
 import { projectCommand } from './commands/project.mjs';
 import { refreshCommand } from './commands/refresh.mjs';
+import { doctorCommand } from './commands/doctor.mjs';
+import { prepareCommand } from './commands/prepare.mjs';
 
 const commandMap = new Map([
   ['help', helpCommand],
@@ -19,6 +21,8 @@ const commandMap = new Map([
   ['rules', rulesCommand],
   ['project', projectCommand],
   ['refresh', refreshCommand],
+  ['doctor', doctorCommand],
+  ['prepare', prepareCommand],
 ]);
 
 function printUnknownCommand(commandName) {
@@ -79,17 +83,42 @@ async function runCli(argv) {
     return;
   }
 
-  const { toolLocalConfigPath, toolLocalConfig } = await loadToolLocalConfig();
+  const {
+    toolLocalConfigPath,
+    toolLocalConfig,
+    toolLocalConfigCandidates,
+    toolLocalConfigs,
+  } =
+    await loadToolLocalConfig();
   const targetRootValue =
     normalizeConfiguredString(parsed.projectRoot) ??
     normalizeConfiguredString(toolLocalConfig?.projectRoot) ??
     null;
 
   if (!targetRootValue) {
+    if (commandName === 'doctor') {
+      const result = await command.run({
+        argv: parsed.argv.slice(1),
+        context: {
+          targetRoot: null,
+          toolLocalConfigPath,
+          toolLocalConfig,
+          toolLocalConfigCandidates,
+          toolLocalConfigs,
+        },
+      });
+
+      if (result?.ok === false) {
+        process.exitCode = 1;
+      }
+      return;
+    }
+
     throw new Error(
       [
         'Target project root is not configured.',
-        `Create ${toolLocalConfigPath} from .openapi-tool.local.example.jsonc and set "projectRoot", or pass --project-root /path/to/service-app.`,
+        `Create ${toolLocalConfigPath} from .openapi-projector.local.example.jsonc and set "projectRoot", or pass --project-root /path/to/service-app.`,
+        'Legacy fallback is still supported: .openapi-tool.local.jsonc',
       ].join('\n'),
     );
   }
@@ -98,9 +127,14 @@ async function runCli(argv) {
     targetRoot: path.resolve(targetRootValue),
     toolLocalConfigPath,
     toolLocalConfig,
+    toolLocalConfigCandidates,
+    toolLocalConfigs,
   };
 
-  await command.run({ argv: parsed.argv.slice(1), context });
+  const result = await command.run({ argv: parsed.argv.slice(1), context });
+  if (result?.ok === false) {
+    process.exitCode = 1;
+  }
 }
 
 export { runCli };

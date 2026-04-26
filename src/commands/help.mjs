@@ -7,24 +7,28 @@ const commands = [
   ['rules', 'project 규칙 분석 문서와 scaffold 생성'],
   ['project', '규칙 기반 DTO/API 후보 코드 생성'],
   ['refresh', 'download + catalog + generate'],
+  ['doctor', '로컬 설정과 대상 프로젝트 준비 상태 점검'],
+  ['prepare', 'init 필요 시 생성 후 refresh + rules + project 실행'],
 ];
 
 const helpCommand = {
   name: 'help',
   async run() {
-    console.log('openapi-tool');
+    console.log('openapi-projector');
     console.log('');
     console.log('Usage:');
     console.log('  node ./bin/openapi-tool.mjs <command>');
+    console.log('  openapi-projector <command>');
+    console.log('  openapi-tool <command>');
     console.log('  node ./bin/openapi-tool.mjs --project-root /path/to/service-app <command>');
     console.log('  pnpm run openapi:<command>');
     console.log('  npm run openapi:<command>');
     console.log('');
     console.log('First-time setup:');
-    console.log('  1. .openapi-tool.local.example.jsonc 를 .openapi-tool.local.jsonc 로 복사합니다.');
+    console.log('  1. .openapi-projector.local.example.jsonc 를 .openapi-projector.local.jsonc 로 복사합니다.');
     console.log('  2. projectRoot 를 대상 프로젝트 절대 경로로 채웁니다.');
     console.log('  3. 필요하면 initDefaults.sourceUrl 도 같이 채웁니다.');
-    console.log('  4. 저장 후 init -> refresh -> rules -> project 순서로 실행합니다.');
+    console.log('  4. doctor 로 점검한 뒤 prepare 를 실행합니다.');
     console.log('');
     console.log('Commands:');
     for (const [name, description] of commands) {
@@ -32,8 +36,8 @@ const helpCommand = {
     }
     console.log('');
     console.log('Execution model:');
-    console.log('  - help 를 제외한 모든 명령은 target project root 가 필요합니다.');
-    console.log('  - 우선순위: --project-root -> .openapi-tool.local.jsonc 의 projectRoot');
+    console.log('  - help/doctor 를 제외한 모든 명령은 target project root 가 필요합니다.');
+    console.log('  - 우선순위: --project-root -> .openapi-projector.local.jsonc -> .openapi-tool.local.jsonc');
     console.log('  - config 탐색 순서: openapi.config.jsonc -> openapi/config/project.jsonc -> config/project.jsonc');
     console.log('  - review 산출물은 openapi/review 아래에 생성됩니다.');
     console.log('  - project 후보는 openapi/project 아래에 생성됩니다.');
@@ -43,8 +47,8 @@ const helpCommand = {
     console.log('  - 새 프로젝트 시작은 init 명령으로 bootstrap 합니다.');
     console.log('');
     console.log('Recommended flow:');
-    console.log('  init -> refresh -> rules -> project');
-    console.log('  예: pnpm run openapi:init -> pnpm run openapi:refresh -> pnpm run openapi:rules');
+    console.log('  doctor -> prepare');
+    console.log('  상세 단계가 필요하면 init -> refresh -> rules -> project');
     console.log('');
     console.log('Docs:');
     console.log('  - 대상 프로젝트 사용법: docs/02-target-project-usage.md');

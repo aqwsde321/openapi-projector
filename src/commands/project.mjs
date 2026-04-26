@@ -65,7 +65,7 @@ const projectCommand = {
     } catch (error) {
       if (error?.code === 'ENOENT') {
         throw new Error(
-          `Generated schema not found: ${generatedSchemaPath}\nRun openapi-tool generate first.`,
+          `Generated schema not found: ${generatedSchemaPath}\nRun openapi-projector generate first.`,
         );
       }
       throw error;

@@ -8,6 +8,13 @@
 
 현재 흐름은 이렇습니다.
 
+1. `doctor`
+   - 로컬 설정과 대상 프로젝트 준비 상태 점검
+2. `prepare`
+   - 필요하면 `init` 후 후보 코드까지 원샷 생성
+
+세부 단계는 이렇습니다.
+
 1. `refresh`
    - review 산출물 생성
 2. `rules`
@@ -99,5 +106,28 @@ openapi/project/src/openapi-generated/
 - `openapi/project/src/openapi-generated/<tag>/<endpoint>.api.ts`
 - `openapi/project/manifest.json`
 - `openapi/project/summary.md`
+
+### `doctor`
+
+로컬 설정과 대상 프로젝트 준비 상태 점검
+
+점검:
+
+- `.openapi-projector.local.jsonc` 또는 legacy `.openapi-tool.local.jsonc`
+- target project root
+- 대상 프로젝트 config
+- 다운로드된 OpenAPI JSON
+- project rules
+
+### `prepare`
+
+초기 사용을 위한 원샷 명령
+
+실행:
+
+- `init` 필요 시 생성
+- `refresh`
+- `rules`
+- `project`
 
 설정값은 [04-config-reference.md](./04-config-reference.md)만 보면 됩니다.

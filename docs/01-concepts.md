@@ -1,25 +1,26 @@
 # Concepts
 
-## `openapi-tool`과 `openapi/`의 차이
+## `openapi-projector`와 `openapi/`의 차이
 
 이 워크플로우에서 가장 헷갈리기 쉬운 부분은 “도구 저장소”와 “대상 프로젝트 작업 폴더”가 다르다는 점입니다.
 
 역할은 이렇게 나뉩니다.
 
-- `openapi-tool`
+- `openapi-projector`
   - 공용 CLI 도구 원본
   - 명령 구현, 템플릿, 공용 유틸이 들어 있습니다.
+  - CLI 명령은 `openapi-projector`와 legacy alias `openapi-tool`을 모두 지원합니다.
 - 각 서비스 프로젝트의 `openapi/`
   - 도구가 생성하는 작업 폴더
   - 설정, review 결과물, project 후보 코드가 여기에 생깁니다.
 
-즉 `openapi-tool`은 엔진이고, `openapi/`는 엔진이 만드는 작업 공간입니다.
+즉 `openapi-projector`는 엔진이고, `openapi/`는 엔진이 만드는 작업 공간입니다.
 
 ## 어디서 실행해야 하나
 
 도구는 **도구 저장소 루트에서 실행**합니다.
 
-어느 서비스 프로젝트를 조작할지는 `.openapi-tool.local.jsonc` 또는 `--project-root`로 지정합니다.
+어느 서비스 프로젝트를 조작할지는 `.openapi-projector.local.jsonc`, legacy `.openapi-tool.local.jsonc`, 또는 `--project-root`로 지정합니다.
 
 ## 단계별 역할
 

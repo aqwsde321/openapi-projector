@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "bin": {
+    "openapi-projector": "./bin/openapi-tool.mjs",
     "openapi-tool": "./bin/openapi-tool.mjs"
   },
   "scripts": {
@@ -17,6 +18,8 @@
     "openapi:rules": "node ./bin/openapi-tool.mjs rules",
     "openapi:project": "node ./bin/openapi-tool.mjs project",
     "openapi:refresh": "node ./bin/openapi-tool.mjs refresh",
+    "openapi:doctor": "node ./bin/openapi-tool.mjs doctor",
+    "openapi:prepare": "node ./bin/openapi-tool.mjs prepare",
     "test": "node --test"
   },
   "dependencies": {

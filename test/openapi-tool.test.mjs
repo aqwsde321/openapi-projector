@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 import { runCli } from '../src/cli.mjs';
+import { doctorCommand } from '../src/commands/doctor.mjs';
 import { generateCommand } from '../src/commands/generate.mjs';
 import { projectCommand } from '../src/commands/project.mjs';
 import { rulesCommand } from '../src/commands/rules.mjs';
@@ -107,35 +108,52 @@ async function assertExists(filePath) {
   await fs.access(filePath);
 }
 
-async function withToolLocalConfig(config, callback) {
-  const localConfigPath = path.join(REPO_ROOT, '.openapi-tool.local.jsonc');
-  let previous = null;
-  let existed = false;
+async function withToolLocalConfigs(configs, callback) {
+  const configPaths = {
+    projector: path.join(REPO_ROOT, '.openapi-projector.local.jsonc'),
+    legacy: path.join(REPO_ROOT, '.openapi-tool.local.jsonc'),
+  };
+  const previousEntries = new Map();
 
-  try {
-    previous = await fs.readFile(localConfigPath, 'utf8');
-    existed = true;
-  } catch (error) {
-    if (error?.code !== 'ENOENT') {
-      throw error;
+  for (const [key, localConfigPath] of Object.entries(configPaths)) {
+    try {
+      previousEntries.set(key, {
+        existed: true,
+        source: await fs.readFile(localConfigPath, 'utf8'),
+      });
+    } catch (error) {
+      if (error?.code !== 'ENOENT') {
+        throw error;
+      }
+      previousEntries.set(key, { existed: false, source: null });
     }
-  }
 
-  if (config === null) {
-    await fs.rm(localConfigPath, { force: true });
-  } else {
-    await fs.writeFile(localConfigPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
-  }
-
-  try {
-    return await callback(localConfigPath);
-  } finally {
-    if (existed) {
-      await fs.writeFile(localConfigPath, previous, 'utf8');
-    } else {
+    const config = configs[key] ?? null;
+    if (config === null) {
       await fs.rm(localConfigPath, { force: true });
+    } else if (typeof config === 'string') {
+      await fs.writeFile(localConfigPath, config, 'utf8');
+    } else {
+      await fs.writeFile(localConfigPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
     }
   }
+
+  try {
+    return await callback(configPaths);
+  } finally {
+    for (const [key, localConfigPath] of Object.entries(configPaths)) {
+      const previous = previousEntries.get(key);
+      if (previous.existed) {
+        await fs.writeFile(localConfigPath, previous.source, 'utf8');
+      } else {
+        await fs.rm(localConfigPath, { force: true });
+      }
+    }
+  }
+}
+
+async function withToolLocalConfig(config, callback) {
+  return withToolLocalConfigs({ legacy: config }, (paths) => callback(paths.legacy));
 }
 
 test(
@@ -164,7 +182,80 @@ test(
 );
 
 test(
-  'cli init uses tool local config projectRoot and initDefaults',
+  'cli init uses projector local config before legacy config',
+  { concurrency: false },
+  async () => {
+    const projectorWorkspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-cli-'));
+    const legacyWorkspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-tool-cli-'));
+
+    try {
+      await withToolLocalConfigs(
+        {
+          projector: {
+            projectRoot: projectorWorkspace,
+            initDefaults: {
+              sourceUrl: 'https://projector.example.com/v3/api-docs',
+            },
+          },
+          legacy: {
+            projectRoot: legacyWorkspace,
+            initDefaults: {
+              sourceUrl: 'https://legacy.example.com/v3/api-docs',
+            },
+          },
+        },
+        async () => {
+          await runCli(['init']);
+
+          const projectConfigSource = await fs.readFile(
+            path.join(projectorWorkspace, 'openapi/config/project.jsonc'),
+            'utf8',
+          );
+
+          assert.match(projectConfigSource, /"sourceUrl": "https:\/\/projector\.example\.com\/v3\/api-docs"/);
+          await assert.rejects(
+            () => fs.access(path.join(legacyWorkspace, 'openapi/config/project.jsonc')),
+            /ENOENT/,
+          );
+        },
+      );
+    } finally {
+      await fs.rm(projectorWorkspace, { recursive: true, force: true });
+      await fs.rm(legacyWorkspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli ignores invalid legacy local config when projector config has projectRoot',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-cli-'));
+
+    try {
+      await withToolLocalConfigs(
+        {
+          projector: {
+            projectRoot: workspace,
+            initDefaults: {
+              sourceUrl: 'https://projector.example.com/v3/api-docs',
+            },
+          },
+          legacy: '{ broken json',
+        },
+        async () => {
+          await runCli(['init']);
+          await assertExists(path.join(workspace, 'openapi/config/project.jsonc'));
+        },
+      );
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli init still supports legacy tool local config projectRoot and initDefaults',
   { concurrency: false },
   async () => {
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-tool-cli-'));
@@ -186,6 +277,255 @@ test(
           );
 
           assert.match(projectConfigSource, /"sourceUrl": "https:\/\/dev-api\.example\.com\/v3\/api-docs"/);
+        },
+      );
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli falls back to legacy local config when projector config has blank projectRoot',
+  { concurrency: false },
+  async () => {
+    const legacyWorkspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-tool-cli-'));
+
+    try {
+      await withToolLocalConfigs(
+        {
+          projector: {
+            projectRoot: '',
+            initDefaults: {
+              sourceUrl: 'https://projector.example.com/v3/api-docs',
+            },
+          },
+          legacy: {
+            projectRoot: legacyWorkspace,
+            initDefaults: {
+              sourceUrl: 'https://legacy.example.com/v3/api-docs',
+            },
+          },
+        },
+        async () => {
+          await runCli(['init']);
+
+          const projectConfigSource = await fs.readFile(
+            path.join(legacyWorkspace, 'openapi/config/project.jsonc'),
+            'utf8',
+          );
+
+          assert.match(projectConfigSource, /"sourceUrl": "https:\/\/legacy\.example\.com\/v3\/api-docs"/);
+        },
+      );
+    } finally {
+      await fs.rm(legacyWorkspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'doctor reports missing local config and projectRoot without throwing',
+  { concurrency: false },
+  async () => {
+    const result = await doctorCommand.run({
+      context: {
+        targetRoot: null,
+        toolLocalConfigPath: path.join(REPO_ROOT, '.openapi-projector.local.jsonc'),
+        toolLocalConfig: null,
+      },
+    });
+
+    assert.equal(result.ok, false);
+  },
+);
+
+test(
+  'doctor allows fresh target when initDefaults sourceUrl can seed prepare',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-doctor-'));
+    const spec = await readFixtureJson('oas30.json');
+    const sourceUrl = `data:application/json,${encodeURIComponent(JSON.stringify(spec))}`;
+    const previousExitCode = process.exitCode;
+
+    try {
+      process.exitCode = undefined;
+      await withToolLocalConfigs(
+        {
+          projector: {
+            projectRoot: workspace,
+            initDefaults: {
+              sourceUrl,
+            },
+          },
+        },
+        async () => {
+          await runCli(['doctor']);
+          assert.equal(process.exitCode, undefined);
+        },
+      );
+    } finally {
+      process.exitCode = previousExitCode;
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'doctor fails when existing project config is invalid JSON',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-doctor-'));
+    const spec = await readFixtureJson('oas30.json');
+    const sourceUrl = `data:application/json,${encodeURIComponent(JSON.stringify(spec))}`;
+
+    try {
+      await fs.mkdir(path.join(workspace, 'openapi/config'), { recursive: true });
+      await fs.writeFile(
+        path.join(workspace, 'openapi/config/project.jsonc'),
+        '{ broken json',
+        'utf8',
+      );
+
+      const result = await doctorCommand.run({
+        context: {
+          targetRoot: workspace,
+          toolLocalConfigPath: path.join(REPO_ROOT, '.openapi-projector.local.jsonc'),
+          toolLocalConfig: {
+            initDefaults: {
+              sourceUrl,
+            },
+          },
+        },
+      });
+
+      assert.equal(result.ok, false);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'doctor fails when existing project config has blank sourceUrl',
+  { concurrency: false },
+  async () => {
+    const spec = await readFixtureJson('oas30.json');
+
+    await withWorkspace({ spec }, async (workspace) => {
+      const result = await doctorCommand.run({
+        context: {
+          targetRoot: workspace,
+          toolLocalConfigPath: path.join(REPO_ROOT, '.openapi-projector.local.jsonc'),
+          toolLocalConfig: null,
+        },
+      });
+
+      assert.equal(result.ok, false);
+    });
+  },
+);
+
+test(
+  'doctor fails when existing project rules file is invalid JSON',
+  { concurrency: false },
+  async () => {
+    const spec = await readFixtureJson('oas30.json');
+    const sourceUrl = `data:application/json,${encodeURIComponent(JSON.stringify(spec))}`;
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await writeJsonFile(path.join(workspace, 'openapi/config/project.jsonc'), {
+        sourceUrl,
+        sourcePath: 'openapi/_internal/source/openapi.json',
+        catalogJsonPath: 'openapi/review/catalog/endpoints.json',
+        catalogMarkdownPath: 'openapi/review/catalog/endpoints.md',
+        docsDir: 'openapi/review/docs',
+        generatedSchemaPath: 'openapi/review/generated/schema.ts',
+        projectRulesAnalysisPath: 'openapi/review/project-rules/analysis.md',
+        projectRulesPath: 'openapi/config/project-rules.jsonc',
+        projectGeneratedSrcDir: 'openapi/project/src/openapi-generated',
+      });
+      await fs.writeFile(
+        path.join(workspace, 'openapi/config/project-rules.jsonc'),
+        '{ broken json',
+        'utf8',
+      );
+
+      const result = await doctorCommand.run({
+        context: {
+          targetRoot: workspace,
+          toolLocalConfigPath: path.join(REPO_ROOT, '.openapi-projector.local.jsonc'),
+          toolLocalConfig: null,
+        },
+      });
+
+      assert.equal(result.ok, false);
+    });
+  },
+);
+
+test(
+  'doctor fails on fresh target when stale project rules file is invalid JSON',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-doctor-'));
+    const spec = await readFixtureJson('oas30.json');
+    const sourceUrl = `data:application/json,${encodeURIComponent(JSON.stringify(spec))}`;
+
+    try {
+      await fs.mkdir(path.join(workspace, 'openapi/config'), { recursive: true });
+      await fs.writeFile(
+        path.join(workspace, 'openapi/config/project-rules.jsonc'),
+        '{ broken json',
+        'utf8',
+      );
+
+      const result = await doctorCommand.run({
+        context: {
+          targetRoot: workspace,
+          toolLocalConfigPath: path.join(REPO_ROOT, '.openapi-projector.local.jsonc'),
+          toolLocalConfig: {
+            initDefaults: {
+              sourceUrl,
+            },
+          },
+        },
+      });
+
+      assert.equal(result.ok, false);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'prepare initializes and generates project candidate output in one command',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-prepare-'));
+    const spec = await readFixtureJson('oas30.json');
+    const sourceUrl = `data:application/json,${encodeURIComponent(JSON.stringify(spec))}`;
+
+    try {
+      await withToolLocalConfigs(
+        {
+          projector: {
+            projectRoot: workspace,
+            initDefaults: {
+              sourceUrl,
+            },
+          },
+        },
+        async () => {
+          await runCli(['prepare']);
+
+          await assertExists(path.join(workspace, 'openapi/config/project.jsonc'));
+          await assertExists(path.join(workspace, 'openapi/review/generated/schema.ts'));
+          await assertExists(path.join(workspace, 'openapi/config/project-rules.jsonc'));
+          await assertExists(path.join(workspace, 'openapi/project/manifest.json'));
+          await assertExists(path.join(workspace, 'openapi/project/summary.md'));
         },
       );
     } finally {

@@ -17,12 +17,19 @@ const HTTP_METHOD_ORDER = [
 const HTTP_METHODS = new Set(HTTP_METHOD_ORDER);
 const TOOL_ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DEFAULT_CONFIG_PATH = path.join(TOOL_ROOT_DIR, 'config', 'defaults.jsonc');
-const TOOL_LOCAL_CONFIG_PATH = path.join(TOOL_ROOT_DIR, '.openapi-tool.local.jsonc');
+const TOOL_LOCAL_CONFIG_CANDIDATES = [
+  '.openapi-projector.local.jsonc',
+  '.openapi-tool.local.jsonc',
+].map((fileName) => path.join(TOOL_ROOT_DIR, fileName));
 const PROJECT_CONFIG_CANDIDATES = [
   'openapi.config.jsonc',
   'openapi/config/project.jsonc',
   'config/project.jsonc',
 ];
+
+function isNonBlankString(value) {
+  return typeof value === 'string' && value.trim();
+}
 
 async function ensureDir(targetDir) {
   await fs.mkdir(targetDir, { recursive: true });
@@ -513,7 +520,7 @@ async function loadProjectConfig(rootDir) {
 
   if (!projectConfigPath) {
     throw new Error(
-      `Project config not found.\nRun openapi-tool init first.\nSearched:\n- ${PROJECT_CONFIG_CANDIDATES.join('\n- ')}`,
+      `Project config not found.\nRun openapi-projector init first.\nSearched:\n- ${PROJECT_CONFIG_CANDIDATES.join('\n- ')}`,
     );
   }
 
@@ -608,21 +615,48 @@ async function loadProjectRules(rootDir, projectConfig) {
 }
 
 async function loadToolLocalConfig() {
-  try {
-    const toolLocalConfig = await readJson(TOOL_LOCAL_CONFIG_PATH);
-    return {
-      toolLocalConfigPath: TOOL_LOCAL_CONFIG_PATH,
-      toolLocalConfig,
-    };
-  } catch (error) {
-    if (error?.code === 'ENOENT') {
-      return {
-        toolLocalConfigPath: TOOL_LOCAL_CONFIG_PATH,
-        toolLocalConfig: null,
-      };
+  const foundConfigs = [];
+
+  for (const candidatePath of TOOL_LOCAL_CONFIG_CANDIDATES) {
+    try {
+      const toolLocalConfig = await readJson(candidatePath);
+      foundConfigs.push({
+        toolLocalConfigPath: candidatePath,
+        toolLocalConfig,
+      });
+
+      if (isNonBlankString(toolLocalConfig?.projectRoot)) {
+        return {
+          toolLocalConfigPath: candidatePath,
+          toolLocalConfig,
+          toolLocalConfigCandidates: TOOL_LOCAL_CONFIG_CANDIDATES,
+          toolLocalConfigs: foundConfigs,
+        };
+      }
+    } catch (error) {
+      if (error?.code === 'ENOENT') {
+        continue;
+      }
+      throw error;
     }
-    throw error;
   }
+
+  const selectedConfig = foundConfigs[0] ?? null;
+
+  if (selectedConfig) {
+    return {
+      ...selectedConfig,
+      toolLocalConfigCandidates: TOOL_LOCAL_CONFIG_CANDIDATES,
+      toolLocalConfigs: foundConfigs,
+    };
+  }
+
+  return {
+    toolLocalConfigPath: TOOL_LOCAL_CONFIG_CANDIDATES[0],
+    toolLocalConfig: null,
+    toolLocalConfigCandidates: TOOL_LOCAL_CONFIG_CANDIDATES,
+    toolLocalConfigs: [],
+  };
 }
 
 function createTypeRenderer(refFormatter) {
