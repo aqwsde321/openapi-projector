@@ -19,12 +19,12 @@
 - 공용 유틸: `src/core/openapi-utils.mjs`
 - 명령 구현: `src/commands/*.mjs`
 - 기본 설정값: `config/defaults.jsonc`
-- bootstrap 템플릿: `templates/project.jsonc`, `templates/project-rules.jsonc`
+- bootstrap 템플릿: `templates/project.jsonc`, `templates/project-rules.jsonc`, `templates/project-readme.md`
 
 ## 현재 구현 경계
 
 - `init`
-  - 대상 프로젝트에 `openapi/` bootstrap 생성
+  - 대상 프로젝트에 `openapi/` bootstrap과 사용자/AI용 `openapi/README.md` 생성
 - `refresh`
   - `download + catalog + generate`
 - `rules`

@@ -26,12 +26,14 @@ openapi-projector init
 `init`이 생성하는 파일:
 
 - `.openapi-projector.local.jsonc`
+- `openapi/README.md`
 - `openapi/config/project.jsonc`
 - `openapi/config/project-rules.jsonc`
 - `openapi/.gitignore`
 - `.gitignore`의 `.openapi-projector.local.jsonc` 항목
 
 `.openapi-projector.local.jsonc`는 현재 프로젝트 기준 로컬 설정입니다. 보통 `projectRoot`는 `"."` 그대로 둡니다.
+`openapi/README.md`는 해당 프론트엔드 프로젝트에서 사용자나 AI가 읽고 실행할 작업 가이드입니다.
 
 ### 2. OpenAPI URL 설정
 
@@ -106,6 +108,7 @@ package script로 감싸도 됩니다.
 
 ```text
 openapi/
+  README.md
   config/
     project.jsonc
     project-rules.jsonc

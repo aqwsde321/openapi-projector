@@ -256,11 +256,17 @@ test(
         path.join(workspace, 'openapi/config/project.jsonc'),
         'utf8',
       );
+      const projectReadmeSource = await fs.readFile(
+        path.join(workspace, 'openapi/README.md'),
+        'utf8',
+      );
       const gitignoreSource = await fs.readFile(path.join(workspace, '.gitignore'), 'utf8');
 
       assert.match(localConfigSource, /"projectRoot": "\."/);
       assert.doesNotMatch(localConfigSource, /"sourceUrl"/);
       assert.match(projectConfigSource, /"sourceUrl": "https:\/\/example\.com\/v3\/api-docs"/);
+      assert.match(projectReadmeSource, /# openapi-projector 작업 가이드/);
+      assert.match(projectReadmeSource, /openapi-projector prepare/);
       assert.match(gitignoreSource, /\.openapi-projector\.local\.jsonc/);
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });

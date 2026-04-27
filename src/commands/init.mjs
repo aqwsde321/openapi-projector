@@ -38,6 +38,9 @@ const initCommand = {
     console.log(`Initialized openapi workflow in ${rootDir}`);
     console.log(`- local config: ${localConfigResult.toolLocalConfigPath}`);
     console.log(`- project config: ${result.projectConfigTargetPath}`);
+    console.log(
+      `- project guide: ${result.projectReadmePath}${result.projectReadmeCreated ? '' : ' (already exists)'}`,
+    );
     console.log(`- gitignore: ${result.openapiGitignorePath}`);
     if (localConfigResult.gitignoreUpdated) {
       console.log(`- root gitignore updated: ${localConfigResult.gitignorePath}`);

@@ -553,6 +553,8 @@ async function initProject(rootDir, options = {}) {
   const projectConfigTargetPath = path.resolve(rootDir, 'openapi/config/project.jsonc');
   const projectRulesTemplatePath = path.join(TOOL_ROOT_DIR, 'templates', 'project-rules.jsonc');
   const projectConfigTemplatePath = path.join(TOOL_ROOT_DIR, 'templates', 'project.jsonc');
+  const projectReadmeTemplatePath = path.join(TOOL_ROOT_DIR, 'templates', 'project-readme.md');
+  const projectReadmePath = path.resolve(rootDir, 'openapi/README.md');
   const openapiGitignorePath = path.resolve(rootDir, 'openapi/.gitignore');
 
   if (!force) {
@@ -568,9 +570,10 @@ async function initProject(rootDir, options = {}) {
     }
   }
 
-  const [projectConfigTemplate, projectRulesTemplate] = await Promise.all([
+  const [projectConfigTemplate, projectRulesTemplate, projectReadmeTemplate] = await Promise.all([
     fs.readFile(projectConfigTemplatePath, 'utf8'),
     fs.readFile(projectRulesTemplatePath, 'utf8'),
+    fs.readFile(projectReadmeTemplatePath, 'utf8'),
   ]);
 
   const projectConfigContents =
@@ -607,8 +610,16 @@ async function initProject(rootDir, options = {}) {
   await ensureDir(path.resolve(rootDir, 'openapi/project'));
   await ensureDir(path.resolve(rootDir, 'openapi/_internal/source'));
 
+  let projectReadmeCreated = false;
+  if (!(await pathExists(projectReadmePath))) {
+    await writeText(projectReadmePath, projectReadmeTemplate);
+    projectReadmeCreated = true;
+  }
+
   return {
     projectConfigTargetPath,
+    projectReadmePath,
+    projectReadmeCreated,
     openapiGitignorePath,
   };
 }
