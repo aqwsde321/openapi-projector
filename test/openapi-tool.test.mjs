@@ -227,6 +227,36 @@ test(
 );
 
 test(
+  'cli init uses current working directory and creates local config',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-cwd-'));
+    const sourceUrl = 'https://cwd.example.com/v3/api-docs';
+
+    try {
+      await runInWorkspace(workspace, () => runCli(['init', '--source-url', sourceUrl]));
+
+      const localConfigSource = await fs.readFile(
+        path.join(workspace, '.openapi-projector.local.jsonc'),
+        'utf8',
+      );
+      const projectConfigSource = await fs.readFile(
+        path.join(workspace, 'openapi/config/project.jsonc'),
+        'utf8',
+      );
+      const gitignoreSource = await fs.readFile(path.join(workspace, '.gitignore'), 'utf8');
+
+      assert.match(localConfigSource, /"projectRoot": "\."/);
+      assert.match(localConfigSource, /"sourceUrl": "https:\/\/cwd\.example\.com\/v3\/api-docs"/);
+      assert.match(projectConfigSource, /"sourceUrl": "https:\/\/cwd\.example\.com\/v3\/api-docs"/);
+      assert.match(gitignoreSource, /\.openapi-projector\.local\.jsonc/);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
   'cli ignores invalid legacy local config when projector config has projectRoot',
   { concurrency: false },
   async () => {
@@ -501,7 +531,7 @@ test(
 );
 
 test(
-  'prepare initializes and generates project candidate output in one command',
+  'prepare generates project candidate output from current working directory',
   { concurrency: false },
   async () => {
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-prepare-'));
@@ -509,16 +539,10 @@ test(
     const sourceUrl = `data:application/json,${encodeURIComponent(JSON.stringify(spec))}`;
 
     try {
-      await withToolLocalConfigs(
-        {
-          projector: {
-            projectRoot: workspace,
-            initDefaults: {
-              sourceUrl,
-            },
-          },
-        },
+      await runInWorkspace(
+        workspace,
         async () => {
+          await runCli(['init', '--source-url', sourceUrl]);
           await runCli(['prepare']);
 
           await assertExists(path.join(workspace, 'openapi/config/project.jsonc'));
@@ -535,36 +559,44 @@ test(
 );
 
 test(
-  'cli fails clearly when target project root is not configured',
+  'cli reports project config missing in current working directory',
   { concurrency: false },
   async () => {
-    await withToolLocalConfig(null, async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-empty-'));
+
+    try {
       await assert.rejects(
-        () => runCli(['project']),
-        /Target project root is not configured\./,
+        () => runInWorkspace(workspace, () => runCli(['project'])),
+        /Project config not found\./,
       );
-    });
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
   },
 );
 
 test(
-  'cli fails clearly when tool local config projectRoot is blank',
+  'cli uses current working directory when local config projectRoot is blank',
   { concurrency: false },
   async () => {
-    await withToolLocalConfig(
-      {
-        projectRoot: '',
-        initDefaults: {
-          sourceUrl: '',
-        },
-      },
-      async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-blank-local-'));
+
+    try {
+      await fs.writeFile(
+        path.join(workspace, '.openapi-projector.local.jsonc'),
+        JSON.stringify({ projectRoot: '', initDefaults: { sourceUrl: '' } }, null, 2),
+        'utf8',
+      );
+
+      await runInWorkspace(workspace, async () => {
         await assert.rejects(
           () => runCli(['project']),
-          /Target project root is not configured\./,
+          /Project config not found\./,
         );
-      },
-    );
+      });
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
   },
 );
 

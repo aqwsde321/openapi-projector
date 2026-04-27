@@ -17,10 +17,10 @@ const HTTP_METHOD_ORDER = [
 const HTTP_METHODS = new Set(HTTP_METHOD_ORDER);
 const TOOL_ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const DEFAULT_CONFIG_PATH = path.join(TOOL_ROOT_DIR, 'config', 'defaults.jsonc');
-const TOOL_LOCAL_CONFIG_CANDIDATES = [
+const TOOL_LOCAL_CONFIG_FILE_NAMES = [
   '.openapi-projector.local.jsonc',
   '.openapi-tool.local.jsonc',
-].map((fileName) => path.join(TOOL_ROOT_DIR, fileName));
+];
 const PROJECT_CONFIG_CANDIDATES = [
   'openapi.config.jsonc',
   'openapi/config/project.jsonc',
@@ -153,6 +153,18 @@ async function writeJson(filePath, data) {
 async function writeText(filePath, content) {
   await ensureDir(path.dirname(filePath));
   await fs.writeFile(filePath, content, 'utf8');
+}
+
+async function pathExists(filePath) {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return false;
+    }
+    throw error;
+  }
 }
 
 function replaceTopLevelJsoncValue(rawText, key, value) {
@@ -601,6 +613,64 @@ async function initProject(rootDir, options = {}) {
   };
 }
 
+function renderToolLocalConfig({ sourceUrl = '' } = {}) {
+  return `{
+  // 이 파일은 실행한 프론트엔드 프로젝트 루트 기준 로컬 설정입니다.
+  // 보통 projectRoot 는 현재 디렉터리를 뜻하는 "." 그대로 둡니다.
+  "projectRoot": ".",
+  "initDefaults": {
+    // Swagger UI 주소가 아니라 OpenAPI JSON 요청 URL(예: /v3/api-docs)을 적습니다.
+    "sourceUrl": ${JSON.stringify(sourceUrl)}
+  }
+}
+`;
+}
+
+async function ensureGitignoreEntry(rootDir, entry) {
+  const gitignorePath = path.resolve(rootDir, '.gitignore');
+  let contents = '';
+
+  try {
+    contents = await fs.readFile(gitignorePath, 'utf8');
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      throw error;
+    }
+  }
+
+  const lines = contents.split(/\r?\n/);
+  if (lines.includes(entry)) {
+    return { gitignorePath, updated: false };
+  }
+
+  const prefix = contents && !contents.endsWith('\n') ? '\n' : '';
+  const section = contents.includes('# openapi-projector')
+    ? `${entry}\n`
+    : `# openapi-projector\n${entry}\n`;
+  await writeText(gitignorePath, `${contents}${prefix}${section}`);
+  return { gitignorePath, updated: true };
+}
+
+async function initToolLocalConfig(rootDir, options = {}) {
+  const { sourceUrl = '' } = options;
+  const toolLocalConfigPath = path.resolve(rootDir, '.openapi-projector.local.jsonc');
+  let created = false;
+
+  if (!(await pathExists(toolLocalConfigPath))) {
+    await writeText(toolLocalConfigPath, renderToolLocalConfig({ sourceUrl }));
+    created = true;
+  }
+
+  const gitignoreResult = await ensureGitignoreEntry(rootDir, '.openapi-projector.local.jsonc');
+
+  return {
+    toolLocalConfigPath,
+    created,
+    gitignorePath: gitignoreResult.gitignorePath,
+    gitignoreUpdated: gitignoreResult.updated,
+  };
+}
+
 async function loadProjectRules(rootDir, projectConfig) {
   const projectRulesPath = path.resolve(
     rootDir,
@@ -614,10 +684,15 @@ async function loadProjectRules(rootDir, projectConfig) {
   };
 }
 
-async function loadToolLocalConfig() {
+function buildToolLocalConfigCandidates(rootDir) {
+  return TOOL_LOCAL_CONFIG_FILE_NAMES.map((fileName) => path.resolve(rootDir, fileName));
+}
+
+async function loadToolLocalConfig(rootDir = process.cwd()) {
+  const toolLocalConfigCandidates = buildToolLocalConfigCandidates(rootDir);
   const foundConfigs = [];
 
-  for (const candidatePath of TOOL_LOCAL_CONFIG_CANDIDATES) {
+  for (const candidatePath of toolLocalConfigCandidates) {
     try {
       const toolLocalConfig = await readJson(candidatePath);
       foundConfigs.push({
@@ -629,7 +704,7 @@ async function loadToolLocalConfig() {
         return {
           toolLocalConfigPath: candidatePath,
           toolLocalConfig,
-          toolLocalConfigCandidates: TOOL_LOCAL_CONFIG_CANDIDATES,
+          toolLocalConfigCandidates,
           toolLocalConfigs: foundConfigs,
         };
       }
@@ -646,15 +721,15 @@ async function loadToolLocalConfig() {
   if (selectedConfig) {
     return {
       ...selectedConfig,
-      toolLocalConfigCandidates: TOOL_LOCAL_CONFIG_CANDIDATES,
+      toolLocalConfigCandidates,
       toolLocalConfigs: foundConfigs,
     };
   }
 
   return {
-    toolLocalConfigPath: TOOL_LOCAL_CONFIG_CANDIDATES[0],
+    toolLocalConfigPath: toolLocalConfigCandidates[0],
     toolLocalConfig: null,
-    toolLocalConfigCandidates: TOOL_LOCAL_CONFIG_CANDIDATES,
+    toolLocalConfigCandidates,
     toolLocalConfigs: [],
   };
 }
@@ -831,6 +906,7 @@ export {
   getRequestBodySchema,
   getResponseSchema,
   initProject,
+  initToolLocalConfig,
   isValidIdentifier,
   loadProjectConfig,
   loadProjectRules,

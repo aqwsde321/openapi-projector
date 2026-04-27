@@ -133,16 +133,16 @@ const doctorCommand = {
       }
     } else {
       if (rootDir) {
-        warn('Local config not found. Continuing with --project-root/context target.');
+        warn('Local config not found. Using current target root.');
       } else {
         fail('Local config not found.');
-        lines.push('  Fix: cp .openapi-projector.local.example.jsonc .openapi-projector.local.jsonc');
+        lines.push('  Fix: run openapi-projector init --source-url <openapi-json-url>.');
       }
     }
 
     if (!rootDir) {
       fail('Target project root is not configured.');
-      lines.push('  Fix: set projectRoot in .openapi-projector.local.jsonc or pass --project-root /path/to/service-app.');
+      lines.push('  Fix: run from the frontend project root or pass --project-root /path/to/service-app.');
       console.log(lines.join('\n'));
       return { ok };
     }
@@ -200,7 +200,7 @@ const doctorCommand = {
         }
       } else {
         fail('Project config is missing and initDefaults.sourceUrl is not configured.');
-        lines.push('  Fix: set initDefaults.sourceUrl in .openapi-projector.local.jsonc, or run init and edit openapi/config/project.jsonc.');
+        lines.push('  Fix: run openapi-projector init --source-url <openapi-json-url>, or edit openapi/config/project.jsonc.');
       }
 
       skip('Downloaded OpenAPI JSON will be checked after prepare/init creates project config.');

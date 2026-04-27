@@ -18,9 +18,9 @@
 
 ## 어디서 실행해야 하나
 
-도구는 **도구 저장소 루트에서 실행**합니다.
+도구는 **프론트엔드 프로젝트 루트에서 실행**합니다.
 
-어느 서비스 프로젝트를 조작할지는 `.openapi-projector.local.jsonc`, legacy `.openapi-tool.local.jsonc`, 또는 `--project-root`로 지정합니다.
+기본 대상 프로젝트는 현재 실행 디렉터리입니다. 다른 위치를 조작해야 할 때만 `--project-root` 또는 `.openapi-projector.local.jsonc`의 `projectRoot`를 사용합니다.
 
 ## 단계별 역할
 

@@ -32,6 +32,8 @@
 
 - 시스템은 `init` 명령으로 대상 프로젝트에 `openapi/` 작업 폴더를 생성해야 합니다.
 - 시스템은 최소한 아래 파일을 bootstrap 해야 합니다.
+  - `.openapi-projector.local.jsonc`
+  - root `.gitignore`의 `.openapi-projector.local.jsonc` 항목
   - `openapi/config/project.jsonc`
   - `openapi/config/project-rules.jsonc`
   - `openapi/.gitignore`

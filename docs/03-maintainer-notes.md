@@ -10,6 +10,7 @@
 
 - 이 저장소 자체는 보통 결과물을 담지 않습니다.
 - 결과물은 대상 프로젝트 안의 `openapi/`에 생성됩니다.
+- 배포 빌드 단계는 없고, 로컬 사용은 보통 `npm install && npm link`로 CLI bin을 연결합니다.
 
 ## 핵심 엔트리포인트
 
@@ -37,30 +38,25 @@
 
 ## 개발 시 확인할 것
 
-### 1. 현재 repo 호환성
+### 1. 현재 repo 검증
 
-이 저장소는 현재 개발 중인 repo 안에서도 동작해야 합니다.
-
-즉 최소한 아래는 계속 통과해야 합니다.
+도구 저장소 루트는 기본 대상 프로젝트가 아닙니다. repo 자체 검증은 아래를 기본으로 합니다.
 
 ```bash
 node ./bin/openapi-tool.mjs help
-node ./bin/openapi-tool.mjs catalog
-node ./bin/openapi-tool.mjs generate
-node ./bin/openapi-tool.mjs rules
-node ./bin/openapi-tool.mjs project
-node ./bin/openapi-tool.mjs doctor
+npm test
 ```
 
 ### 2. bootstrap 시나리오
 
-새 빈 디렉터리에서 `init`이 실제로 `openapi/`를 만들어야 합니다.
+새 빈 프론트엔드 프로젝트 디렉터리에서 `init`이 로컬 설정과 `openapi/`를 만들고 `doctor`가 통과해야 합니다.
 
 예:
 
 ```bash
 cd /tmp/smoke-project
-node /path/to/openapi-projector/bin/openapi-tool.mjs init
+node /path/to/openapi-projector/bin/openapi-tool.mjs init --source-url <openapi-json-url>
+node /path/to/openapi-projector/bin/openapi-tool.mjs doctor
 ```
 
 ### 3. config discovery
@@ -89,7 +85,5 @@ node /path/to/openapi-projector/bin/openapi-tool.mjs init
   - 기능 요구사항과 완료 기준
 - `docs/07-gap-analysis.md`
   - 현재 구현 대비 요구사항 갭 분석
-- `docs/10-current-structure-and-config.md`
-  - 현재 MVP v2 구조와 설정값 빠른 참조
 
 사용자 문서와 개발자 문서를 다시 섞지 않는 것이 중요합니다.

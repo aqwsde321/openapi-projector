@@ -2,9 +2,9 @@
 
 이 문서는 **설정값만** 설명합니다.
 
-빠른 사용법은 [README](../README.md), 현재 구조는 [10-current-structure-and-config.md](./10-current-structure-and-config.md)를 보면 됩니다.
+빠른 사용법과 생성 구조는 [README](../README.md)를 보면 됩니다.
 
-## 1. 도구 저장소 로컬 설정
+## 1. 프로젝트 루트 로컬 설정
 
 파일:
 
@@ -18,6 +18,7 @@
 - 예시 템플릿 제공
 - 어느 프로젝트를 조작할지 결정
 - `init` 시 대상 프로젝트 설정의 기본값을 채워 넣음
+- `openapi-projector init --source-url <url>` 실행 시 현재 프로젝트 루트에 자동 생성
 
 탐색 우선순위:
 
@@ -28,7 +29,7 @@
 
 ```jsonc
 {
-  "projectRoot": "",
+  "projectRoot": ".",
   "initDefaults": {
     "sourceUrl": ""
   }
@@ -39,12 +40,12 @@
 
 | 필드 | 의미 |
 | --- | --- |
-| `projectRoot` | 대상 프로젝트 절대 경로 |
+| `projectRoot` | 대상 프로젝트 경로. 보통 현재 디렉터리인 `.` 사용 |
 | `initDefaults.sourceUrl` | OpenAPI JSON 요청 URL |
 
 주의:
 
-- `projectRoot`가 비어 있으면 `help`, `doctor`를 제외한 명령은 실행되지 않습니다.
+- `projectRoot`가 없으면 현재 실행 디렉터리를 대상 프로젝트로 사용합니다.
 - `sourceUrl`은 Swagger UI 주소가 아니라 OpenAPI JSON 요청 URL입니다.
 
 ## 2. 대상 프로젝트 `project.jsonc`

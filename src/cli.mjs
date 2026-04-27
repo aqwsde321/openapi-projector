@@ -67,6 +67,19 @@ function normalizeConfiguredString(value) {
   return trimmed ? trimmed : null;
 }
 
+function resolveConfiguredProjectRoot(projectRootValue, configPath) {
+  const normalized = normalizeConfiguredString(projectRootValue);
+  if (!normalized) {
+    return null;
+  }
+
+  if (path.isAbsolute(normalized)) {
+    return normalized;
+  }
+
+  return path.resolve(path.dirname(configPath), normalized);
+}
+
 async function runCli(argv) {
   const parsed = parseCliArgs(argv);
   const commandName = parsed.argv[0] ?? 'help';
@@ -89,39 +102,11 @@ async function runCli(argv) {
     toolLocalConfigCandidates,
     toolLocalConfigs,
   } =
-    await loadToolLocalConfig();
+    await loadToolLocalConfig(process.cwd());
   const targetRootValue =
     normalizeConfiguredString(parsed.projectRoot) ??
-    normalizeConfiguredString(toolLocalConfig?.projectRoot) ??
-    null;
-
-  if (!targetRootValue) {
-    if (commandName === 'doctor') {
-      const result = await command.run({
-        argv: parsed.argv.slice(1),
-        context: {
-          targetRoot: null,
-          toolLocalConfigPath,
-          toolLocalConfig,
-          toolLocalConfigCandidates,
-          toolLocalConfigs,
-        },
-      });
-
-      if (result?.ok === false) {
-        process.exitCode = 1;
-      }
-      return;
-    }
-
-    throw new Error(
-      [
-        'Target project root is not configured.',
-        `Create ${toolLocalConfigPath} from .openapi-projector.local.example.jsonc and set "projectRoot", or pass --project-root /path/to/service-app.`,
-        'Legacy fallback is still supported: .openapi-tool.local.jsonc',
-      ].join('\n'),
-    );
-  }
+    resolveConfiguredProjectRoot(toolLocalConfig?.projectRoot, toolLocalConfigPath) ??
+    process.cwd();
 
   const context = {
     targetRoot: path.resolve(targetRootValue),

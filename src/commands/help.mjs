@@ -25,10 +25,10 @@ const helpCommand = {
     console.log('  npm run openapi:<command>');
     console.log('');
     console.log('First-time setup:');
-    console.log('  1. .openapi-projector.local.example.jsonc 를 .openapi-projector.local.jsonc 로 복사합니다.');
-    console.log('  2. projectRoot 를 대상 프로젝트 절대 경로로 채웁니다.');
-    console.log('  3. 필요하면 initDefaults.sourceUrl 도 같이 채웁니다.');
-    console.log('  4. doctor 로 점검한 뒤 prepare 를 실행합니다.');
+    console.log('  1. cd /path/to/frontend-project');
+    console.log('  2. openapi-projector init --source-url <openapi-json-url>');
+    console.log('  3. openapi-projector doctor');
+    console.log('  4. openapi-projector prepare');
     console.log('');
     console.log('Commands:');
     for (const [name, description] of commands) {
@@ -36,8 +36,8 @@ const helpCommand = {
     }
     console.log('');
     console.log('Execution model:');
-    console.log('  - help/doctor 를 제외한 모든 명령은 target project root 가 필요합니다.');
-    console.log('  - 우선순위: --project-root -> .openapi-projector.local.jsonc -> .openapi-tool.local.jsonc');
+    console.log('  - 기본 target project root 는 현재 실행 디렉터리입니다.');
+    console.log('  - 우선순위: --project-root -> .openapi-projector.local.jsonc -> .openapi-tool.local.jsonc -> cwd');
     console.log('  - config 탐색 순서: openapi.config.jsonc -> openapi/config/project.jsonc -> config/project.jsonc');
     console.log('  - review 산출물은 openapi/review 아래에 생성됩니다.');
     console.log('  - project 후보는 openapi/project 아래에 생성됩니다.');
@@ -52,7 +52,8 @@ const helpCommand = {
     console.log('');
     console.log('Docs:');
     console.log('  - 빠른 사용법: README.md');
-    console.log('  - 현재 구조/설정값: docs/10-current-structure-and-config.md');
+    console.log('  - 개념과 단계: docs/01-concepts.md');
+    console.log('  - 설정값: docs/04-config-reference.md');
   },
 };
 
