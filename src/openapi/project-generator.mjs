@@ -252,8 +252,12 @@ function buildJsDoc(description, indent = '') {
 }
 
 function isSimpleObjectSchema(schema) {
+  const schemaTypes = Array.isArray(schema?.type) ? schema.type : [schema?.type];
+  const isNullable = Boolean(schema?.nullable || schemaTypes.includes('null'));
+
   return Boolean(
     schema &&
+      !isNullable &&
       (schema.type === 'object' || schema.properties || schema.additionalProperties) &&
       !schema.oneOf &&
       !schema.anyOf &&
@@ -551,7 +555,7 @@ function getDestructuredLocalName(propertyName) {
 function buildPathTemplateExpression(template, getValueExpression) {
   return `\`${template.replace(
     /\{([^}]+)\}/g,
-    (_, key) => `\${${getValueExpression(key)}}`,
+    (_, key) => `\${encodeURIComponent(String(${getValueExpression(key)}))}`,
   )}\``;
 }
 

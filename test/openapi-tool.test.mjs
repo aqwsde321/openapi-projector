@@ -12,6 +12,7 @@ import { doctorCommand } from '../src/commands/doctor.mjs';
 import { generateCommand } from '../src/commands/generate.mjs';
 import { projectCommand } from '../src/commands/project.mjs';
 import { rulesCommand } from '../src/commands/rules.mjs';
+import { createTypeRenderer, readJson } from '../src/core/openapi-utils.mjs';
 
 const execFileAsync = promisify(execFile);
 const TEST_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -168,6 +169,55 @@ async function withToolLocalConfigs(configs, callback) {
 async function withToolLocalConfig(config, callback) {
   return withToolLocalConfigs({ legacy: config }, (paths) => callback(paths.legacy));
 }
+
+test('readJson supports JSONC comments and trailing commas', async () => {
+  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-jsonc-'));
+  const filePath = path.join(workspace, 'config.jsonc');
+
+  try {
+    await fs.writeFile(
+      filePath,
+      [
+        '{',
+        '  // trailing commas are valid JSONC in config files',
+        '  "sourceUrl": "https://api.example.com/openapi.json",',
+        '  "paths": [',
+        '    "openapi/config/project.jsonc",',
+        '  ],',
+        '}',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+
+    assert.deepEqual(await readJson(filePath), {
+      sourceUrl: 'https://api.example.com/openapi.json',
+      paths: ['openapi/config/project.jsonc'],
+    });
+  } finally {
+    await fs.rm(workspace, { recursive: true, force: true });
+  }
+});
+
+test('type renderer preserves OpenAPI 3.1 nullable union types', () => {
+  const renderer = createTypeRenderer((name) => name);
+
+  assert.equal(
+    renderer.renderType({
+      type: ['string', 'null'],
+    }),
+    'string | null',
+  );
+  assert.equal(
+    renderer.renderType({
+      type: 'array',
+      items: {
+        type: ['string', 'null'],
+      },
+    }),
+    '(string | null)[]',
+  );
+});
 
 test(
   'generate creates review docs and schema.ts for OpenAPI 3.0',
@@ -783,14 +833,20 @@ test(
       const defaultApiSource = await fs.readFile(defaultApiPath, 'utf8');
       const defaultDtoSource = await fs.readFile(defaultDtoPath, 'utf8');
       const profilesApiSource = await fs.readFile(profilesApiPath, 'utf8');
+      const profilesDtoSource = await fs.readFile(profilesDtoPath, 'utf8');
       const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
       assert.match(defaultApiSource, /export const getHealthStatus = async/);
       assert.match(defaultApiSource, /from '\.\/get-health-status\.dto'/);
       assert.match(defaultApiSource, /from '\.\.\/\.\.\/test-support\/fetch-api'/);
       assert.match(defaultDtoSource, /export interface GetHealthStatusResponseDto \{/);
+      assert.match(defaultDtoSource, /message\?: string \| null;/);
       assert.match(profilesApiSource, /export const updateProfile = async/);
       assert.match(profilesApiSource, /from '\.\/update-profile\.dto'/);
       assert.match(profilesApiSource, /method: "PATCH"/);
+      assert.match(profilesApiSource, /`\/profiles\/\$\{encodeURIComponent\(String\(id\)\)\}`/);
+      assert.match(profilesDtoSource, /bio\?: string \| null;/);
+      assert.doesNotMatch(defaultDtoSource, /unknown/);
+      assert.doesNotMatch(profilesDtoSource, /unknown/);
       assert.equal(manifest.projectGeneratedSrcDir, 'openapi/project/src/openapi-generated');
       assert.equal('suggestedTargetSrcDir' in manifest, false);
       assert.ok(manifest.files.every((entry) => !('target' in entry)));
@@ -1087,7 +1143,7 @@ test(
         assert.match(userApiSource, /import \{ request as fetchAPI \} from '\.\.\/\.\.\/test-support\/request-client'/);
         assert.match(userApiSource, /await fetchAPI<GetUserByIdResponseDto>\(\{/);
         assert.match(userApiSource, /const \{ id \} = requestDto;/);
-        assert.match(userApiSource, /url: `\/users\/\$\{id\}`/);
+        assert.match(userApiSource, /url: `\/users\/\$\{encodeURIComponent\(String\(id\)\)\}`/);
         assert.match(userApiSource, /from '\.\/get-user-by-id\.dto'/);
 
         await execFileAsync(process.execPath, [
@@ -1279,7 +1335,7 @@ test(
       assert.match(dtoSource, /export interface GetAdminCorporateMemberResponseDto \{/);
       assert.match(apiSource, /export const getAdminCorporateMember = async/);
       assert.match(apiSource, /const \{ userId \} = requestDto;/);
-      assert.match(apiSource, /\/admin\/corporate-members\/\$\{userId\}/);
+      assert.match(apiSource, /\/admin\/corporate-members\/\$\{encodeURIComponent\(String\(userId\)\)\}/);
       assert.doesNotMatch(apiSource, /requestDto\["userId"\]/);
       assert.doesNotMatch(dtoSource, /AdminCorporateControllerGetAdminCorporateMember/);
       assert.doesNotMatch(apiSource, /adminCorporateControllerGetAdminCorporateMember/);
@@ -1447,6 +1503,62 @@ test(
         '--noEmit',
         '-p',
         path.join(workspace, 'openapi/project/src/tsconfig.json'),
+      ]);
+    });
+  },
+);
+
+test(
+  'project skips operations without explicit 2xx success responses',
+  { concurrency: false },
+  async () => {
+    const spec = await readFixtureJson('oas30.json');
+    spec.paths['/reports/error-only'] = {
+      get: {
+        tags: ['Reports'],
+        operationId: 'getErrorOnlyReport',
+        responses: {
+          400: {
+            description: 'Bad Request',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    message: {
+                      type: 'string',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => generateCommand.run());
+      await runInWorkspace(workspace, () => projectCommand.run());
+
+      const generatedRoot = path.join(workspace, 'openapi/project/src/openapi-generated');
+      const manifest = JSON.parse(
+        await fs.readFile(path.join(workspace, 'openapi/project/manifest.json'), 'utf8'),
+      );
+
+      await assert.rejects(
+        () => fs.access(path.join(generatedRoot, 'Reports/get-error-only-report.api.ts')),
+        /ENOENT/,
+      );
+      assert.equal(manifest.totalEndpoints, 3);
+      assert.equal(manifest.generatedEndpoints, 2);
+      assert.equal(manifest.skippedEndpoints, 1);
+      assert.deepEqual(manifest.skippedOperations, [
+        {
+          method: 'GET',
+          path: '/reports/error-only',
+          reasons: ['missing success response'],
+        },
       ]);
     });
   },

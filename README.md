@@ -23,6 +23,12 @@ cd /path/to/frontend-project
 openapi-projector init
 ```
 
+OpenAPI JSON URL을 이미 알고 있으면 init 단계에서 바로 넣을 수 있습니다.
+
+```bash
+openapi-projector init --source-url https://example.com/v3/api-docs
+```
+
 `init`이 생성하는 파일:
 
 - `.openapi-projector.local.jsonc`
@@ -59,6 +65,7 @@ openapi-projector init --force
 ```
 
 `sourceUrl`은 Swagger UI 주소가 아니라 OpenAPI JSON 요청 URL이어야 합니다.
+현재는 로컬에서 인증 없이 `GET` 가능한 JSON URL을 기준으로 합니다. 사내 Swagger가 쿠키/토큰/헤더를 요구하면 접근 가능한 OpenAPI JSON URL을 먼저 준비합니다.
 
 ### 3. 점검
 
@@ -94,6 +101,18 @@ openapi-projector prepare
 ```
 
 `prepare`는 필요한 경우 `init`을 먼저 실행하고, 이후 `refresh -> rules -> project`를 이어서 실행합니다.
+처음 도입하는 프로젝트에서는 `prepare`보다 `refresh -> rules -> project`를 단계별로 실행하고, `project-rules.jsonc`를 확인한 뒤 후보 코드를 생성하는 편이 안전합니다.
+
+AI에게 처음 적용을 맡길 때는 아래처럼 요청하면 됩니다.
+
+```text
+Read openapi/README.md first.
+Run openapi-projector doctor --check-url.
+Then run refresh, rules, inspect the existing API client, update openapi/config/project-rules.jsonc, and run project.
+Apply only the DTO/API candidates for the endpoints I request into the real app source tree.
+Do not commit openapi/review or openapi/project.
+Run typecheck/lint after applying code.
+```
 
 결과 확인 위치:
 
@@ -158,14 +177,19 @@ openapi/
 
 지원:
 
-- OpenAPI `3.0/3.1 JSON`
+- OpenAPI 3.0 JSON 및 OpenAPI 3.1 JSON 일부
+- OpenAPI 3.1 `type: ["...", "null"]` 형태의 nullable 타입
 - React/Next + TypeScript 프로젝트 대상 후보 코드
 - 대상 프로젝트의 기존 HTTP client를 사용하는 wrapper 생성
+- 명시적 `2xx`/`2XX` 성공 응답이 있는 endpoint 생성
+- 생성 API wrapper의 path parameter URL encoding
+- JSONC 설정 파일의 주석과 trailing comma
 
 아직 범위 밖:
 
 - OpenAPI 2.0
 - YAML
+- 명시적 성공 응답 없이 `default`/`4xx` 응답만 있는 endpoint 자동 생성
 - Vue
 - React Query hooks
 - Ajv/Zod 런타임 검증

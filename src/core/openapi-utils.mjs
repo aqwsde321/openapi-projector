@@ -140,9 +140,54 @@ function stripJsonComments(rawText) {
   return result;
 }
 
+function stripJsonTrailingCommas(rawText) {
+  let result = '';
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < rawText.length; index += 1) {
+    const char = rawText[index];
+
+    if (inString) {
+      result += char;
+
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+
+      continue;
+    }
+
+    if (char === '"') {
+      inString = true;
+      result += char;
+      continue;
+    }
+
+    if (char === ',') {
+      let nextIndex = index + 1;
+      while (/\s/.test(rawText[nextIndex] ?? '')) {
+        nextIndex += 1;
+      }
+
+      if (rawText[nextIndex] === '}' || rawText[nextIndex] === ']') {
+        continue;
+      }
+    }
+
+    result += char;
+  }
+
+  return result;
+}
+
 async function readJson(filePath) {
   const raw = await fs.readFile(filePath, 'utf8');
-  return JSON.parse(stripJsonComments(raw));
+  return JSON.parse(stripJsonTrailingCommas(stripJsonComments(raw)));
 }
 
 async function writeJson(filePath, data) {
@@ -735,35 +780,72 @@ async function loadToolLocalConfig(rootDir = process.cwd()) {
 }
 
 function createTypeRenderer(refFormatter) {
+  const hasUnionMember = (renderedType, memberName) =>
+    renderedType
+      .split('|')
+      .map((part) => part.trim())
+      .includes(memberName);
+  const wrapCompositeArrayItem = (renderedType) =>
+    renderedType.includes(' | ') || renderedType.includes(' & ')
+      ? `(${renderedType})`
+      : renderedType;
+  const withNullable = (schema, renderedType) => {
+    if (!schema?.nullable) {
+      return renderedType;
+    }
+
+    return hasUnionMember(renderedType, 'null') ? renderedType : `${renderedType} | null`;
+  };
+
   const renderType = (schema) => {
     if (!schema) {
       return 'unknown';
     }
 
     if (schema.$ref) {
-      return refFormatter(schemaRefName(schema.$ref));
+      return withNullable(schema, refFormatter(schemaRefName(schema.$ref)));
     }
 
     if (schema.oneOf) {
-      return schema.oneOf.map((item) => renderType(item)).join(' | ');
+      return withNullable(schema, schema.oneOf.map((item) => renderType(item)).join(' | '));
     }
 
     if (schema.anyOf) {
-      return schema.anyOf.map((item) => renderType(item)).join(' | ');
+      return withNullable(schema, schema.anyOf.map((item) => renderType(item)).join(' | '));
     }
 
     if (schema.allOf) {
-      return schema.allOf.map((item) => renderType(item)).join(' & ');
+      return withNullable(schema, schema.allOf.map((item) => renderType(item)).join(' & '));
     }
 
     if (schema.enum) {
       const literals = schema.enum.map((item) => JSON.stringify(item));
       const union = literals.join(' | ');
-      return schema.nullable ? `${union} | null` : union;
+      return withNullable(schema, union);
+    }
+
+    if (Array.isArray(schema.type)) {
+      const renderedTypes = schema.type.map((typeName) => {
+        if (typeName === 'null') {
+          return 'null';
+        }
+
+        return renderType({
+          ...schema,
+          type: typeName,
+          nullable: false,
+        });
+      });
+
+      if (schema.nullable) {
+        renderedTypes.push('null');
+      }
+
+      return Array.from(new Set(renderedTypes)).join(' | ');
     }
 
     if (schema.type === 'string' && schema.format === 'binary') {
-      return schema.nullable ? 'File | null' : 'File';
+      return withNullable(schema, 'File');
     }
 
     let result = 'unknown';
@@ -780,7 +862,7 @@ function createTypeRenderer(refFormatter) {
         result = 'boolean';
         break;
       case 'array':
-        result = `${renderType(schema.items)}[]`;
+        result = `${wrapCompositeArrayItem(renderType(schema.items))}[]`;
         break;
       case 'object':
         result = renderObject(schema);
@@ -794,7 +876,7 @@ function createTypeRenderer(refFormatter) {
         break;
     }
 
-    return schema.nullable ? `${result} | null` : result;
+    return withNullable(schema, result);
   };
 
   const renderObject = (schema) => {
@@ -827,7 +909,7 @@ function createTypeRenderer(refFormatter) {
 }
 
 function findPrimaryResponse(responses = {}) {
-  const priorities = ['200', '201', '202', '204', '2XX', 'default'];
+  const priorities = ['200', '201', '202', '204', '2XX'];
 
   for (const status of priorities) {
     if (responses[status]) {
@@ -835,7 +917,11 @@ function findPrimaryResponse(responses = {}) {
     }
   }
 
-  return Object.entries(responses)[0] ?? [null, null];
+  const explicitSuccessEntry = Object.entries(responses)
+    .filter(([status]) => /^2\d\d$/.test(status))
+    .sort(([left], [right]) => Number(left) - Number(right))[0];
+
+  return explicitSuccessEntry ?? [null, null];
 }
 
 function getResponseSchema(spec, response) {

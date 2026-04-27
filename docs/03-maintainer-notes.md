@@ -33,6 +33,8 @@
   - 대상 프로젝트의 `src/entities`를 우선 분석하고, 없으면 `src` fallback 으로 규칙 문서/scaffold 생성
 - `project`
   - `project-rules.jsonc` 기준으로 `schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API` 후보 코드 생성
+  - 명시적 `2xx`/`2XX` 성공 응답이 없는 endpoint는 생성하지 않고 summary/manifest에 skip 사유를 남김
+  - 생성 API wrapper는 path parameter를 `encodeURIComponent`로 URL encoding 함
 - `doctor`
   - 로컬 설정, 대상 프로젝트 config, 다운로드된 OpenAPI JSON, project-rules 준비 상태 점검
 - `prepare`
@@ -48,6 +50,13 @@
 node ./bin/openapi-tool.mjs help
 pnpm test
 ```
+
+회귀 테스트를 추가할 때는 최소한 아래 케이스를 고려합니다.
+
+- JSONC 주석과 trailing comma
+- OpenAPI 3.1 `type: ["...", "null"]`
+- 명시적 성공 응답이 없는 endpoint skip
+- path parameter URL encoding
 
 ### 2. bootstrap 시나리오
 

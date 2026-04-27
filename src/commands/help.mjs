@@ -26,7 +26,8 @@ const helpCommand = {
     console.log('First-time setup:');
     console.log('  1. cd /path/to/frontend-project');
     console.log('  2. openapi-projector init');
-    console.log('  3. set sourceUrl in openapi/config/project.jsonc');
+    console.log('     or openapi-projector init --source-url https://example.com/v3/api-docs');
+    console.log('  3. set sourceUrl in openapi/config/project.jsonc if it was not passed to init');
     console.log('  4. openapi-projector doctor');
     console.log('  5. openapi-projector prepare');
     console.log('');

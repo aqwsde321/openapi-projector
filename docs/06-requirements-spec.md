@@ -21,7 +21,7 @@
 
 - Node.js 환경에서 CLI로 실행 가능해야 합니다.
 - 현재 작업 디렉터리 기준으로 대상 프로젝트를 해석해야 합니다.
-- 설정 파일은 JSONC 형식을 지원해야 합니다.
+- 설정 파일은 JSONC 형식을 지원해야 하며, 주석과 trailing comma를 허용해야 합니다.
 - 대상 프로젝트에 생성되는 작업 폴더와 도구 저장소는 분리되어야 합니다.
 
 ## 기능 요구사항
@@ -78,11 +78,14 @@
   - parameter 정보
   - request body media type
   - success response media type
+- success response는 명시적 `2xx` 상태 코드 또는 `2XX` 응답으로 판단해야 합니다.
+- 명시적 success response가 없는 endpoint는 project 후보 생성에서 제외하고 summary/manifest에 skip 사유를 기록해야 합니다.
 
 ### FR-B4. review schema 생성
 
 - 시스템은 OpenAPI 스펙만으로 결정 가능한 review용 `schema.ts` 파일을 생성해야 합니다.
 - MVP v2는 OpenAPI 3.0/3.1 JSON 입력만 지원합니다.
+- OpenAPI 3.1의 `type: ["...", "null"]` nullable 타입은 후보 DTO에서 보존되어야 합니다.
 - DTO 생성은 `openapi-typescript` 기반으로 처리해야 합니다.
 
 ### FR-B5. 재생성 가능성
@@ -134,6 +137,7 @@
   - wrapper 분할 방식
   - tag 파일 네이밍
   - schema/DTO/API 출력 레이아웃
+- 생성된 API wrapper는 path parameter를 URL-safe 하게 encoding 해야 합니다.
 
 ### FR-D4. manifest / summary 생성
 

@@ -38,7 +38,8 @@
 남은 갭:
 
 - OpenAPI 3.0/3.1 JSON만 지원하고 OAS2/YAML 은 제외됨
-- 다중 media type, cookie, multipart 는 project 단계에서 명시적으로 실패함
+- 다중 media type 선택 로직은 제한적이며, non-JSON success response는 project 단계에서 skip 됨
+- cookie parameter와 multipart request body는 기본 wrapper 생성까지 지원하지만, 프로젝트별 런타임 client 계약 검증은 아직 제한적임
 - schema validation, runtime validation 은 아직 없음
 
 ### 2단계: 프로젝트 구조 파악과 규칙 문서화
@@ -82,7 +83,7 @@
 
 - 출력 구조는 `schema.ts + <tag>/<endpoint>.dto.ts + <tag>/<endpoint>.api.ts + <tag>/index.ts + index.ts`로 고정
 - wrapper 분할은 현재 `tag`만 지원
-- 성공 응답은 여전히 JSON 계열만 지원하고, multiple media type 선택 로직은 미지원
+- 성공 응답은 명시적 `2xx`/`2XX` JSON 계열만 생성 대상으로 삼고, multiple media type 선택 로직은 미지원
 
 즉 “규칙 파일이 존재한다”와 “여러 프로젝트 규칙을 폭넓게 흡수한다” 사이에 아직 갭이 있습니다.
 
@@ -96,7 +97,7 @@
 | FR-B1 원본 다운로드 | 충족 | `download` 구현됨 |
 | FR-B2 endpoint catalog | 충족 | fingerprint 포함 |
 | FR-B3 review 문서 생성 | 충족 | endpoint 문서 생성됨 |
-| FR-B4 review schema 생성 | 충족 | `openapi-typescript` 기반 |
+| FR-B4 review schema 생성 | 충족 | `openapi-typescript` 기반, OpenAPI 3.1 nullable 타입 기본 지원 |
 | FR-B5 재생성 가능성 | 대체로 충족 | deterministic 생성 구조이나 테스트 부재 |
 | FR-C1 프로젝트 구조 분석 | 부분 충족 | `src` fallback 이 있으나 heuristic 중심 |
 | FR-C2 규칙 분석 문서 생성 | 충족 | 분석 문서 생성됨 |
@@ -128,6 +129,7 @@
 영향:
 
 - OAS2, YAML, 외부 ref 복잡 케이스는 아직 별도 대응이 필요함
+- OpenAPI 3.1의 고급 JSON Schema 조합은 추가 테스트가 필요함
 
 ### 2. 프로젝트 분석기가 여전히 heuristic 중심임
 
