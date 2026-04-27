@@ -167,6 +167,16 @@ async function pathExists(filePath) {
   }
 }
 
+function renderOpenapiGitignore() {
+  return [
+    '# openapi-projector generated artifacts',
+    '_internal/',
+    'review/',
+    'project/',
+    '',
+  ].join('\n');
+}
+
 function replaceTopLevelJsoncValue(rawText, key, value) {
   const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const pattern = new RegExp(`("${escapedKey}"\\s*:\\s*)([^\\n,]+)`, 'm');
@@ -585,10 +595,7 @@ async function initProject(rootDir, options = {}) {
 
   const openapiGitignoreExisted = await pathExists(openapiGitignorePath);
   if (force || !openapiGitignoreExisted) {
-    await writeText(
-      openapiGitignorePath,
-      ['_internal/source/openapi.json', ''].join('\n'),
-    );
+    await writeText(openapiGitignorePath, renderOpenapiGitignore());
   }
 
   await ensureDir(path.resolve(rootDir, 'openapi/review'));

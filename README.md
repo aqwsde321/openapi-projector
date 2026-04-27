@@ -43,6 +43,11 @@ openapi-projector init --force
 
 `--force`는 `openapi/config/project.jsonc`, `openapi/config/project-rules.jsonc`, `openapi/README.md`, `openapi/.gitignore`를 다시 씁니다.
 
+`openapi/.gitignore`는 재생성 가능한 산출물을 기본으로 제외합니다.
+
+- ignore: `openapi/_internal/`, `openapi/review/`, `openapi/project/`
+- commit 권장: `openapi/README.md`, `openapi/config/project.jsonc`, `openapi/config/project-rules.jsonc`, `openapi/.gitignore`
+
 ### 2. OpenAPI URL 설정
 
 `openapi/config/project.jsonc`의 `sourceUrl`을 실제 OpenAPI JSON URL로 바꿉니다.
@@ -67,7 +72,19 @@ OpenAPI URL 접근까지 확인하려면:
 openapi-projector doctor --check-url
 ```
 
-### 4. 후보 코드 생성
+### 4. 단계별 생성
+
+```bash
+openapi-projector refresh
+openapi-projector rules
+# openapi/review/project-rules/analysis.md 확인
+# openapi/config/project-rules.jsonc 수정
+openapi-projector project
+```
+
+`rules` 이후에는 AI나 사람이 `openapi/review/project-rules/analysis.md`를 읽고, `openapi/config/project-rules.jsonc`의 `fetchApiImportPath`, `fetchApiSymbol`, `adapterStyle`을 현재 프로젝트에 맞게 확인/수정합니다.
+
+빠르게 전체를 다시 만들 때는 아래 shortcut을 사용할 수 있습니다.
 
 ```bash
 openapi-projector prepare
@@ -131,7 +148,7 @@ openapi/
     summary.md
 ```
 
-실제 앱 코드 반영은 자동으로 하지 않습니다. `openapi/project/` 아래 후보 코드를 사람이거나 AI가 검토한 뒤 반영합니다.
+실제 앱 코드 반영은 자동으로 하지 않습니다. `openapi/project/` 아래 후보 코드를 사람이거나 AI가 검토한 뒤 실제 앱 코드 위치로 반영합니다. `openapi/project/` 자체는 기본적으로 Git에서 제외됩니다.
 
 ## 범위
 

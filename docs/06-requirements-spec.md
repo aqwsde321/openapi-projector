@@ -36,7 +36,12 @@
   - root `.gitignore`의 `.openapi-projector.local.jsonc` 항목
   - `openapi/config/project.jsonc`
   - `openapi/config/project-rules.jsonc`
+  - `openapi/README.md`
   - `openapi/.gitignore`
+- 시스템은 `openapi/.gitignore`에서 재생성 가능한 산출물을 제외해야 합니다.
+  - `openapi/_internal/`
+  - `openapi/review/`
+  - `openapi/project/`
 
 ### FR-A2. config discovery
 
