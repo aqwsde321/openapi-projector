@@ -266,6 +266,8 @@ test(
       assert.doesNotMatch(localConfigSource, /"sourceUrl"/);
       assert.match(projectConfigSource, /"sourceUrl": "https:\/\/example\.com\/v3\/api-docs"/);
       assert.match(projectReadmeSource, /# openapi-projector AI Handoff Guide/);
+      assert.match(projectReadmeSource, /openapi\/review\/changes\/summary\.md/);
+      assert.match(projectReadmeSource, /Contract Changed/);
       assert.match(projectReadmeSource, /openapi-projector rules/);
       assert.match(projectReadmeSource, /rg "fetchAPI\|apiClient\|request\|axios\|ky\|httpClient" src/);
       assert.match(projectReadmeSource, /openapi\/config\/project-rules\.jsonc/);

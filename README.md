@@ -76,11 +76,14 @@ openapi-projector doctor --check-url
 
 ```bash
 openapi-projector refresh
+# openapi/review/changes/summary.md 확인
 openapi-projector rules
 # openapi/review/project-rules/analysis.md 확인
 # openapi/config/project-rules.jsonc 수정
 openapi-projector project
 ```
+
+반복 실행 시 OpenAPI 변경점은 `openapi/review/changes/summary.md`에서 확인합니다. 변경 이력은 `openapi/review/changes/history/`에 저장됩니다.
 
 `rules` 이후에는 AI나 사람이 `openapi/review/project-rules/analysis.md`를 읽고, `openapi/config/project-rules.jsonc`의 `fetchApiImportPath`, `fetchApiSymbol`, `adapterStyle`을 현재 프로젝트에 맞게 확인/수정합니다.
 
@@ -94,6 +97,7 @@ openapi-projector prepare
 
 결과 확인 위치:
 
+- `openapi/review/changes/summary.md`
 - `openapi/config/project-rules.jsonc`
 - `openapi/project/src/openapi-generated`
 - `openapi/project/summary.md`
