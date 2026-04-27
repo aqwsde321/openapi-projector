@@ -27,9 +27,7 @@ const helpCommand = {
     console.log('  1. cd /path/to/frontend-project');
     console.log('  2. openapi-projector init');
     console.log('     or openapi-projector init --source-url https://example.com/v3/api-docs');
-    console.log('  3. set sourceUrl in openapi/config/project.jsonc if it was not passed to init');
-    console.log('  4. openapi-projector doctor');
-    console.log('  5. openapi-projector prepare');
+    console.log('  3. read openapi/README.md or ask an AI coding agent to continue from it');
     console.log('');
     console.log('Commands:');
     for (const [name, description] of commands) {
@@ -48,8 +46,7 @@ const helpCommand = {
     console.log('  - 새 프로젝트 시작은 init 명령으로 bootstrap 합니다.');
     console.log('');
     console.log('Recommended flow:');
-    console.log('  init -> set sourceUrl -> doctor -> prepare');
-    console.log('  상세 단계가 필요하면 init -> refresh -> rules -> project');
+    console.log('  init -> read openapi/README.md -> doctor -> refresh -> rules -> project');
     console.log('');
     console.log('Docs:');
     console.log('  - 빠른 사용법: README.md');

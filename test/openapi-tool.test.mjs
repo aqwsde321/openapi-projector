@@ -315,7 +315,10 @@ test(
       assert.match(localConfigSource, /"projectRoot": "\."/);
       assert.doesNotMatch(localConfigSource, /"sourceUrl"/);
       assert.match(projectConfigSource, /"sourceUrl": "https:\/\/example\.com\/v3\/api-docs"/);
-      assert.match(projectReadmeSource, /# openapi-projector AI Handoff Guide/);
+      assert.match(projectReadmeSource, /# openapi-projector Usage Guide/);
+      assert.match(projectReadmeSource, /project-specific usage guide/);
+      assert.match(projectReadmeSource, /## For Humans: What You Need To Know/);
+      assert.match(projectReadmeSource, /## For AI Agents: Detailed Workflow/);
       assert.match(projectReadmeSource, /openapi\/review\/changes\/summary\.md/);
       assert.match(projectReadmeSource, /Contract Changed/);
       assert.match(projectReadmeSource, /openapi-projector rules/);
@@ -400,7 +403,10 @@ test(
 
       assert.match(projectConfigSource, /"sourceUrl": "https:\/\/example\.com\/v3\/api-docs"/);
       assert.match(projectRulesSource, /"fetchApiImportPath": "@\/shared\/api"/);
-      assert.match(projectReadmeSource, /# openapi-projector AI Handoff Guide/);
+      assert.match(projectReadmeSource, /# openapi-projector Usage Guide/);
+      assert.match(projectReadmeSource, /project-specific usage guide/);
+      assert.match(projectReadmeSource, /## For Humans: What You Need To Know/);
+      assert.match(projectReadmeSource, /## For AI Agents: Detailed Workflow/);
       assert.equal(
         openapiGitignoreSource,
         '# openapi-projector generated artifacts\n_internal/\nreview/\nproject/\n',

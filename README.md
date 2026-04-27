@@ -1,12 +1,22 @@
 # openapi-projector
 
-OpenAPI JSON에서 프론트엔드용 DTO/API 후보 코드를 생성하는 standalone CLI입니다.
+OpenAPI JSON에서 프론트엔드 프로젝트용 DTO/API 후보 코드를 만들어 주는 standalone CLI입니다.
 
-이 도구는 **프론트엔드 프로젝트 루트에서 실행**하는 것을 기준으로 합니다. 산출물은 해당 프로젝트의 `openapi/` 폴더에 생성됩니다.
+## 왜 만들었나
 
-## 빠른 시작
+백엔드 OpenAPI 스펙은 프론트엔드 타입과 API 함수의 좋은 출발점이지만, 생성 코드를 곧바로 `src/`에 넣으면 프로젝트의 HTTP client, 폴더 구조, 네이밍, 에러 처리 방식과 어긋나기 쉽습니다.
 
-### 0. 도구 준비
+`openapi-projector`는 생성물을 바로 앱 코드에 쓰기보다, 프론트엔드 프로젝트 안에 `openapi/` 작업 공간을 만들고 그 안에서 검토 가능한 후보 코드를 생성합니다. 이후 사람이나 AI가 기존 프로젝트 컨벤션에 맞춰 필요한 DTO/API만 실제 앱 코드로 옮기는 흐름을 전제로 합니다.
+
+## 어떤 용도인가
+
+- OpenAPI JSON을 기준으로 프론트엔드 DTO/API 후보 코드 생성
+- OpenAPI 변경점과 endpoint 문서를 `openapi/review/`에 정리
+- 현재 프론트엔드 프로젝트의 API client 사용 방식을 분석해 `project-rules.jsonc` 스캐폴드 생성
+- 생성 후보를 `openapi/project/`에 격리해서 실제 앱 코드 반영 전 검토
+- AI coding agent가 `openapi/README.md`를 읽고 안전하게 후속 작업을 진행하도록 handoff
+
+## 1. 도구 준비
 
 ```bash
 cd /path/to/openapi-projector
@@ -16,7 +26,9 @@ pnpm link --global
 
 별도 빌드 단계는 없습니다. 전역 링크를 쓰지 않으면 프론트엔드 프로젝트에서 `node /path/to/openapi-projector/bin/openapi-tool.mjs <command>`로 실행해도 됩니다.
 
-### 1. 프론트엔드 프로젝트에서 init
+## 2. 프론트엔드 프로젝트에서 init
+
+프론트엔드 프로젝트 루트에서 한 번만 실행합니다.
 
 ```bash
 cd /path/to/frontend-project
@@ -29,149 +41,50 @@ OpenAPI JSON URL을 이미 알고 있으면 init 단계에서 바로 넣을 수 
 openapi-projector init --source-url https://example.com/v3/api-docs
 ```
 
-`init`이 생성하는 파일:
+`sourceUrl`은 Swagger UI 페이지가 아니라 OpenAPI JSON 요청 URL이어야 합니다. 현재는 로컬에서 인증 없이 `GET` 가능한 JSON URL을 기준으로 합니다.
+
+`init`이 생성하는 주요 파일:
 
 - `.openapi-projector.local.jsonc`
 - `openapi/README.md`
 - `openapi/config/project.jsonc`
 - `openapi/config/project-rules.jsonc`
 - `openapi/.gitignore`
-- `.gitignore`의 `.openapi-projector.local.jsonc` 항목
 
-`.openapi-projector.local.jsonc`는 현재 프로젝트 기준 로컬 설정입니다. 보통 `projectRoot`는 `"."` 그대로 둡니다.
-`openapi/README.md`는 해당 프론트엔드 프로젝트에서 AI가 읽고 실행할 영어 handoff 가이드입니다.
+## 3. 사람이 꼭 이해할 것
 
-이미 `openapi/config/project.jsonc`가 있으면 `init`은 중단됩니다. 기존 bootstrap을 템플릿 기준으로 다시 만들 때만 명시적으로 실행합니다.
+init 이후의 자세한 명령 순서는 사람이 외울 필요가 없습니다. `openapi/README.md`가 프로젝트별 상세 사용법 문서이고, AI coding agent가 그 파일을 읽고 진행하도록 설계했습니다.
 
-```bash
-openapi-projector init --force
-```
+사람이 알아야 하는 핵심은 아래 정도입니다.
 
-`--force`는 `openapi/config/project.jsonc`, `openapi/config/project-rules.jsonc`, `openapi/README.md`, `openapi/.gitignore`를 다시 씁니다.
+- `sourceUrl`은 Swagger UI 페이지가 아니라 OpenAPI JSON 요청 URL입니다.
+- 생성되는 `openapi/project/` 코드는 최종 앱 코드가 아니라 검토용 후보입니다.
+- 실제 앱 코드에는 필요한 DTO/API만 프로젝트 컨벤션에 맞게 옮깁니다.
+- `openapi/review/`와 `openapi/project/`는 재생성 가능한 산출물이므로 보통 커밋하지 않습니다.
+- 보통 커밋하는 파일은 `openapi/README.md`, `openapi/config/project.jsonc`, `openapi/config/project-rules.jsonc`, `openapi/.gitignore`입니다.
 
-`openapi/.gitignore`는 재생성 가능한 산출물을 기본으로 제외합니다.
+## 4. AI에게 붙여넣기
 
-- ignore: `openapi/_internal/`, `openapi/review/`, `openapi/project/`
-- commit 권장: `openapi/README.md`, `openapi/config/project.jsonc`, `openapi/config/project-rules.jsonc`, `openapi/.gitignore`
-
-### 2. OpenAPI URL 설정
-
-`openapi/config/project.jsonc`의 `sourceUrl`을 실제 OpenAPI JSON URL로 바꿉니다.
-
-```jsonc
-{
-  "sourceUrl": "<openapi-json-url>"
-}
-```
-
-`sourceUrl`은 Swagger UI 주소가 아니라 OpenAPI JSON 요청 URL이어야 합니다.
-현재는 로컬에서 인증 없이 `GET` 가능한 JSON URL을 기준으로 합니다. 사내 Swagger가 쿠키/토큰/헤더를 요구하면 접근 가능한 OpenAPI JSON URL을 먼저 준비합니다.
-
-### 3. 점검
-
-```bash
-openapi-projector doctor
-```
-
-OpenAPI URL 접근까지 확인하려면:
-
-```bash
-openapi-projector doctor --check-url
-```
-
-### 4. 단계별 생성
-
-```bash
-openapi-projector refresh
-# openapi/review/changes/summary.md 확인
-openapi-projector rules
-# openapi/review/project-rules/analysis.md 확인
-# openapi/config/project-rules.jsonc 수정
-openapi-projector project
-```
-
-반복 실행 시 OpenAPI 변경점은 `openapi/review/changes/summary.md`에서 확인합니다. 변경 이력은 `openapi/review/changes/history/`에 저장됩니다.
-
-`rules` 이후에는 AI나 사람이 `openapi/review/project-rules/analysis.md`를 읽고, `openapi/config/project-rules.jsonc`의 `fetchApiImportPath`, `fetchApiSymbol`, `adapterStyle`을 현재 프로젝트에 맞게 확인/수정합니다.
-
-빠르게 전체를 다시 만들 때는 아래 shortcut을 사용할 수 있습니다.
-
-```bash
-openapi-projector prepare
-```
-
-`prepare`는 필요한 경우 `init`을 먼저 실행하고, 이후 `refresh -> rules -> project`를 이어서 실행합니다.
-처음 도입하는 프로젝트에서는 `prepare`보다 `refresh -> rules -> project`를 단계별로 실행하고, `project-rules.jsonc`를 확인한 뒤 후보 코드를 생성하는 편이 안전합니다.
-
-AI에게 처음 적용을 맡길 때는 아래처럼 요청하면 됩니다.
+사람은 init까지만 실행한 뒤, AI coding agent에게 아래 프롬프트를 그대로 복사해서 붙여넣으면 됩니다.
 
 ```text
-Read openapi/README.md first.
-Run openapi-projector doctor --check-url.
-Then run refresh, rules, inspect the existing API client, update openapi/config/project-rules.jsonc, and run project.
-Apply only the DTO/API candidates for the endpoints I request into the real app source tree.
-Do not commit openapi/review or openapi/project.
-Run typecheck/lint after applying code.
+이 프론트엔드 프로젝트에 openapi-projector를 적용해줘.
+
+먼저 openapi/README.md를 읽고 그 지침대로 진행해.
+openapi/config/project.jsonc의 sourceUrl을 확인하고, openapi-projector doctor --check-url을 실행해.
+그 다음 openapi-projector refresh와 openapi-projector rules를 실행해서 기존 API client 사용 방식을 분석하고 openapi/config/project-rules.jsonc를 프로젝트에 맞게 수정해.
+이후 openapi-projector project를 실행해서 DTO/API 후보를 생성해.
+
+생성된 후보는 바로 커밋하지 말고, 내가 요청한 endpoint의 DTO/API만 실제 앱 코드 위치로 옮기거나 맞게 수정해.
+openapi/review와 openapi/project는 재생성 가능한 산출물이므로 커밋하지 마.
+실제 앱 코드에 반영한 뒤 타입체크, 린트, 관련 테스트를 실행해줘.
 ```
 
-결과 확인 위치:
-
-- `openapi/review/changes/summary.md`
-- `openapi/config/project-rules.jsonc`
-- `openapi/project/src/openapi-generated`
-- `openapi/project/summary.md`
-
-## 자주 쓰는 명령
-
-| 명령 | 역할 |
-| --- | --- |
-| `openapi-projector init` | 현재 프로젝트에 기본 설정 생성 |
-| `openapi-projector doctor` | 로컬 설정과 프로젝트 준비 상태 점검 |
-| `openapi-projector prepare` | 후보 코드까지 한 번에 생성 |
-| `openapi-projector refresh` | OpenAPI 다운로드 + review 산출물 생성 |
-| `openapi-projector rules` | 프로젝트 규칙 분석/스캐폴드 생성 |
-| `openapi-projector project` | DTO/API 후보 코드 생성 |
-
-package script로 감싸도 됩니다.
-
-```json
-{
-  "scripts": {
-    "openapi:doctor": "openapi-projector doctor",
-    "openapi:prepare": "openapi-projector prepare"
-  }
-}
-```
-
-## 실행 기준
-
-- 기본 대상 프로젝트는 현재 실행 디렉터리입니다.
-- target project root 우선순위:
-  1. `--project-root /path/to/service-app`
-  2. `.openapi-projector.local.jsonc`
-  3. `.openapi-tool.local.jsonc` legacy fallback
-  4. 현재 실행 디렉터리
-
-## 생성되는 주요 산출물
+DTO만 필요하면 마지막 요청을 이렇게 바꿔서 붙여넣으면 됩니다.
 
 ```text
-openapi/
-  README.md
-  config/
-    project.jsonc
-    project-rules.jsonc
-  review/
-    catalog/
-    changes/
-    docs/
-    generated/schema.ts
-  project/
-    src/openapi-generated/
-    manifest.json
-    summary.md
+API wrapper는 반영하지 말고, 내가 요청한 endpoint의 .dto.ts 후보만 실제 앱 코드 구조에 맞게 옮겨줘.
 ```
-
-실제 앱 코드 반영은 자동으로 하지 않습니다. `openapi/project/` 아래 후보 코드를 사람이거나 AI가 검토한 뒤 실제 앱 코드 위치로 반영합니다. `openapi/project/` 자체는 기본적으로 Git에서 제외됩니다.
 
 ## 범위
 
@@ -196,13 +109,9 @@ openapi/
 
 ## 문서
 
-사용자 문서:
-
+- init 후 상세 사용법: 프론트엔드 프로젝트에 생성되는 `openapi/README.md`
 - 개념과 단계: [docs/01-concepts.md](docs/01-concepts.md)
 - 설정값: [docs/04-config-reference.md](docs/04-config-reference.md)
-
-관리/기획 문서:
-
 - 도구 개발/유지보수: [docs/03-maintainer-notes.md](docs/03-maintainer-notes.md)
 - 제품 방향: [docs/05-product-plan.md](docs/05-product-plan.md)
 - 요구사항: [docs/06-requirements-spec.md](docs/06-requirements-spec.md)
