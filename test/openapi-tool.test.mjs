@@ -265,8 +265,9 @@ test(
       assert.match(localConfigSource, /"projectRoot": "\."/);
       assert.doesNotMatch(localConfigSource, /"sourceUrl"/);
       assert.match(projectConfigSource, /"sourceUrl": "https:\/\/example\.com\/v3\/api-docs"/);
-      assert.match(projectReadmeSource, /# openapi-projector 작업 가이드/);
+      assert.match(projectReadmeSource, /# openapi-projector AI Handoff Guide/);
       assert.match(projectReadmeSource, /openapi-projector rules/);
+      assert.match(projectReadmeSource, /rg "fetchAPI\|apiClient\|request\|axios\|ky\|httpClient" src/);
       assert.match(projectReadmeSource, /openapi\/config\/project-rules\.jsonc/);
       assert.match(projectReadmeSource, /openapi-projector prepare/);
       assert.match(gitignoreSource, /\.openapi-projector\.local\.jsonc/);
@@ -347,7 +348,7 @@ test(
 
       assert.match(projectConfigSource, /"sourceUrl": "https:\/\/example\.com\/v3\/api-docs"/);
       assert.match(projectRulesSource, /"fetchApiImportPath": "@\/shared\/api"/);
-      assert.match(projectReadmeSource, /# openapi-projector 작업 가이드/);
+      assert.match(projectReadmeSource, /# openapi-projector AI Handoff Guide/);
       assert.equal(
         openapiGitignoreSource,
         '# openapi-projector generated artifacts\n_internal/\nreview/\nproject/\n',
