@@ -32,8 +32,8 @@ const initCommand = {
       ...(context.toolLocalConfig?.initDefaults ?? {}),
       ...(initArgs.sourceUrl ? { sourceUrl: initArgs.sourceUrl } : {}),
     };
-    const localConfigResult = await initToolLocalConfig(rootDir);
     const result = await initProject(rootDir, { force, projectConfigOverrides });
+    const localConfigResult = await initToolLocalConfig(rootDir);
 
     console.log(`Initialized openapi workflow in ${rootDir}`);
     console.log(`- local config: ${localConfigResult.toolLocalConfigPath}`);
@@ -43,8 +43,13 @@ const initCommand = {
         ? ''
         : ' (already exists)';
     console.log(`- project config: ${result.projectConfigTargetPath}${projectConfigStatus}`);
+    const projectReadmeStatus = result.projectReadmeOverwritten
+      ? ' (overwritten)'
+      : result.projectReadmeCreated
+        ? ''
+        : ' (already exists)';
     console.log(
-      `- project guide: ${result.projectReadmePath}${result.projectReadmeCreated ? '' : ' (already exists)'}`,
+      `- project guide: ${result.projectReadmePath}${projectReadmeStatus}`,
     );
     console.log(`- gitignore: ${result.openapiGitignorePath}`);
     if (localConfigResult.gitignoreUpdated) {

@@ -554,9 +554,16 @@ async function initProject(rootDir, options = {}) {
   const projectRulesTemplatePath = path.join(TOOL_ROOT_DIR, 'templates', 'project-rules.jsonc');
   const projectConfigTemplatePath = path.join(TOOL_ROOT_DIR, 'templates', 'project.jsonc');
   const projectReadmeTemplatePath = path.join(TOOL_ROOT_DIR, 'templates', 'project-readme.md');
+  const projectRulesPath = path.resolve(rootDir, 'openapi/config/project-rules.jsonc');
   const projectReadmePath = path.resolve(rootDir, 'openapi/README.md');
   const openapiGitignorePath = path.resolve(rootDir, 'openapi/.gitignore');
   const projectConfigExisted = await pathExists(projectConfigTargetPath);
+
+  if (projectConfigExisted && !force) {
+    throw new Error(
+      `Project config already exists: ${projectConfigTargetPath}\nRe-run with --force to reinitialize bootstrap files.`,
+    );
+  }
 
   const [projectConfigTemplate, projectRulesTemplate, projectReadmeTemplate] = await Promise.all([
     fs.readFile(projectConfigTemplatePath, 'utf8'),
@@ -569,41 +576,28 @@ async function initProject(rootDir, options = {}) {
       ? applyTopLevelJsoncOverrides(projectConfigTemplate, projectConfigOverrides)
       : projectConfigTemplate;
 
-  if (force || !projectConfigExisted) {
-    await writeText(projectConfigTargetPath, projectConfigContents);
+  await writeText(projectConfigTargetPath, projectConfigContents);
+
+  const projectRulesExisted = await pathExists(projectRulesPath);
+  if (force || !projectRulesExisted) {
+    await writeText(projectRulesPath, projectRulesTemplate);
   }
 
-  try {
-    await fs.access(path.resolve(rootDir, 'openapi/config/project-rules.jsonc'));
-  } catch (error) {
-    if (error?.code === 'ENOENT') {
-      await writeText(path.resolve(rootDir, 'openapi/config/project-rules.jsonc'), projectRulesTemplate);
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    await fs.access(openapiGitignorePath);
-  } catch (error) {
-    if (error?.code === 'ENOENT') {
-      await writeText(
-        openapiGitignorePath,
-        ['_internal/source/openapi.json', ''].join('\n'),
-      );
-    } else {
-      throw error;
-    }
+  const openapiGitignoreExisted = await pathExists(openapiGitignorePath);
+  if (force || !openapiGitignoreExisted) {
+    await writeText(
+      openapiGitignorePath,
+      ['_internal/source/openapi.json', ''].join('\n'),
+    );
   }
 
   await ensureDir(path.resolve(rootDir, 'openapi/review'));
   await ensureDir(path.resolve(rootDir, 'openapi/project'));
   await ensureDir(path.resolve(rootDir, 'openapi/_internal/source'));
 
-  let projectReadmeCreated = false;
-  if (!(await pathExists(projectReadmePath))) {
+  const projectReadmeExisted = await pathExists(projectReadmePath);
+  if (force || !projectReadmeExisted) {
     await writeText(projectReadmePath, projectReadmeTemplate);
-    projectReadmeCreated = true;
   }
 
   return {
@@ -611,7 +605,8 @@ async function initProject(rootDir, options = {}) {
     projectConfigCreated: !projectConfigExisted,
     projectConfigOverwritten: force && projectConfigExisted,
     projectReadmePath,
-    projectReadmeCreated,
+    projectReadmeCreated: !projectReadmeExisted,
+    projectReadmeOverwritten: force && projectReadmeExisted,
     openapiGitignorePath,
   };
 }

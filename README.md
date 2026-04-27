@@ -35,6 +35,14 @@ openapi-projector init
 `.openapi-projector.local.jsonc`는 현재 프로젝트 기준 로컬 설정입니다. 보통 `projectRoot`는 `"."` 그대로 둡니다.
 `openapi/README.md`는 해당 프론트엔드 프로젝트에서 사용자나 AI가 읽고 실행할 작업 가이드입니다.
 
+이미 `openapi/config/project.jsonc`가 있으면 `init`은 중단됩니다. 기존 bootstrap을 템플릿 기준으로 다시 만들 때만 명시적으로 실행합니다.
+
+```bash
+openapi-projector init --force
+```
+
+`--force`는 `openapi/config/project.jsonc`, `openapi/config/project-rules.jsonc`, `openapi/README.md`, `openapi/.gitignore`를 다시 씁니다.
+
 ### 2. OpenAPI URL 설정
 
 `openapi/config/project.jsonc`의 `sourceUrl`을 실제 OpenAPI JSON URL로 바꿉니다.

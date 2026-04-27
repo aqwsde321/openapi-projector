@@ -275,7 +275,7 @@ test(
 );
 
 test(
-  'cli init is safe to re-run when project config already exists',
+  'cli init fails without force when project config already exists',
   { concurrency: false },
   async () => {
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-rerun-'));
@@ -287,12 +287,58 @@ test(
         sourcePath: 'openapi/_internal/source/openapi.json',
       });
 
-      await runInWorkspace(workspace, () => runCli(['init']));
+      await assert.rejects(
+        () => runInWorkspace(workspace, () => runCli(['init'])),
+        /Project config already exists: .*openapi\/config\/project\.jsonc\nRe-run with --force/,
+      );
 
       const projectConfigSource = await fs.readFile(projectConfigPath, 'utf8');
 
       assert.match(projectConfigSource, /"sourceUrl": "https:\/\/existing\.example\.com\/v3\/api-docs"/);
-      await assertExists(path.join(workspace, '.openapi-projector.local.jsonc'));
+      await assert.rejects(
+        () => fs.access(path.join(workspace, '.openapi-projector.local.jsonc')),
+        /ENOENT/,
+      );
+      await assert.rejects(
+        () => fs.access(path.join(workspace, 'openapi/README.md')),
+        /ENOENT/,
+      );
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli init force reinitializes existing bootstrap files',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-force-'));
+    const projectConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
+    const projectRulesPath = path.join(workspace, 'openapi/config/project-rules.jsonc');
+    const projectReadmePath = path.join(workspace, 'openapi/README.md');
+    const openapiGitignorePath = path.join(workspace, 'openapi/.gitignore');
+
+    try {
+      await writeJsonFile(projectConfigPath, {
+        sourceUrl: 'https://existing.example.com/v3/api-docs',
+        sourcePath: 'custom/openapi.json',
+      });
+      await fs.writeFile(projectRulesPath, '{ "custom": true }\n', 'utf8');
+      await fs.writeFile(projectReadmePath, '# custom guide\n', 'utf8');
+      await fs.writeFile(openapiGitignorePath, 'custom-cache.json\n', 'utf8');
+
+      await runInWorkspace(workspace, () => runCli(['init', '--force']));
+
+      const projectConfigSource = await fs.readFile(projectConfigPath, 'utf8');
+      const projectRulesSource = await fs.readFile(projectRulesPath, 'utf8');
+      const projectReadmeSource = await fs.readFile(projectReadmePath, 'utf8');
+      const openapiGitignoreSource = await fs.readFile(openapiGitignorePath, 'utf8');
+
+      assert.match(projectConfigSource, /"sourceUrl": "https:\/\/example\.com\/v3\/api-docs"/);
+      assert.match(projectRulesSource, /"fetchApiImportPath": "@\/shared\/api"/);
+      assert.match(projectReadmeSource, /# openapi-projector 작업 가이드/);
+      assert.equal(openapiGitignoreSource, '_internal/source/openapi.json\n');
       await assertExists(path.join(workspace, 'openapi/README.md'));
       await assertExists(path.join(workspace, 'openapi/config/project-rules.jsonc'));
     } finally {

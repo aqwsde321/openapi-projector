@@ -2,4 +2,9 @@
 
 import { runCli } from '../src/cli.mjs';
 
-await runCli(process.argv.slice(2));
+try {
+  await runCli(process.argv.slice(2));
+} catch (error) {
+  console.error(error?.message ?? String(error));
+  process.exitCode = 1;
+}

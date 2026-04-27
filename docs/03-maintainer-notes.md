@@ -25,6 +25,8 @@
 
 - `init`
   - 대상 프로젝트에 `openapi/` bootstrap과 사용자/AI용 `openapi/README.md` 생성
+  - 기존 `openapi/config/project.jsonc`가 있으면 실패
+  - `--force` 지정 시 bootstrap 템플릿 파일을 다시 씀
 - `refresh`
   - `download + catalog + generate`
 - `rules`
@@ -58,6 +60,12 @@ cd /tmp/smoke-project
 node /path/to/openapi-projector/bin/openapi-tool.mjs init
 # openapi/config/project.jsonc 의 sourceUrl 을 실제 OpenAPI JSON URL로 설정
 node /path/to/openapi-projector/bin/openapi-tool.mjs doctor
+```
+
+기존 bootstrap 초기화가 필요할 때만 아래처럼 실행합니다.
+
+```bash
+node /path/to/openapi-projector/bin/openapi-tool.mjs init --force
 ```
 
 ### 3. config discovery
