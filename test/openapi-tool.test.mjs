@@ -275,6 +275,33 @@ test(
 );
 
 test(
+  'cli init is safe to re-run when project config already exists',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-rerun-'));
+    const projectConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
+
+    try {
+      await writeJsonFile(projectConfigPath, {
+        sourceUrl: 'https://existing.example.com/v3/api-docs',
+        sourcePath: 'openapi/_internal/source/openapi.json',
+      });
+
+      await runInWorkspace(workspace, () => runCli(['init']));
+
+      const projectConfigSource = await fs.readFile(projectConfigPath, 'utf8');
+
+      assert.match(projectConfigSource, /"sourceUrl": "https:\/\/existing\.example\.com\/v3\/api-docs"/);
+      await assertExists(path.join(workspace, '.openapi-projector.local.jsonc'));
+      await assertExists(path.join(workspace, 'openapi/README.md'));
+      await assertExists(path.join(workspace, 'openapi/config/project-rules.jsonc'));
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
   'cli ignores invalid legacy local config when projector config has projectRoot',
   { concurrency: false },
   async () => {

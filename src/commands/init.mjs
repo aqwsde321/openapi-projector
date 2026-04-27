@@ -37,7 +37,12 @@ const initCommand = {
 
     console.log(`Initialized openapi workflow in ${rootDir}`);
     console.log(`- local config: ${localConfigResult.toolLocalConfigPath}`);
-    console.log(`- project config: ${result.projectConfigTargetPath}`);
+    const projectConfigStatus = result.projectConfigOverwritten
+      ? ' (overwritten)'
+      : result.projectConfigCreated
+        ? ''
+        : ' (already exists)';
+    console.log(`- project config: ${result.projectConfigTargetPath}${projectConfigStatus}`);
     console.log(
       `- project guide: ${result.projectReadmePath}${result.projectReadmeCreated ? '' : ' (already exists)'}`,
     );

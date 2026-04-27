@@ -556,19 +556,7 @@ async function initProject(rootDir, options = {}) {
   const projectReadmeTemplatePath = path.join(TOOL_ROOT_DIR, 'templates', 'project-readme.md');
   const projectReadmePath = path.resolve(rootDir, 'openapi/README.md');
   const openapiGitignorePath = path.resolve(rootDir, 'openapi/.gitignore');
-
-  if (!force) {
-    try {
-      await fs.access(projectConfigTargetPath);
-      throw new Error(
-        `Project config already exists: ${projectConfigTargetPath}\nRemove it first or re-run with --force.`,
-      );
-    } catch (error) {
-      if (error?.code !== 'ENOENT') {
-        throw error;
-      }
-    }
-  }
+  const projectConfigExisted = await pathExists(projectConfigTargetPath);
 
   const [projectConfigTemplate, projectRulesTemplate, projectReadmeTemplate] = await Promise.all([
     fs.readFile(projectConfigTemplatePath, 'utf8'),
@@ -581,7 +569,9 @@ async function initProject(rootDir, options = {}) {
       ? applyTopLevelJsoncOverrides(projectConfigTemplate, projectConfigOverrides)
       : projectConfigTemplate;
 
-  await writeText(projectConfigTargetPath, projectConfigContents);
+  if (force || !projectConfigExisted) {
+    await writeText(projectConfigTargetPath, projectConfigContents);
+  }
 
   try {
     await fs.access(path.resolve(rootDir, 'openapi/config/project-rules.jsonc'));
@@ -618,6 +608,8 @@ async function initProject(rootDir, options = {}) {
 
   return {
     projectConfigTargetPath,
+    projectConfigCreated: !projectConfigExisted,
+    projectConfigOverwritten: force && projectConfigExisted,
     projectReadmePath,
     projectReadmeCreated,
     openapiGitignorePath,
