@@ -76,11 +76,13 @@ OpenAPI 스펙만으로 결정 가능한 정보를 사용해 아래 산출물을
 
 ## 기본 사용 흐름
 
-1. `init --source-url <url>`
+1. `init`
    - 현재 프로젝트에 로컬 설정과 `openapi/` bootstrap 생성
-2. `doctor`
+2. `openapi/config/project.jsonc`에서 `sourceUrl` 설정
+   - Swagger UI 주소가 아니라 OpenAPI JSON 요청 URL을 입력
+3. `doctor`
    - 로컬 설정과 대상 프로젝트 준비 상태 점검
-3. `prepare`
+4. `prepare`
    - 필요하면 `init` 후 `refresh -> rules -> project`까지 실행
 
 세부 단계를 나눠 실행할 때의 의미:

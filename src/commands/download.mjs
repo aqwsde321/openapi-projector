@@ -17,7 +17,7 @@ const downloadCommand = {
 
     if (!sourceUrl || sourceUrl.includes('example.com')) {
       throw new Error(
-        'sourceUrl is not configured.\nUpdate project config first, then run download again.',
+        'sourceUrl is not configured.\nSet sourceUrl in openapi/config/project.jsonc, then run download again.',
       );
     }
 

@@ -17,8 +17,7 @@
 
 - 예시 템플릿 제공
 - 어느 프로젝트를 조작할지 결정
-- `init` 시 대상 프로젝트 설정의 기본값을 채워 넣음
-- `openapi-projector init --source-url <url>` 실행 시 현재 프로젝트 루트에 자동 생성
+- `openapi-projector init` 실행 시 현재 프로젝트 루트에 자동 생성
 
 탐색 우선순위:
 
@@ -29,10 +28,7 @@
 
 ```jsonc
 {
-  "projectRoot": ".",
-  "initDefaults": {
-    "sourceUrl": ""
-  }
+  "projectRoot": "."
 }
 ```
 
@@ -41,12 +37,11 @@
 | 필드 | 의미 |
 | --- | --- |
 | `projectRoot` | 대상 프로젝트 경로. 보통 현재 디렉터리인 `.` 사용 |
-| `initDefaults.sourceUrl` | OpenAPI JSON 요청 URL |
 
 주의:
 
 - `projectRoot`가 없으면 현재 실행 디렉터리를 대상 프로젝트로 사용합니다.
-- `sourceUrl`은 Swagger UI 주소가 아니라 OpenAPI JSON 요청 URL입니다.
+- `sourceUrl`은 `openapi/config/project.jsonc`에서 설정합니다.
 
 ## 2. 대상 프로젝트 `project.jsonc`
 
@@ -64,7 +59,7 @@
 
 | 필드 | 의미 |
 | --- | --- |
-| `sourceUrl` | OpenAPI JSON 요청 URL |
+| `sourceUrl` | OpenAPI JSON 요청 URL. `doctor`, `prepare` 전에 반드시 설정 |
 | `sourcePath` | 내려받은 OpenAPI JSON 저장 경로 |
 | `generatedSchemaPath` | review용 `schema.ts` 출력 경로 |
 | `projectGeneratedSrcDir` | `project` 후보 코드 생성 경로 |

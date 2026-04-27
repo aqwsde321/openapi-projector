@@ -10,7 +10,7 @@
 
 - 이 저장소 자체는 보통 결과물을 담지 않습니다.
 - 결과물은 대상 프로젝트 안의 `openapi/`에 생성됩니다.
-- 배포 빌드 단계는 없고, 로컬 사용은 보통 `npm install && npm link`로 CLI bin을 연결합니다.
+- 배포 빌드 단계는 없고, 로컬 사용은 보통 `pnpm install && pnpm link --global`로 CLI bin을 연결합니다.
 
 ## 핵심 엔트리포인트
 
@@ -44,7 +44,7 @@
 
 ```bash
 node ./bin/openapi-tool.mjs help
-npm test
+pnpm test
 ```
 
 ### 2. bootstrap 시나리오
@@ -55,7 +55,8 @@ npm test
 
 ```bash
 cd /tmp/smoke-project
-node /path/to/openapi-projector/bin/openapi-tool.mjs init --source-url <openapi-json-url>
+node /path/to/openapi-projector/bin/openapi-tool.mjs init
+# openapi/config/project.jsonc 의 sourceUrl 을 실제 OpenAPI JSON URL로 설정
 node /path/to/openapi-projector/bin/openapi-tool.mjs doctor
 ```
 

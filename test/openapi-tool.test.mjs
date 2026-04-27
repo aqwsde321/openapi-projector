@@ -29,6 +29,19 @@ async function readFixtureJson(fileName) {
   return JSON.parse(source);
 }
 
+async function setProjectSourceUrl(workspace, sourceUrl) {
+  const projectConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
+  const source = await fs.readFile(projectConfigPath, 'utf8');
+  await fs.writeFile(
+    projectConfigPath,
+    source.replace(
+      '"sourceUrl": "https://example.com/v3/api-docs"',
+      `"sourceUrl": ${JSON.stringify(sourceUrl)}`,
+    ),
+    'utf8',
+  );
+}
+
 async function setupWorkspace({
   spec,
   rules = null,
@@ -231,10 +244,9 @@ test(
   { concurrency: false },
   async () => {
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-cwd-'));
-    const sourceUrl = 'https://cwd.example.com/v3/api-docs';
 
     try {
-      await runInWorkspace(workspace, () => runCli(['init', '--source-url', sourceUrl]));
+      await runInWorkspace(workspace, () => runCli(['init']));
 
       const localConfigSource = await fs.readFile(
         path.join(workspace, '.openapi-projector.local.jsonc'),
@@ -247,8 +259,8 @@ test(
       const gitignoreSource = await fs.readFile(path.join(workspace, '.gitignore'), 'utf8');
 
       assert.match(localConfigSource, /"projectRoot": "\."/);
-      assert.match(localConfigSource, /"sourceUrl": "https:\/\/cwd\.example\.com\/v3\/api-docs"/);
-      assert.match(projectConfigSource, /"sourceUrl": "https:\/\/cwd\.example\.com\/v3\/api-docs"/);
+      assert.doesNotMatch(localConfigSource, /"sourceUrl"/);
+      assert.match(projectConfigSource, /"sourceUrl": "https:\/\/example\.com\/v3\/api-docs"/);
       assert.match(gitignoreSource, /\.openapi-projector\.local\.jsonc/);
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
@@ -542,7 +554,8 @@ test(
       await runInWorkspace(
         workspace,
         async () => {
-          await runCli(['init', '--source-url', sourceUrl]);
+          await runCli(['init']);
+          await setProjectSourceUrl(workspace, sourceUrl);
           await runCli(['prepare']);
 
           await assertExists(path.join(workspace, 'openapi/config/project.jsonc'));
@@ -552,6 +565,26 @@ test(
           await assertExists(path.join(workspace, 'openapi/project/summary.md'));
         },
       );
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'prepare requires sourceUrl after init',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-missing-url-'));
+
+    try {
+      await runInWorkspace(workspace, async () => {
+        await runCli(['init']);
+        await assert.rejects(
+          () => runCli(['prepare']),
+          /sourceUrl is not configured\.\nSet sourceUrl in openapi\/config\/project\.jsonc before running prepare\./,
+        );
+      });
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
     }

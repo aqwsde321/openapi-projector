@@ -10,8 +10,8 @@ OpenAPI JSON에서 프론트엔드용 DTO/API 후보 코드를 생성하는 stan
 
 ```bash
 cd /path/to/openapi-projector
-npm install
-npm link
+pnpm install
+pnpm link --global
 ```
 
 별도 빌드 단계는 없습니다. 전역 링크를 쓰지 않으면 프론트엔드 프로젝트에서 `node /path/to/openapi-projector/bin/openapi-tool.mjs <command>`로 실행해도 됩니다.
@@ -20,7 +20,7 @@ npm link
 
 ```bash
 cd /path/to/frontend-project
-openapi-projector init --source-url <openapi-json-url>
+openapi-projector init
 ```
 
 `init`이 생성하는 파일:
@@ -33,7 +33,19 @@ openapi-projector init --source-url <openapi-json-url>
 
 `.openapi-projector.local.jsonc`는 현재 프로젝트 기준 로컬 설정입니다. 보통 `projectRoot`는 `"."` 그대로 둡니다.
 
-### 2. 점검
+### 2. OpenAPI URL 설정
+
+`openapi/config/project.jsonc`의 `sourceUrl`을 실제 OpenAPI JSON URL로 바꿉니다.
+
+```jsonc
+{
+  "sourceUrl": "<openapi-json-url>"
+}
+```
+
+`sourceUrl`은 Swagger UI 주소가 아니라 OpenAPI JSON 요청 URL이어야 합니다.
+
+### 3. 점검
 
 ```bash
 openapi-projector doctor
@@ -45,7 +57,7 @@ OpenAPI URL 접근까지 확인하려면:
 openapi-projector doctor --check-url
 ```
 
-### 3. 후보 코드 생성
+### 4. 후보 코드 생성
 
 ```bash
 openapi-projector prepare
@@ -63,14 +75,14 @@ openapi-projector prepare
 
 | 명령 | 역할 |
 | --- | --- |
-| `openapi-projector init --source-url <url>` | 현재 프로젝트에 기본 설정 생성 |
+| `openapi-projector init` | 현재 프로젝트에 기본 설정 생성 |
 | `openapi-projector doctor` | 로컬 설정과 프로젝트 준비 상태 점검 |
 | `openapi-projector prepare` | 후보 코드까지 한 번에 생성 |
 | `openapi-projector refresh` | OpenAPI 다운로드 + review 산출물 생성 |
 | `openapi-projector rules` | 프로젝트 규칙 분석/스캐폴드 생성 |
 | `openapi-projector project` | DTO/API 후보 코드 생성 |
 
-npm script로 감싸도 됩니다.
+package script로 감싸도 됩니다.
 
 ```json
 {

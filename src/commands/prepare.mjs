@@ -16,6 +16,10 @@ async function hasProjectConfig(rootDir) {
   }
 }
 
+function isConfiguredSourceUrl(sourceUrl) {
+  return typeof sourceUrl === 'string' && sourceUrl.trim() && !sourceUrl.includes('example.com');
+}
+
 const prepareCommand = {
   name: 'prepare',
   async run(options = {}) {
@@ -29,6 +33,16 @@ const prepareCommand = {
     } else {
       console.log('- init: creating project config');
       await initCommand.run(options);
+    }
+
+    const { projectConfig } = await loadProjectConfig(rootDir);
+    if (!isConfiguredSourceUrl(projectConfig.sourceUrl)) {
+      throw new Error(
+        [
+          'sourceUrl is not configured.',
+          'Set sourceUrl in openapi/config/project.jsonc before running prepare.',
+        ].join('\n'),
+      );
     }
 
     console.log('- refresh: downloading OpenAPI and generating review artifacts');

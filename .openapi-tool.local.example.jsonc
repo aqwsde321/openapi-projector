@@ -1,9 +1,5 @@
 {
   // legacy fallback 예시입니다. 새 설정은 .openapi-projector.local.example.jsonc 를 사용합니다.
   // 보통 projectRoot 는 현재 디렉터리를 뜻하는 "." 그대로 둡니다.
-  "projectRoot": ".",
-  "initDefaults": {
-    // Swagger UI 주소가 아니라 OpenAPI JSON 요청 URL(예: /v3/api-docs)을 적습니다.
-    "sourceUrl": ""
-  }
+  "projectRoot": "."
 }

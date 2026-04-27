@@ -22,13 +22,13 @@ const helpCommand = {
     console.log('  openapi-tool <command>');
     console.log('  node ./bin/openapi-tool.mjs --project-root /path/to/service-app <command>');
     console.log('  pnpm run openapi:<command>');
-    console.log('  npm run openapi:<command>');
     console.log('');
     console.log('First-time setup:');
     console.log('  1. cd /path/to/frontend-project');
-    console.log('  2. openapi-projector init --source-url <openapi-json-url>');
-    console.log('  3. openapi-projector doctor');
-    console.log('  4. openapi-projector prepare');
+    console.log('  2. openapi-projector init');
+    console.log('  3. set sourceUrl in openapi/config/project.jsonc');
+    console.log('  4. openapi-projector doctor');
+    console.log('  5. openapi-projector prepare');
     console.log('');
     console.log('Commands:');
     for (const [name, description] of commands) {
@@ -47,7 +47,7 @@ const helpCommand = {
     console.log('  - 새 프로젝트 시작은 init 명령으로 bootstrap 합니다.');
     console.log('');
     console.log('Recommended flow:');
-    console.log('  doctor -> prepare');
+    console.log('  init -> set sourceUrl -> doctor -> prepare');
     console.log('  상세 단계가 필요하면 init -> refresh -> rules -> project');
     console.log('');
     console.log('Docs:');

@@ -613,15 +613,11 @@ async function initProject(rootDir, options = {}) {
   };
 }
 
-function renderToolLocalConfig({ sourceUrl = '' } = {}) {
+function renderToolLocalConfig() {
   return `{
   // 이 파일은 실행한 프론트엔드 프로젝트 루트 기준 로컬 설정입니다.
   // 보통 projectRoot 는 현재 디렉터리를 뜻하는 "." 그대로 둡니다.
-  "projectRoot": ".",
-  "initDefaults": {
-    // Swagger UI 주소가 아니라 OpenAPI JSON 요청 URL(예: /v3/api-docs)을 적습니다.
-    "sourceUrl": ${JSON.stringify(sourceUrl)}
-  }
+  "projectRoot": "."
 }
 `;
 }
@@ -651,13 +647,12 @@ async function ensureGitignoreEntry(rootDir, entry) {
   return { gitignorePath, updated: true };
 }
 
-async function initToolLocalConfig(rootDir, options = {}) {
-  const { sourceUrl = '' } = options;
+async function initToolLocalConfig(rootDir) {
   const toolLocalConfigPath = path.resolve(rootDir, '.openapi-projector.local.jsonc');
   let created = false;
 
   if (!(await pathExists(toolLocalConfigPath))) {
-    await writeText(toolLocalConfigPath, renderToolLocalConfig({ sourceUrl }));
+    await writeText(toolLocalConfigPath, renderToolLocalConfig());
     created = true;
   }
 

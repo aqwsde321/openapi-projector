@@ -136,7 +136,7 @@ const doctorCommand = {
         warn('Local config not found. Using current target root.');
       } else {
         fail('Local config not found.');
-        lines.push('  Fix: run openapi-projector init --source-url <openapi-json-url>.');
+        lines.push('  Fix: run openapi-projector init.');
       }
     }
 
@@ -183,24 +183,24 @@ const doctorCommand = {
       const initSourceUrl = context.toolLocalConfig?.initDefaults?.sourceUrl;
 
       if (isConfiguredSourceUrl(initSourceUrl)) {
-        pass(`initDefaults.sourceUrl configured for initial prepare: ${initSourceUrl}`);
+        pass(`sourceUrl available for initial prepare: ${initSourceUrl}`);
         if (checkUrl) {
           try {
             const sourceUrlError = await checkSourceUrl(initSourceUrl);
             if (sourceUrlError) {
-              fail(`initDefaults.sourceUrl is not reachable: ${sourceUrlError}`);
+              fail(`sourceUrl is not reachable: ${sourceUrlError}`);
             } else {
-              pass('initDefaults.sourceUrl is reachable.');
+              pass('sourceUrl is reachable.');
             }
           } catch (error) {
-            fail(`initDefaults.sourceUrl check failed: ${error.message}`);
+            fail(`sourceUrl check failed: ${error.message}`);
           }
         } else {
-          skip('initDefaults.sourceUrl reachability was not checked. Run doctor --check-url to verify it.');
+          skip('sourceUrl reachability was not checked. Run doctor --check-url to verify it.');
         }
       } else {
-        fail('Project config is missing and initDefaults.sourceUrl is not configured.');
-        lines.push('  Fix: run openapi-projector init --source-url <openapi-json-url>, or edit openapi/config/project.jsonc.');
+        fail('Project config is missing.');
+        lines.push('  Fix: run openapi-projector init, then set sourceUrl in openapi/config/project.jsonc.');
       }
 
       skip('Downloaded OpenAPI JSON will be checked after prepare/init creates project config.');
@@ -230,7 +230,7 @@ const doctorCommand = {
       }
     } else {
       fail('sourceUrl is not configured.');
-      lines.push('  Fix: set sourceUrl in openapi/config/project.jsonc before refresh or prepare.');
+      lines.push('  Fix: set sourceUrl in openapi/config/project.jsonc before doctor/prepare.');
     }
 
     const sourcePath = path.resolve(rootDir, projectConfig.sourcePath);

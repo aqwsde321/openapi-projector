@@ -32,9 +32,7 @@ const initCommand = {
       ...(context.toolLocalConfig?.initDefaults ?? {}),
       ...(initArgs.sourceUrl ? { sourceUrl: initArgs.sourceUrl } : {}),
     };
-    const localConfigResult = await initToolLocalConfig(rootDir, {
-      sourceUrl: projectConfigOverrides.sourceUrl ?? '',
-    });
+    const localConfigResult = await initToolLocalConfig(rootDir);
     const result = await initProject(rootDir, { force, projectConfigOverrides });
 
     console.log(`Initialized openapi workflow in ${rootDir}`);
@@ -44,7 +42,11 @@ const initCommand = {
     if (localConfigResult.gitignoreUpdated) {
       console.log(`- root gitignore updated: ${localConfigResult.gitignorePath}`);
     }
-    console.log('- next: run doctor, then prepare');
+    if (projectConfigOverrides.sourceUrl) {
+      console.log('- next: run doctor, then prepare');
+    } else {
+      console.log('- next: set sourceUrl in openapi/config/project.jsonc, then run doctor');
+    }
   },
 };
 
