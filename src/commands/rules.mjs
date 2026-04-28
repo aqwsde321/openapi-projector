@@ -1,8 +1,24 @@
+import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { ensureDir, loadProjectConfig, readJson, writeJson, writeText } from '../core/openapi-utils.mjs';
 import { analyzeProject } from '../project-analyzer/index.mjs';
 import { pathExists } from '../project-analyzer/scan-files.mjs';
+
+const DEFAULT_API_RULES = {
+  fetchApiImportPath: '@/shared/api',
+  fetchApiSymbol: 'fetchAPI',
+  adapterStyle: 'url-config',
+  wrapperGrouping: 'tag',
+  tagFileCase: 'title',
+};
+const DEFAULT_LAYOUT_RULES = {
+  schemaFileName: 'schema.ts',
+  apiDirName: 'apis',
+};
+const DEFAULT_API_RULE_KEYS = new Set(Object.keys(DEFAULT_API_RULES));
+const DEFAULT_LAYOUT_RULE_KEYS = new Set(Object.keys(DEFAULT_LAYOUT_RULES));
+const DEFAULT_ROOT_RULE_KEYS = new Set(['api', 'layout']);
 
 function findMostUsedImportPath(stats) {
   return stats[0]?.importPath ?? null;
@@ -10,6 +26,37 @@ function findMostUsedImportPath(stats) {
 
 function toPosixPath(value) {
   return value.replaceAll(path.sep, '/');
+}
+
+function isPlainObject(value) {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function hasOnlyKeys(value, allowedKeys) {
+  return Object.keys(value ?? {}).every((key) => allowedKeys.has(key));
+}
+
+function matchesDefaultRuleValues(value, defaultValues) {
+  return Object.entries(value ?? {}).every(
+    ([key, item]) => item == null || item === defaultValues[key],
+  );
+}
+
+function isDefaultProjectRulesScaffold(rules) {
+  if (!isPlainObject(rules) || !hasOnlyKeys(rules, DEFAULT_ROOT_RULE_KEYS)) {
+    return false;
+  }
+
+  const api = rules.api ?? {};
+  const layout = rules.layout ?? {};
+  return (
+    isPlainObject(api) &&
+    isPlainObject(layout) &&
+    hasOnlyKeys(api, DEFAULT_API_RULE_KEYS) &&
+    hasOnlyKeys(layout, DEFAULT_LAYOUT_RULE_KEYS) &&
+    matchesDefaultRuleValues(api, DEFAULT_API_RULES) &&
+    matchesDefaultRuleValues(layout, DEFAULT_LAYOUT_RULES)
+  );
 }
 
 function renderStatsList(stats) {
@@ -178,6 +225,7 @@ const rulesCommand = {
     );
 
     let scaffoldCreated = false;
+    let scaffoldRefreshed = false;
     let rulesMigrated = false;
     if (!(await pathExists(rulesPath))) {
       scaffoldCreated = true;
@@ -194,21 +242,37 @@ const rulesCommand = {
       );
     } else {
       const existingRules = await readJson(rulesPath);
-      const nextRules = {
-        ...existingRules,
-        api: {
-          ...(existingRules.api ?? {}),
-          tagFileCase:
-            existingRules?.api?.tagFileCase === 'kebab' ||
-            existingRules?.api?.tagFileCase == null
-              ? 'title'
-              : existingRules.api.tagFileCase,
-        },
-      };
+      if (isDefaultProjectRulesScaffold(existingRules)) {
+        const nextRulesSource = buildRulesJsonc({
+          analysisPath: toPosixPath(path.relative(rootDir, analysisPath)),
+          analysisJsonPath: toPosixPath(path.relative(rootDir, analysisJsonPath)),
+          fetchApiImportPath,
+          fetchApiSymbol,
+          adapterStyle,
+        });
+        const existingRulesSource = await fs.readFile(rulesPath, 'utf8');
 
-      if (JSON.stringify(existingRules) !== JSON.stringify(nextRules)) {
-        rulesMigrated = true;
-        await writeJson(rulesPath, nextRules);
+        if (existingRulesSource !== nextRulesSource) {
+          scaffoldRefreshed = true;
+          await writeText(rulesPath, nextRulesSource);
+        }
+      } else {
+        const nextRules = {
+          ...existingRules,
+          api: {
+            ...(existingRules.api ?? {}),
+            tagFileCase:
+              existingRules?.api?.tagFileCase === 'kebab' ||
+              existingRules?.api?.tagFileCase == null
+                ? 'title'
+                : existingRules.api.tagFileCase,
+          },
+        };
+
+        if (JSON.stringify(existingRules) !== JSON.stringify(nextRules)) {
+          rulesMigrated = true;
+          await writeJson(rulesPath, nextRules);
+        }
       }
     }
 
@@ -216,6 +280,8 @@ const rulesCommand = {
     console.log(`Updated project rules analysis JSON: ${analysisJsonPath}`);
     if (scaffoldCreated) {
       console.log(`Created project rules scaffold: ${rulesPath}`);
+    } else if (scaffoldRefreshed) {
+      console.log(`Refreshed project rules scaffold: ${rulesPath}`);
     } else if (rulesMigrated) {
       console.log(`Migrated project rules defaults: ${rulesPath}`);
     } else {
