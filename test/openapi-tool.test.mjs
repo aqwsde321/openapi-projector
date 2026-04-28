@@ -708,6 +708,41 @@ test(
 );
 
 test(
+  'doctor fails when downloaded OpenAPI JSON has invalid root shape',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Malformed API',
+        version: '1.0.0',
+      },
+      paths: [],
+    };
+    const sourceUrl = `data:application/json,${encodeURIComponent(JSON.stringify(spec))}`;
+
+    await withWorkspace({ spec }, async (workspace) => {
+      const projectConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
+      const projectConfig = JSON.parse(await fs.readFile(projectConfigPath, 'utf8'));
+      await writeJsonFile(projectConfigPath, {
+        ...projectConfig,
+        sourceUrl,
+      });
+
+      const result = await doctorCommand.run({
+        context: {
+          targetRoot: workspace,
+          toolLocalConfigPath: path.join(REPO_ROOT, '.openapi-projector.local.jsonc'),
+          toolLocalConfig: null,
+        },
+      });
+
+      assert.equal(result.ok, false);
+    });
+  },
+);
+
+test(
   'doctor fails when existing project rules file is invalid JSON',
   { concurrency: false },
   async () => {

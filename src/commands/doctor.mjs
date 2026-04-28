@@ -10,6 +10,7 @@ import {
   formatValidationIssues,
   validateProjectRules,
 } from '../config/validation.mjs';
+import { loadSupportedOpenApiSpec } from '../openapi/load-spec.mjs';
 
 async function pathExists(targetPath) {
   try {
@@ -221,8 +222,8 @@ const doctorCommand = {
     const sourcePath = path.resolve(rootDir, projectConfig.sourcePath);
     if (await pathExists(sourcePath)) {
       try {
-        await readJson(sourcePath);
-        pass(`Downloaded OpenAPI JSON is readable: ${toRelative(rootDir, sourcePath)}`);
+        await loadSupportedOpenApiSpec(sourcePath);
+        pass(`Downloaded OpenAPI JSON is valid: ${toRelative(rootDir, sourcePath)}`);
       } catch (error) {
         fail(`Downloaded OpenAPI JSON is invalid: ${error.message}`);
       }
