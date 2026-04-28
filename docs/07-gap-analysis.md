@@ -40,7 +40,7 @@
 - OpenAPI 3.0/3.1 JSON만 지원하고 OAS2/YAML 은 제외됨
 - 다중 media type 중 지원 가능한 JSON 계열 response와 JSON/multipart request를 선택하지만, non-JSON success response는 project 단계에서 skip 됨
 - cookie parameter와 multipart request body는 기본 wrapper 생성까지 지원하지만, 프로젝트별 런타임 client 계약 검증은 아직 제한적임
-- schema validation, runtime validation 은 아직 없음
+- OpenAPI root shape validation 은 있으나 전체 schema/lint validation, runtime validation 은 아직 없음
 
 ### 2단계: 프로젝트 구조 파악과 규칙 문서화
 
@@ -151,7 +151,7 @@
 
 ### 4. 검증 체계 확장 필요
 
-- OpenAPI schema validation 없음
+- 전체 OpenAPI schema validation/lint 없음
 - runtime validation 없음
 - openapi lint 연동 없음
 

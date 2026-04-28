@@ -8,6 +8,7 @@ import {
   writeJson,
   writeText,
 } from '../core/openapi-utils.mjs';
+import { loadSupportedOpenApiSpec } from '../openapi/load-spec.mjs';
 
 const CATALOG_FORMAT_VERSION = 2;
 
@@ -27,7 +28,7 @@ const catalogCommand = {
     const changesMarkdownPath = path.join(changesDir, 'summary.md');
     const historyDir = path.join(changesDir, 'history');
 
-    const spec = await readJson(sourcePath);
+    const spec = await loadSupportedOpenApiSpec(sourcePath);
     const previousCatalog = await readJsonIfExists(catalogJsonPath);
     const catalogEntries = buildEndpointCatalog(spec);
     const changeSummary = buildChangeSummary(

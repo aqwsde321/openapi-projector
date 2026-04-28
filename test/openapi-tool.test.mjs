@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 import { runCli } from '../src/cli.mjs';
+import { catalogCommand } from '../src/commands/catalog.mjs';
 import { doctorCommand } from '../src/commands/doctor.mjs';
 import { generateCommand } from '../src/commands/generate.mjs';
 import { projectCommand } from '../src/commands/project.mjs';
@@ -240,6 +241,60 @@ test(
       assert.match(schemaSource, /export interface paths/);
       assert.equal(docFiles.length, 2);
       assert.match(endpointDoc, /OperationId: `getUserById`/);
+    });
+  },
+);
+
+test(
+  'generate rejects malformed OpenAPI root shape before writing outputs',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Malformed API',
+        version: '1.0.0',
+      },
+      paths: [],
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await assert.rejects(
+        () => runInWorkspace(workspace, () => generateCommand.run()),
+        /OpenAPI source is invalid: paths must be an object\./,
+      );
+
+      await assert.rejects(
+        () => fs.access(path.join(workspace, 'openapi/review/generated/schema.ts')),
+        /ENOENT/,
+      );
+    });
+  },
+);
+
+test(
+  'catalog rejects unsupported OpenAPI versions before writing outputs',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      swagger: '2.0',
+      info: {
+        title: 'Swagger API',
+        version: '1.0.0',
+      },
+      paths: {},
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await assert.rejects(
+        () => runInWorkspace(workspace, () => catalogCommand.run()),
+        /Swagger\/OpenAPI 2\.0 is not supported in MVP v2\./,
+      );
+
+      await assert.rejects(
+        () => fs.access(path.join(workspace, 'openapi/review/catalog/endpoints.json')),
+        /ENOENT/,
+      );
     });
   },
 );

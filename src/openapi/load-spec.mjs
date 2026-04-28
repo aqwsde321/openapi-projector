@@ -6,6 +6,36 @@ import { readJson } from '../core/openapi-utils.mjs';
 const DEFAULT_GENERATED_SCHEMA_PATH = 'openapi/review/generated/schema.ts';
 const SUPPORTED_PREFIXES = ['3.0', '3.1'];
 
+function isPlainObject(value) {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function validateOpenApiRootShape(spec, sourcePath) {
+  const issues = [];
+
+  if (!isPlainObject(spec)) {
+    issues.push('root must be a JSON object');
+  } else {
+    if (!isPlainObject(spec.info)) {
+      issues.push('info must be an object');
+    }
+
+    if (!isPlainObject(spec.paths)) {
+      issues.push('paths must be an object');
+    }
+
+    if (spec.components != null && !isPlainObject(spec.components)) {
+      issues.push('components must be an object when present');
+    }
+  }
+
+  if (issues.length > 0) {
+    throw new Error(
+      `OpenAPI source is invalid: ${issues.join('; ')}.\nSource: ${sourcePath}`,
+    );
+  }
+}
+
 async function loadSupportedOpenApiSpec(sourcePath) {
   let spec;
 
@@ -21,7 +51,11 @@ async function loadSupportedOpenApiSpec(sourcePath) {
     throw error;
   }
 
-  const version = spec?.openapi;
+  if (!isPlainObject(spec)) {
+    validateOpenApiRootShape(spec, sourcePath);
+  }
+
+  const version = spec.openapi;
 
   if (spec?.swagger === '2.0') {
     throw new Error(
@@ -34,6 +68,8 @@ async function loadSupportedOpenApiSpec(sourcePath) {
       `Only OpenAPI 3.0/3.1 JSON is supported in MVP v2.\nDetected version: ${version ?? 'unknown'}\nSource: ${sourcePath}`,
     );
   }
+
+  validateOpenApiRootShape(spec, sourcePath);
 
   return spec;
 }
