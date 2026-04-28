@@ -9,7 +9,7 @@
 | 단계 | 목표 | 현재 판단 |
 | --- | --- | --- |
 | 1 | OpenAPI만으로 결정 가능한 review 산출물과 `schema.ts` 생성 | 85~90% |
-| 2 | 현재 프로젝트 구조 파악 후 규칙 문서화 | 60~65% |
+| 2 | 현재 프로젝트 구조 파악 후 규칙 문서화 | 65~70% |
 | 3 | 1번 결과 + 2번 규칙으로 프로젝트 컨벤션에 맞는 파일 생성 | 80~85% |
 
 종합하면 방향은 맞습니다.
@@ -49,18 +49,20 @@
 이미 가능한 것:
 
 - `rules`로 분석 문서 생성
+- `rules`로 기계 처리 가능한 분석 JSON 생성
 - `project-rules.jsonc` scaffold 생성
-- 기존 `fetchAPI`, `AxiosRequestConfig` import 경로 추론
+- TypeScript AST 기반으로 API helper import/call style, HTTP client, API layer 후보 추론
+- 기존 `fetchAPI` import 경로 추론은 legacy 호환용 통계로 유지
 
 근거:
 
 - `rules`는 `src/entities`를 우선 보고, 없으면 `src`를 fallback 으로 사용함
-- `fetchAPI`, `AxiosRequestConfig` import 사용 빈도를 집계함
-- 관련 코드: [src/commands/rules.mjs](../src/commands/rules.mjs)
+- 분석기는 TypeScript AST로 import, 호출 형태, export naming을 수집함
+- 관련 코드: [src/commands/rules.mjs](../src/commands/rules.mjs), [src/project-analyzer/index.mjs](../src/project-analyzer/index.mjs)
 
 핵심 갭:
 
-- 분석이 여전히 import heuristic 중심임
+- 분석이 개선됐지만 여전히 heuristic 기반 후보 추천임
 - alias/path mapping 이 복잡한 프로젝트에서는 추론 품질이 제한될 수 있음
 - fetch helper 계약 외의 런타임 규칙은 아직 설정 범위에 없음
 

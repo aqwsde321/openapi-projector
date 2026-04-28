@@ -76,6 +76,7 @@ openapi-projector refresh
 # Read openapi/review/changes/summary.md for OpenAPI changes
 openapi-projector rules
 # Read openapi/review/project-rules/analysis.md
+# Keep openapi/review/project-rules/analysis.json for machine-readable evidence
 # Edit openapi/config/project-rules.jsonc for this project
 openapi-projector project
 ```
@@ -129,9 +130,12 @@ Recommended AI behavior:
 After running `openapi-projector rules`, read both files:
 
 - `openapi/review/project-rules/analysis.md`
+- `openapi/review/project-rules/analysis.json`
 - `openapi/config/project-rules.jsonc`
 
 Then inspect the real project source before editing `project-rules.jsonc`.
+
+`analysis.md` is for human review. `analysis.json` preserves the same evidence in a machine-readable format for AI agents, tests, and future automation.
 
 Useful searches:
 

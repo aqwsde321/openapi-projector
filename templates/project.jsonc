@@ -21,6 +21,9 @@
   // rules 명령이 만드는 프로젝트 규칙 분석 문서 위치입니다.
   "projectRulesAnalysisPath": "openapi/review/project-rules/analysis.md",
 
+  // rules 명령이 만드는 프로젝트 규칙 분석 JSON 위치입니다.
+  "projectRulesAnalysisJsonPath": "openapi/review/project-rules/analysis.json",
+
   // project 명령이 읽는 프로젝트 규칙 파일 위치입니다.
   "projectRulesPath": "openapi/config/project-rules.jsonc",
 

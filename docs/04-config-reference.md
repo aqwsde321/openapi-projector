@@ -72,6 +72,7 @@
 - `catalogMarkdownPath`
 - `docsDir`
 - `projectRulesAnalysisPath`
+- `projectRulesAnalysisJsonPath`
 - `projectRulesPath`
 
 ## 3. 대상 프로젝트 `project-rules.jsonc`
