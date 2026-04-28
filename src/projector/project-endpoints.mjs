@@ -1,0 +1,59 @@
+import { classifyProjectOperations } from '../openapi/classify-operations.mjs';
+import { buildTagDirectoryName } from './layout.mjs';
+import {
+  buildOperationSymbolBase,
+  createUniqueName,
+} from './naming.mjs';
+import { toKebabCase } from '../core/openapi-utils.mjs';
+
+function projectOperations(operations, apiRules = {}) {
+  const { supportedOperations, skippedOperations } = classifyProjectOperations(operations);
+  const tagDirectoryMap = new Map();
+  const tagFileCase = apiRules.tagFileCase ?? 'title';
+
+  for (const operation of supportedOperations) {
+    const tagDirectoryName = buildTagDirectoryName(
+      operation.tag || 'default',
+      tagFileCase,
+    );
+
+    if (!tagDirectoryMap.has(tagDirectoryName)) {
+      tagDirectoryMap.set(tagDirectoryName, []);
+    }
+
+    tagDirectoryMap.get(tagDirectoryName).push(operation);
+  }
+
+  const tagDirectories = Array.from(tagDirectoryMap.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([tagDirectoryName, tagOperations]) => {
+      const usedNames = new Set();
+      const endpoints = tagOperations.map((operation) => {
+        const functionName = createUniqueName(
+          buildOperationSymbolBase(operation),
+          usedNames,
+        );
+
+        return {
+          tagDirectoryName,
+          endpointFileBase: toKebabCase(functionName),
+          functionName,
+          operation,
+        };
+      });
+
+      return {
+        tagDirectoryName,
+        endpoints,
+      };
+    });
+
+  return {
+    totalEndpoints: operations.length,
+    generatedEndpoints: supportedOperations.length,
+    skippedOperations,
+    tagDirectories,
+  };
+}
+
+export { projectOperations };

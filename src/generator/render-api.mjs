@@ -323,6 +323,7 @@ function renderOperationSection({
 
 function renderTagFolderOutputs({
   spec,
+  endpoints = null,
   operations,
   runtimeFetchImportPath,
   runtimeFetchSymbol,
@@ -330,13 +331,21 @@ function renderTagFolderOutputs({
 }) {
   const usedNames = new Set();
   const endpointFiles = [];
-
-  for (const operation of operations) {
+  const endpointInputs = endpoints ?? operations.map((operation) => {
     const functionName = createUniqueName(
       buildOperationSymbolBase(operation),
       usedNames,
     );
-    const endpointFileBase = toKebabCase(functionName);
+
+    return {
+      operation,
+      functionName,
+      endpointFileBase: toKebabCase(functionName),
+    };
+  });
+
+  for (const endpoint of endpointInputs) {
+    const { operation, functionName, endpointFileBase } = endpoint;
     const rendered = renderOperationSection({
       spec,
       operation,

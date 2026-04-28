@@ -20,6 +20,7 @@ import {
   createUniqueName,
   toPascalIdentifier,
 } from '../src/projector/naming.mjs';
+import { projectOperations } from '../src/projector/project-endpoints.mjs';
 
 async function withTempDir(callback) {
   const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-unit-'));
@@ -281,6 +282,81 @@ test('naming helpers strip controller noise, fall back safely, and deduplicate n
   const usedNames = new Set(['getUser', 'callApi']);
   assert.equal(createUniqueName('getUser', usedNames), 'getUser2');
   assert.equal(createUniqueName('', usedNames), 'callApi2');
+});
+
+test('projectOperations builds deterministic tag directories and endpoint file names', () => {
+  const operations = [
+    {
+      tag: 'User Admin',
+      operationId: 'UserController_getUserUsingGET',
+      endpointId: 'get-user',
+      method: 'get',
+      path: '/users/{id}',
+      requestContentTypes: [],
+      successStatus: '200',
+      responseContentTypes: [],
+    },
+    {
+      tag: 'user-admin',
+      operationId: 'UserController_getUserUsingGET',
+      endpointId: 'get-user-copy',
+      method: 'get',
+      path: '/users/{id}/copy',
+      requestContentTypes: [],
+      successStatus: '200',
+      responseContentTypes: [],
+    },
+    {
+      tag: 'Reports',
+      operationId: 'exportReport',
+      endpointId: 'export-report',
+      method: 'get',
+      path: '/reports/export',
+      requestContentTypes: [],
+      successStatus: '200',
+      responseContentTypes: ['text/csv'],
+    },
+  ];
+
+  const projection = projectOperations(operations, {
+    tagFileCase: 'kebab',
+  });
+
+  assert.equal(projection.totalEndpoints, 3);
+  assert.equal(projection.generatedEndpoints, 2);
+  assert.deepEqual(projection.skippedOperations, [
+    {
+      method: 'GET',
+      path: '/reports/export',
+      reasons: ['response media type text/csv'],
+    },
+  ]);
+  assert.deepEqual(
+    projection.tagDirectories.map((tagDirectory) => tagDirectory.tagDirectoryName),
+    ['user-admin'],
+  );
+  assert.deepEqual(
+    projection.tagDirectories[0].endpoints.map((endpoint) => ({
+      tagDirectoryName: endpoint.tagDirectoryName,
+      functionName: endpoint.functionName,
+      endpointFileBase: endpoint.endpointFileBase,
+      path: endpoint.operation.path,
+    })),
+    [
+      {
+        tagDirectoryName: 'user-admin',
+        functionName: 'getUser',
+        endpointFileBase: 'get-user',
+        path: '/users/{id}',
+      },
+      {
+        tagDirectoryName: 'user-admin',
+        functionName: 'getUser2',
+        endpointFileBase: 'get-user2',
+        path: '/users/{id}/copy',
+      },
+    ],
+  );
 });
 
 test('render DTO helpers escape comments, quote unsafe fields, and avoid nullable interfaces', () => {

@@ -1,9 +1,8 @@
 import path from 'node:path';
 
 import { writeText } from '../core/openapi-utils.mjs';
-import { classifyProjectOperations } from '../openapi/classify-operations.mjs';
 import { collectProjectOperations } from '../openapi/collect-operations.mjs';
-import { buildTagDirectoryName } from '../projector/layout.mjs';
+import { projectOperations } from '../projector/project-endpoints.mjs';
 import { renderTagFolderOutputs } from './render-api.mjs';
 import { renderIndexSource } from './render-index.mjs';
 import { renderProjectSummary } from './render-summary.mjs';
@@ -27,7 +26,7 @@ async function writeProjectOutputs({
     throw new Error('No endpoints found in OpenAPI spec');
   }
 
-  const { supportedOperations, skippedOperations } = classifyProjectOperations(operations);
+  const projection = projectOperations(operations, apiRules);
 
   const schemaFileName = layoutRules.schemaFileName ?? 'schema.ts';
   const schemaFileBase = path.basename(
@@ -36,7 +35,6 @@ async function writeProjectOutputs({
   );
   const schemaOutputPath = path.join(projectGeneratedSrcDir, schemaFileName);
   const indexOutputPath = path.join(projectGeneratedSrcDir, 'index.ts');
-  const tagFileMap = new Map();
   const manifestFiles = [];
 
   await writeText(schemaOutputPath, schemaContents);
@@ -45,27 +43,17 @@ async function writeProjectOutputs({
     generated: path.relative(rootDir, schemaOutputPath).replaceAll(path.sep, '/'),
   });
 
-  for (const operation of supportedOperations) {
-    const tagFileName = buildTagDirectoryName(
-      operation.tag || 'default',
-      apiRules.tagFileCase ?? 'title',
-    );
-    if (!tagFileMap.has(tagFileName)) {
-      tagFileMap.set(tagFileName, []);
-    }
-    tagFileMap.get(tagFileName).push(operation);
-  }
-
-  const sortedTagFileNames = Array.from(tagFileMap.keys()).sort((left, right) =>
-    left.localeCompare(right),
+  const sortedTagFileNames = projection.tagDirectories.map(
+    (tagDirectory) => tagDirectory.tagDirectoryName,
   );
 
-  for (const tagFileName of sortedTagFileNames) {
+  for (const tagDirectory of projection.tagDirectories) {
+    const tagFileName = tagDirectory.tagDirectoryName;
     const tagDirectoryPath = path.join(projectGeneratedSrcDir, tagFileName);
     const tagIndexPath = path.join(tagDirectoryPath, 'index.ts');
     const renderedTag = renderTagFolderOutputs({
       spec,
-      operations: tagFileMap.get(tagFileName),
+      endpoints: tagDirectory.endpoints,
       runtimeFetchImportPath: apiRules.fetchApiImportPath ?? '@/shared/api',
       runtimeFetchSymbol: apiRules.fetchApiSymbol ?? 'fetchAPI',
       runtimeCallStyle: apiRules.adapterStyle === 'request-object' ? 'request-object' : 'url-config',
@@ -113,9 +101,9 @@ async function writeProjectOutputs({
     projectRulesPath,
     projectGeneratedSrcDir: path.relative(rootDir, projectGeneratedSrcDir).replaceAll(path.sep, '/'),
     totalEndpoints: operations.length,
-    generatedEndpoints: supportedOperations.length,
-    skippedEndpoints: skippedOperations.length,
-    skippedOperations,
+    generatedEndpoints: projection.generatedEndpoints,
+    skippedEndpoints: projection.skippedOperations.length,
+    skippedOperations: projection.skippedOperations,
     files: manifestFiles,
   };
 
