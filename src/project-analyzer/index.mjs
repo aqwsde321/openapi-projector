@@ -30,6 +30,10 @@ const FUNCTION_PREFIXES = [
   'patch',
 ];
 const DTO_SUFFIXES = ['Dto', 'Response', 'Request', 'Model', 'Payload'];
+const UNKNOWN_API_HELPER_CALL_STYLE_WARNING_MESSAGE =
+  'API helper candidate was found, but the request call shape was not url-config or request-object. Inspect member calls such as apiClient.get/post before trusting adapterStyle.';
+const UNSUPPORTED_API_HELPER_IMPORT_KIND_WARNING_MESSAGE =
+  'API helper candidate uses an import kind that generated wrappers cannot reproduce automatically. Confirm fetchApiImportPath and fetchApiSymbol manually.';
 
 function toPosixPath(value) {
   return value.replaceAll(path.sep, '/');
@@ -39,11 +43,12 @@ function relativePath(rootDir, filePath) {
   return toPosixPath(path.relative(rootDir, filePath));
 }
 
-function createCandidate(value, confidence = 0, evidence = []) {
+function createCandidate(value, confidence = 0, evidence = [], metadata = {}) {
   return {
     value,
     confidence,
     evidence,
+    ...metadata,
   };
 }
 
@@ -715,14 +720,12 @@ function pickApiHelperCandidate(signals) {
   }
 
   const { symbol, importPath, importKind } = parseHelperKey(top.value);
+  const helperCallStyles = signals.helperCallStyles.get(top.value) ?? new Map();
   const [topCallStyle] = sortedCounts(
-    new Map(
-      [...(signals.helperCallStyles.get(top.value) ?? new Map())].filter(
-        ([style]) => style !== 'unknown',
-      ),
-    ),
+    new Map([...helperCallStyles].filter(([style]) => style !== 'unknown')),
   );
   const callStyle = topCallStyle?.value ?? 'unknown';
+  const hasUnknownCallStyle = (helperCallStyles.get('unknown') ?? 0) > 0;
 
   return createCandidate(
     {
@@ -736,6 +739,10 @@ function pickApiHelperCandidate(signals) {
       .concat(signals.callStyleEvidence)
       .filter((evidence) => evidence.reason.includes(symbol))
       .slice(0, 8),
+    {
+      callStyles: sortedCounts(helperCallStyles),
+      hasUnknownCallStyle,
+    },
   );
 }
 
@@ -789,19 +796,20 @@ function buildAnalysisWarnings(apiHelper) {
   const warnings = [];
   const value = apiHelper.value ?? {};
 
-  if (apiHelper.confidence > 0 && value.callStyle === 'unknown') {
+  if (
+    apiHelper.confidence > 0 &&
+    (value.callStyle === 'unknown' || apiHelper.hasUnknownCallStyle)
+  ) {
     warnings.push({
       code: 'unknown-api-helper-call-style',
-      message:
-        'API helper candidate was found, but the request call shape was not url-config or request-object. Inspect member calls such as apiClient.get/post before trusting adapterStyle.',
+      message: UNKNOWN_API_HELPER_CALL_STYLE_WARNING_MESSAGE,
     });
   }
 
   if (value.importKind && !['named', 'default'].includes(value.importKind)) {
     warnings.push({
       code: 'unsupported-api-helper-import-kind',
-      message:
-        'API helper candidate uses an import kind that generated wrappers cannot reproduce automatically. Confirm fetchApiImportPath and fetchApiSymbol manually.',
+      message: UNSUPPORTED_API_HELPER_IMPORT_KIND_WARNING_MESSAGE,
     });
   }
 
@@ -871,4 +879,8 @@ async function analyzeProject(rootDir, options = {}) {
   };
 }
 
-export { analyzeProject };
+export {
+  UNKNOWN_API_HELPER_CALL_STYLE_WARNING_MESSAGE,
+  UNSUPPORTED_API_HELPER_IMPORT_KIND_WARNING_MESSAGE,
+  analyzeProject,
+};

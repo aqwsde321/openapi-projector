@@ -120,7 +120,7 @@ How to interpret `summary.md`:
 
 Recommended AI behavior:
 
-1. If this is a baseline run, continue with `rules` and `project`.
+1. If this is a baseline run, run `rules`, review `project-rules.jsonc` against the real API client, set `review.rulesReviewed` to true, then run `project`.
 2. If `Contract Changed` or `Removed` is non-zero, inspect affected endpoint docs under `openapi/review/docs/` before applying code.
 3. If only `Doc Changed` changed, avoid unnecessary app code edits unless naming or comments must be updated.
 4. If `Added` endpoints exist, generate candidates and apply only the endpoints requested by the user.
@@ -190,6 +190,7 @@ Typical shape:
 {
   "review": {
     "rulesReviewed": false,
+    "scaffoldSignature": "<generated-scaffold-signature>",
     "notes": []
   },
   "api": {

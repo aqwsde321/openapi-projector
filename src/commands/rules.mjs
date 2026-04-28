@@ -1,8 +1,13 @@
+import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { ensureDir, loadProjectConfig, readJson, writeJson, writeText } from '../core/openapi-utils.mjs';
-import { analyzeProject } from '../project-analyzer/index.mjs';
+import {
+  UNKNOWN_API_HELPER_CALL_STYLE_WARNING_MESSAGE,
+  UNSUPPORTED_API_HELPER_IMPORT_KIND_WARNING_MESSAGE,
+  analyzeProject,
+} from '../project-analyzer/index.mjs';
 import { pathExists } from '../project-analyzer/scan-files.mjs';
 
 const DEFAULT_API_RULES = {
@@ -25,9 +30,19 @@ const UNKNOWN_CALL_STYLE_REVIEW_NOTE =
   'adapterStyle was defaulted to url-config because the analyzer could not confirm the helper call shape. Inspect existing API calls before setting rulesReviewed to true.';
 const UNSUPPORTED_IMPORT_KIND_REVIEW_NOTE =
   'fetchApiImportKind was defaulted to named because the analyzer found a helper import kind that generated wrappers do not support directly.';
+const GENERATED_REVIEW_NOTES = new Set([
+  UNKNOWN_API_HELPER_CALL_STYLE_WARNING_MESSAGE,
+  UNSUPPORTED_API_HELPER_IMPORT_KIND_WARNING_MESSAGE,
+  UNKNOWN_CALL_STYLE_REVIEW_NOTE,
+  UNSUPPORTED_IMPORT_KIND_REVIEW_NOTE,
+]);
+const SCAFFOLD_SIGNATURE_VERSION = 1;
 const DEFAULT_API_RULE_KEYS = new Set(Object.keys(DEFAULT_API_RULES));
 const DEFAULT_LAYOUT_RULE_KEYS = new Set(Object.keys(DEFAULT_LAYOUT_RULES));
-const DEFAULT_REVIEW_RULE_KEYS = new Set(Object.keys(DEFAULT_REVIEW_RULES));
+const DEFAULT_REVIEW_RULE_KEYS = new Set([
+  ...Object.keys(DEFAULT_REVIEW_RULES),
+  'scaffoldSignature',
+]);
 const DEFAULT_ROOT_RULE_KEYS = new Set(['api', 'layout', 'review']);
 
 function findMostUsedImportPath(stats) {
@@ -54,20 +69,41 @@ function arraysEqual(left, right) {
   return left.every((item, index) => item === right[index]);
 }
 
+function buildScaffoldSignature(candidate) {
+  const payload = {
+    version: SCAFFOLD_SIGNATURE_VERSION,
+    api: candidate.api,
+    layout: candidate.layout,
+    reviewNotes: candidate.reviewNotes,
+  };
+
+  return createHash('sha256').update(JSON.stringify(payload)).digest('hex').slice(0, 16);
+}
+
+function createScaffoldCandidate(candidate) {
+  return {
+    ...candidate,
+    scaffoldSignature: buildScaffoldSignature(candidate),
+  };
+}
+
 function buildScaffoldDefaultsFromAnalysis(analysis) {
   const apiHelper = analysis?.apiHelper?.value ?? {};
   const fetchApiImportStats = analysis?.legacy?.fetchApiImportStats ?? [];
-  const fetchApiImportPath =
-    apiHelper.importPath && apiHelper.importPath !== '<local>'
-      ? apiHelper.importPath
-      : findMostUsedImportPath(fetchApiImportStats) ?? DEFAULT_API_RULES.fetchApiImportPath;
-  const fetchApiSymbol = apiHelper.symbol ?? DEFAULT_API_RULES.fetchApiSymbol;
-  const fetchApiImportKind = apiHelper.importKind === 'default' ? 'default' : 'named';
+  const hasImportedHelper = apiHelper.importPath && apiHelper.importPath !== '<local>';
+  const fetchApiImportPath = hasImportedHelper
+    ? apiHelper.importPath
+    : findMostUsedImportPath(fetchApiImportStats) ?? DEFAULT_API_RULES.fetchApiImportPath;
+  const fetchApiSymbol = hasImportedHelper
+    ? apiHelper.symbol ?? DEFAULT_API_RULES.fetchApiSymbol
+    : DEFAULT_API_RULES.fetchApiSymbol;
+  const fetchApiImportKind =
+    hasImportedHelper && apiHelper.importKind === 'default' ? 'default' : 'named';
   const adapterStyle = ['url-config', 'request-object'].includes(apiHelper.callStyle)
     ? apiHelper.callStyle
     : DEFAULT_API_RULES.adapterStyle;
 
-  return {
+  return createScaffoldCandidate({
     api: {
       fetchApiImportPath,
       fetchApiSymbol,
@@ -78,7 +114,7 @@ function buildScaffoldDefaultsFromAnalysis(analysis) {
     },
     layout: DEFAULT_LAYOUT_RULES,
     reviewNotes: buildReviewNotes(analysis),
-  };
+  });
 }
 
 function buildReviewNotes(analysis) {
@@ -91,6 +127,54 @@ function buildReviewNotes(analysis) {
       ? [UNSUPPORTED_IMPORT_KIND_REVIEW_NOTE]
       : []),
   ];
+}
+
+function hasOnlyGeneratedReviewNotes(review, { allowEmpty = false } = {}) {
+  const notes = review.notes ?? [];
+
+  return (
+    review.rulesReviewed === false &&
+    Array.isArray(notes) &&
+    (allowEmpty || notes.length > 0) &&
+    notes.every((note) => GENERATED_REVIEW_NOTES.has(note))
+  );
+}
+
+function buildCurrentRulesScaffoldCandidate(rules) {
+  const api = rules.api ?? {};
+  const review = rules.review ?? DEFAULT_REVIEW_RULES;
+  const notes = review.notes ?? [];
+
+  if (!hasOnlyGeneratedReviewNotes(review, { allowEmpty: true })) {
+    return null;
+  }
+
+  if (typeof review.scaffoldSignature !== 'string' || !review.scaffoldSignature.trim()) {
+    return null;
+  }
+
+  if (
+    typeof api.fetchApiImportPath !== 'string' ||
+    typeof api.fetchApiSymbol !== 'string' ||
+    !['url-config', 'request-object'].includes(api.adapterStyle)
+  ) {
+    return null;
+  }
+
+  const candidate = createScaffoldCandidate({
+    api: {
+      fetchApiImportPath: api.fetchApiImportPath,
+      fetchApiSymbol: api.fetchApiSymbol,
+      fetchApiImportKind: api.fetchApiImportKind ?? DEFAULT_API_RULES.fetchApiImportKind,
+      adapterStyle: api.adapterStyle,
+      wrapperGrouping: DEFAULT_API_RULES.wrapperGrouping,
+      tagFileCase: DEFAULT_API_RULES.tagFileCase,
+    },
+    layout: DEFAULT_LAYOUT_RULES,
+    reviewNotes: notes,
+  });
+
+  return review.scaffoldSignature === candidate.scaffoldSignature ? candidate : null;
 }
 
 function matchesScaffoldApiValues(api, expectedApi) {
@@ -110,31 +194,44 @@ function matchesScaffoldLayoutValues(layout, expectedLayout) {
   );
 }
 
-function matchesScaffoldReviewValues(review, expectedNotes) {
+function matchesScaffoldReviewValues(review, candidate) {
   const notes = review.notes ?? [];
 
-  return review.rulesReviewed === false && arraysEqual(notes, expectedNotes);
+  if (review.rulesReviewed !== false || !arraysEqual(notes, candidate.reviewNotes)) {
+    return false;
+  }
+
+  if (review.scaffoldSignature == null) {
+    return true;
+  }
+
+  return review.scaffoldSignature === candidate.scaffoldSignature;
 }
 
 function matchesScaffoldCandidate({ api, layout, review }, candidate) {
   return (
     matchesScaffoldApiValues(api, candidate.api) &&
     matchesScaffoldLayoutValues(layout, candidate.layout) &&
-    matchesScaffoldReviewValues(review, candidate.reviewNotes)
+    matchesScaffoldReviewValues(review, candidate)
   );
 }
 
-function buildScaffoldCandidates(previousAnalysis) {
+function buildScaffoldCandidates(previousAnalysis, rules) {
   const candidates = [
-    {
+    createScaffoldCandidate({
       api: DEFAULT_API_RULES,
       layout: DEFAULT_LAYOUT_RULES,
       reviewNotes: DEFAULT_REVIEW_RULES.notes,
-    },
+    }),
   ];
 
   if (previousAnalysis) {
     candidates.push(buildScaffoldDefaultsFromAnalysis(previousAnalysis));
+  }
+
+  const currentRulesCandidate = buildCurrentRulesScaffoldCandidate(rules);
+  if (currentRulesCandidate) {
+    candidates.push(currentRulesCandidate);
   }
 
   return candidates;
@@ -160,7 +257,7 @@ function isDefaultProjectRulesScaffold(rules, previousAnalysis = null) {
     return false;
   }
 
-  return buildScaffoldCandidates(previousAnalysis).some((candidate) =>
+  return buildScaffoldCandidates(previousAnalysis, rules).some((candidate) =>
     matchesScaffoldCandidate({ api, layout, review }, candidate),
   );
 }
@@ -290,6 +387,19 @@ function buildRulesJsonc({
   adapterStyle,
   reviewNotes = [],
 }) {
+  const api = {
+    fetchApiImportPath,
+    fetchApiSymbol,
+    fetchApiImportKind,
+    adapterStyle,
+    wrapperGrouping: DEFAULT_API_RULES.wrapperGrouping,
+    tagFileCase: DEFAULT_API_RULES.tagFileCase,
+  };
+  const scaffoldSignature = buildScaffoldSignature({
+    api,
+    layout: DEFAULT_LAYOUT_RULES,
+    reviewNotes,
+  });
   const notesSource =
     reviewNotes.length > 0
       ? `[\n      ${reviewNotes.map((note) => JSON.stringify(note)).join(',\n      ')}\n    ]`
@@ -302,6 +412,7 @@ function buildRulesJsonc({
   // rulesReviewed 를 true 로 바꾸기 전에는 prepare/project 가 후보 파일을 생성하지 않습니다.
   "review": {
     "rulesReviewed": false,
+    "scaffoldSignature": ${JSON.stringify(scaffoldSignature)},
     "notes": ${notesSource}
   },
   "api": {
@@ -385,6 +496,7 @@ const rulesCommand = {
         }),
       );
     } else {
+      const existingRulesSource = await fs.readFile(rulesPath, 'utf8');
       const existingRules = await readJson(rulesPath);
       if (isDefaultProjectRulesScaffold(existingRules, previousAnalysis)) {
         const nextRulesSource = buildRulesJsonc({
@@ -396,8 +508,6 @@ const rulesCommand = {
           adapterStyle: scaffoldDefaults.api.adapterStyle,
           reviewNotes: scaffoldDefaults.reviewNotes,
         });
-        const existingRulesSource = await fs.readFile(rulesPath, 'utf8');
-
         if (existingRulesSource !== nextRulesSource) {
           scaffoldRefreshed = true;
           await writeText(rulesPath, nextRulesSource);

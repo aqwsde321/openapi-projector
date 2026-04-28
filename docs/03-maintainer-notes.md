@@ -60,7 +60,7 @@ pnpm test
 
 ### 2. bootstrap 시나리오
 
-새 빈 프론트엔드 프로젝트 디렉터리에서 `init`이 로컬 설정과 `openapi/`를 만들고 `doctor`가 통과해야 합니다.
+새 빈 프론트엔드 프로젝트 디렉터리에서 `init`이 로컬 설정과 `openapi/`를 만들고, `sourceUrl` 설정 후 `refresh -> rules`가 review gate 앞까지 정상 진행해야 합니다. `project-rules.jsonc` 검토 전에는 `doctor`가 unreviewed rules를 FAIL로 보고하는 것이 기대 동작입니다.
 
 예:
 
@@ -69,6 +69,12 @@ cd /tmp/smoke-project
 node /path/to/openapi-projector/bin/openapi-tool.mjs init
 # openapi/config/project.jsonc 의 sourceUrl 을 실제 OpenAPI JSON URL로 설정
 node /path/to/openapi-projector/bin/openapi-tool.mjs doctor
+node /path/to/openapi-projector/bin/openapi-tool.mjs refresh
+node /path/to/openapi-projector/bin/openapi-tool.mjs rules
+# openapi/review/project-rules/analysis.md 와 실제 API client 를 확인
+# openapi/config/project-rules.jsonc 의 review.rulesReviewed 를 true 로 설정
+node /path/to/openapi-projector/bin/openapi-tool.mjs doctor
+node /path/to/openapi-projector/bin/openapi-tool.mjs project
 ```
 
 기존 bootstrap 초기화가 필요할 때만 아래처럼 실행합니다.
