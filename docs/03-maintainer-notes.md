@@ -30,7 +30,7 @@
 - `refresh`
   - `download + catalog + generate`
 - `rules`
-  - 대상 프로젝트의 `src/entities`를 우선 분석하고, 없으면 `src` fallback 으로 규칙 문서/scaffold 생성
+  - 대상 프로젝트의 `src` 전체를 분석하고, source section 통계와 함께 규칙 문서/scaffold 생성
 - `project`
   - `project-rules.jsonc` 기준으로 `schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API` 후보 코드 생성
   - 명시적 `2xx`/`2XX` 성공 응답이 없는 endpoint는 생성하지 않고 summary/manifest에 skip 사유를 남김
@@ -38,7 +38,7 @@
 - `doctor`
   - 로컬 설정, 대상 프로젝트 config, 다운로드된 OpenAPI JSON, project-rules 준비 상태 점검
 - `prepare`
-  - `init` 필요 시 생성 후 `refresh -> rules -> project` 원샷 실행
+  - `init` 필요 시 생성 후 `refresh -> rules`를 실행하고, `review.rulesReviewed`가 true인 rules에서만 `project`까지 실행
 
 ## 개발 시 확인할 것
 

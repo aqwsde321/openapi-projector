@@ -93,13 +93,16 @@
 | --- | --- | --- |
 | `api.fetchApiImportPath` | 기존 fetch helper import 경로 | `@/shared/api` |
 | `api.fetchApiSymbol` | fetch helper 이름 | `fetchAPI` |
+| `api.fetchApiImportKind` | fetch helper import 방식 | `named`, `default` |
 | `api.adapterStyle` | runtime client 호출 방식 | `url-config`, `request-object` |
 | `api.wrapperGrouping` | API/DTO wrapper 배치 방식 | `tag`, `flat` |
 | `api.tagFileCase` | 태그 폴더명 방식 | `title`, `kebab` |
+| `review.rulesReviewed` | `prepare`/`project` 후보 생성 전 분석 결과와 실제 API client 확인 여부 | `false`, `true` |
 
 검증 규칙:
 
 - `api.fetchApiSymbol`은 JavaScript identifier 여야 합니다.
+- `api.fetchApiImportKind`는 `named` 또는 `default`만 지원합니다.
 - `api.adapterStyle`은 `url-config` 또는 `request-object`만 지원합니다.
 - `api.wrapperGrouping`은 `tag` 또는 `flat`만 지원합니다.
 - `api.tagFileCase`는 `title` 또는 `kebab`만 지원합니다.

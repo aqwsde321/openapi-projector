@@ -57,7 +57,7 @@
 
 근거:
 
-- `rules`는 `src/entities`를 우선 보고, 없으면 `src`를 fallback 으로 사용함
+- `rules`는 `src` 전체를 스캔하고 section별 파일 수를 분석 결과에 남김
 - 분석기는 TypeScript AST로 import, 호출 형태, export naming을 수집함
 - 관련 코드: [src/commands/rules.mjs](../src/commands/rules.mjs), [src/project-analyzer/index.mjs](../src/project-analyzer/index.mjs)
 
@@ -102,7 +102,7 @@
 | FR-B3 review 문서 생성 | 충족 | endpoint 문서 생성됨 |
 | FR-B4 review schema 생성 | 충족 | `openapi-typescript` 기반, OpenAPI 3.1 nullable 타입 기본 지원 |
 | FR-B5 재생성 가능성 | 대체로 충족 | deterministic 생성 구조이나 테스트 부재 |
-| FR-C1 프로젝트 구조 분석 | 부분 충족 | `src` fallback 이 있으나 heuristic 중심 |
+| FR-C1 프로젝트 구조 분석 | 부분 충족 | `src` 전체 스캔과 section 통계는 있으나 heuristic 중심 |
 | FR-C2 규칙 분석 문서 생성 | 충족 | 분석 문서 생성됨 |
 | FR-C3 규칙 scaffold 생성 | 충족 | JSONC scaffold 생성됨 |
 | FR-C4 AI/사람 협업 가능성 | 부분 충족 | 문서/설정은 존재하나 실제 반영 범위 제한 |

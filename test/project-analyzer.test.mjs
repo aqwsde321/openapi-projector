@@ -47,6 +47,25 @@ function defaultProjectRulesTemplate() {
   "api": {
     "fetchApiImportPath": "@/shared/api",
     "fetchApiSymbol": "fetchAPI",
+    "fetchApiImportKind": "named",
+    "adapterStyle": "url-config",
+    // "tag" creates tag folders. "flat" writes endpoint files directly under the generated root.
+    "wrapperGrouping": "tag",
+    "tagFileCase": "title"
+  },
+  "layout": {
+    "schemaFileName": "schema.ts"
+  }
+}
+`;
+}
+
+function legacyProjectRulesTemplate() {
+  return `{
+  // MVP v2 project-rules template 입니다.
+  "api": {
+    "fetchApiImportPath": "@/shared/api",
+    "fetchApiSymbol": "fetchAPI",
     "adapterStyle": "url-config",
     // "tag" creates tag folders. "flat" writes endpoint files directly under the generated root.
     "wrapperGrouping": "tag",
@@ -102,11 +121,18 @@ test('analyzeProject detects helpers, call style, API layer, and naming evidence
     assert.equal(analysis.files.scanned, 2);
     assert.deepEqual(analysis.files.roots, ['src']);
     assert.equal(analysis.files.analysisRoot, 'src');
+    assert.deepEqual(analysis.files.sections, [
+      {
+        section: 'src/features',
+        count: 2,
+      },
+    ]);
     assert.equal(analysis.httpClient.value, 'axios');
     assert.ok(analysis.httpClient.confidence > 0.5);
     assert.deepEqual(analysis.apiHelper.value, {
       symbol: 'request',
       importPath: '@/shared/request',
+      importKind: 'named',
       callStyle: 'request-object',
     });
     assert.ok(analysis.apiHelper.confidence > 0.7);
@@ -161,10 +187,49 @@ test('analyzeProject ignores unrelated imported function calls when selecting he
     assert.deepEqual(analysis.apiHelper.value, {
       symbol: 'request',
       importPath: '@/shared/request',
+      importKind: 'named',
       callStyle: 'request-object',
     });
     assert.ok(
       analysis.apiHelper.evidence.every((item) => !item.reason.includes('clsx')),
+    );
+  });
+});
+
+test('analyzeProject derives call style from the selected helper only', async () => {
+  await withTempProject(async (workspace) => {
+    await writeTextFile(
+      path.join(workspace, 'src/features/users/api.ts'),
+      [
+        "import apiClient from '@/shared/api-client';",
+        '',
+        "export const loadUsers = () => apiClient.get('/users');",
+        "export const createUser = () => apiClient.post('/users');",
+        '',
+      ].join('\n'),
+    );
+    await writeTextFile(
+      path.join(workspace, 'src/features/orders/api.ts'),
+      [
+        "import { request } from '@/shared/request';",
+        '',
+        "export const createOrder = () => request({ url: '/orders', method: 'POST' });",
+        '',
+      ].join('\n'),
+    );
+
+    const analysis = await analyzeProject(workspace, {
+      generatedAt: '2026-04-28T00:00:00.000Z',
+    });
+
+    assert.deepEqual(analysis.apiHelper.value, {
+      symbol: 'apiClient',
+      importPath: '@/shared/api-client',
+      importKind: 'default',
+      callStyle: 'unknown',
+    });
+    assert.ok(
+      analysis.warnings.some((warning) => warning.code === 'unknown-api-helper-call-style'),
     );
   });
 });
@@ -222,6 +287,7 @@ test('analyzeProject normalizes relative helper imports with the most specific p
     assert.deepEqual(analysis.apiHelper.value, {
       symbol: 'request',
       importPath: '@shared/request',
+      importKind: 'named',
       callStyle: 'request-object',
     });
     assert.ok(
@@ -229,6 +295,293 @@ test('analyzeProject normalizes relative helper imports with the most specific p
         item.reason.includes('normalized from ../../shared/request'),
       ),
     );
+  });
+});
+
+test('rules scaffolds import path, symbol, and kind from the same helper candidate', async () => {
+  await withTempProject(async (workspace) => {
+    await writeProjectConfig(workspace);
+    await writeTextFile(
+      path.join(workspace, 'src/features/users/api.ts'),
+      [
+        "import { fetchAPI } from '@/shared/http';",
+        '',
+        "export const fetchUser = () => fetchAPI('/users', { method: 'GET' });",
+        '',
+      ].join('\n'),
+    );
+    await writeTextFile(
+      path.join(workspace, 'src/features/orders/api.ts'),
+      [
+        "import { request } from '@/shared/request';",
+        '',
+        "export const createOrder = () => request({ url: '/orders', method: 'POST' });",
+        "export const updateOrder = () => request({ url: '/orders/1', method: 'PATCH' });",
+        '',
+      ].join('\n'),
+    );
+
+    await rulesCommand.run({
+      context: {
+        targetRoot: workspace,
+      },
+    });
+
+    const rulesSource = await fs.readFile(
+      path.join(workspace, 'openapi/config/project-rules.jsonc'),
+      'utf8',
+    );
+
+    assert.match(rulesSource, /"fetchApiImportPath": "@\/shared\/request"/);
+    assert.match(rulesSource, /"fetchApiSymbol": "request"/);
+    assert.match(rulesSource, /"fetchApiImportKind": "named"/);
+    assert.match(rulesSource, /"adapterStyle": "request-object"/);
+    assert.doesNotMatch(rulesSource, /"fetchApiImportPath": "@\/shared\/http"/);
+  });
+});
+
+test('analyzeProject scans all src sections even when src/entities exists', async () => {
+  await withTempProject(async (workspace) => {
+    await writeTextFile(
+      path.join(workspace, 'src/entities/user/model.ts'),
+      'export interface UserResponse { id: string }\n',
+    );
+    await writeTextFile(
+      path.join(workspace, 'src/shared/api/request.ts'),
+      [
+        "export const request = (options: { url: string; method: string }) => options;",
+        '',
+      ].join('\n'),
+    );
+    await writeTextFile(
+      path.join(workspace, 'src/features/users/api.ts'),
+      [
+        "import { request } from '@/shared/request';",
+        '',
+        "export const loadUsers = () => request({ url: '/users', method: 'GET' });",
+        '',
+      ].join('\n'),
+    );
+
+    const analysis = await analyzeProject(workspace, {
+      generatedAt: '2026-04-28T00:00:00.000Z',
+    });
+
+    assert.equal(analysis.files.scanned, 3);
+    assert.deepEqual(analysis.files.roots, ['src']);
+    assert.deepEqual(analysis.files.sections, [
+      {
+        section: 'src/entities',
+        count: 1,
+      },
+      {
+        section: 'src/features',
+        count: 1,
+      },
+      {
+        section: 'src/shared',
+        count: 1,
+      },
+    ]);
+    assert.equal(analysis.apiHelper.value.importPath, '@/shared/request');
+  });
+});
+
+test('rules scaffolds default import helper kind and leaves review unconfirmed', async () => {
+  await withTempProject(async (workspace) => {
+    await writeProjectConfig(workspace);
+    await writeTextFile(
+      path.join(workspace, 'src/features/users/api.ts'),
+      [
+        "import apiClient from '@/shared/api-client';",
+        '',
+        "export const loadUsers = () => apiClient('/users', { method: 'GET' });",
+        '',
+      ].join('\n'),
+    );
+
+    await rulesCommand.run({
+      context: {
+        targetRoot: workspace,
+      },
+    });
+
+    const analysis = JSON.parse(
+      await fs.readFile(
+        path.join(workspace, 'openapi/review/project-rules/analysis.json'),
+        'utf8',
+      ),
+    );
+    const rulesSource = await fs.readFile(
+      path.join(workspace, 'openapi/config/project-rules.jsonc'),
+      'utf8',
+    );
+
+    assert.deepEqual(analysis.apiHelper.value, {
+      symbol: 'apiClient',
+      importPath: '@/shared/api-client',
+      importKind: 'default',
+      callStyle: 'url-config',
+    });
+    assert.match(rulesSource, /"rulesReviewed": false/);
+    assert.match(rulesSource, /"fetchApiImportPath": "@\/shared\/api-client"/);
+    assert.match(rulesSource, /"fetchApiSymbol": "apiClient"/);
+    assert.match(rulesSource, /"fetchApiImportKind": "default"/);
+  });
+});
+
+test('rules records a review note when helper call style is unknown', async () => {
+  await withTempProject(async (workspace) => {
+    await writeProjectConfig(workspace);
+    await writeTextFile(
+      path.join(workspace, 'src/features/users/api.ts'),
+      [
+        "import apiClient from '@/shared/api-client';",
+        '',
+        "export const loadUsers = () => apiClient.get('/users');",
+        '',
+      ].join('\n'),
+    );
+
+    await rulesCommand.run({
+      context: {
+        targetRoot: workspace,
+      },
+    });
+
+    const analysisMarkdown = await fs.readFile(
+      path.join(workspace, 'openapi/review/project-rules/analysis.md'),
+      'utf8',
+    );
+    const rulesSource = await fs.readFile(
+      path.join(workspace, 'openapi/config/project-rules.jsonc'),
+      'utf8',
+    );
+
+    assert.match(analysisMarkdown, /unknown-api-helper-call-style/);
+    assert.match(rulesSource, /adapterStyle was defaulted to url-config/);
+    assert.match(rulesSource, /"rulesReviewed": false/);
+  });
+});
+
+test('rules refreshes automatic scaffold even when generated review notes exist', async () => {
+  await withTempProject(async (workspace) => {
+    await writeProjectConfig(workspace);
+    const apiFilePath = path.join(workspace, 'src/features/users/api.ts');
+    await writeTextFile(
+      apiFilePath,
+      [
+        "import apiClient from '@/shared/api-client';",
+        '',
+        "export const loadUsers = () => apiClient.get('/users');",
+        '',
+      ].join('\n'),
+    );
+
+    await rulesCommand.run({
+      context: {
+        targetRoot: workspace,
+      },
+    });
+
+    let rulesSource = await fs.readFile(
+      path.join(workspace, 'openapi/config/project-rules.jsonc'),
+      'utf8',
+    );
+    assert.match(rulesSource, /adapterStyle was defaulted to url-config/);
+    assert.match(rulesSource, /"fetchApiImportPath": "@\/shared\/api-client"/);
+
+    await writeTextFile(
+      apiFilePath,
+      [
+        "import { request } from '@/shared/request';",
+        '',
+        "export const loadUsers = () => request({ url: '/users', method: 'GET' });",
+        '',
+      ].join('\n'),
+    );
+
+    await rulesCommand.run({
+      context: {
+        targetRoot: workspace,
+      },
+    });
+
+    rulesSource = await fs.readFile(
+      path.join(workspace, 'openapi/config/project-rules.jsonc'),
+      'utf8',
+    );
+
+    assert.match(rulesSource, /"fetchApiImportPath": "@\/shared\/request"/);
+    assert.match(rulesSource, /"fetchApiSymbol": "request"/);
+    assert.match(rulesSource, /"adapterStyle": "request-object"/);
+    assert.doesNotMatch(rulesSource, /adapterStyle was defaulted to url-config/);
+  });
+});
+
+test('rules preserves unreviewed manual edits instead of treating them as scaffold', async () => {
+  await withTempProject(async (workspace) => {
+    await writeProjectConfig(workspace);
+    const apiFilePath = path.join(workspace, 'src/features/users/api.ts');
+    const rulesPath = path.join(workspace, 'openapi/config/project-rules.jsonc');
+    await writeTextFile(
+      apiFilePath,
+      [
+        "import apiClient from '@/shared/api-client';",
+        '',
+        "export const loadUsers = () => apiClient('/users', { method: 'GET' });",
+        '',
+      ].join('\n'),
+    );
+
+    await rulesCommand.run({
+      context: {
+        targetRoot: workspace,
+      },
+    });
+
+    await writeJsonFile(rulesPath, {
+      review: {
+        rulesReviewed: false,
+        notes: ['manual edits are pending review'],
+      },
+      api: {
+        fetchApiImportPath: '@/manual/api',
+        fetchApiSymbol: 'manualRequest',
+        fetchApiImportKind: 'named',
+        adapterStyle: 'request-object',
+        wrapperGrouping: 'tag',
+        tagFileCase: 'kebab',
+      },
+      layout: {
+        schemaFileName: 'schema.ts',
+        apiDirName: 'client',
+      },
+    });
+
+    await writeTextFile(
+      apiFilePath,
+      [
+        "import { request } from '@/shared/request';",
+        '',
+        "export const loadUsers = () => request({ url: '/users', method: 'GET' });",
+        '',
+      ].join('\n'),
+    );
+
+    await rulesCommand.run({
+      context: {
+        targetRoot: workspace,
+      },
+    });
+
+    const rulesSource = await fs.readFile(rulesPath, 'utf8');
+    assert.match(rulesSource, /"fetchApiImportPath": "@\/manual\/api"/);
+    assert.match(rulesSource, /"fetchApiSymbol": "manualRequest"/);
+    assert.match(rulesSource, /"adapterStyle": "request-object"/);
+    assert.match(rulesSource, /"tagFileCase": "kebab"/);
+    assert.match(rulesSource, /manual edits are pending review/);
+    assert.doesNotMatch(rulesSource, /"fetchApiImportPath": "@\/shared\/request"/);
   });
 });
 
@@ -271,12 +624,14 @@ test('rules writes analysis JSON and scaffolds custom request helper defaults', 
     assert.deepEqual(analysis.apiHelper.value, {
       symbol: 'request',
       importPath: '@/shared/request',
+      importKind: 'named',
       callStyle: 'request-object',
     });
     assert.match(analysisMarkdown, /Analysis JSON: `openapi\/review\/project-rules\/analysis\.json`/);
     assert.match(analysisMarkdown, /## API helper candidate/);
     assert.match(rulesSource, /"fetchApiImportPath": "@\/shared\/request"/);
     assert.match(rulesSource, /"fetchApiSymbol": "request"/);
+    assert.match(rulesSource, /"fetchApiImportKind": "named"/);
     assert.match(rulesSource, /"adapterStyle": "request-object"/);
   });
 });
@@ -312,6 +667,45 @@ test('rules refreshes untouched init template with analyzed helper defaults', as
     assert.match(rulesSource, /분석 문서: openapi\/review\/project-rules\/analysis\.md/);
     assert.match(rulesSource, /"fetchApiImportPath": "@\/shared\/request"/);
     assert.match(rulesSource, /"fetchApiSymbol": "request"/);
+    assert.match(rulesSource, /"fetchApiImportKind": "named"/);
+    assert.match(rulesSource, /"adapterStyle": "request-object"/);
+    assert.match(rulesSource, /"apiDirName": "apis"/);
+    assert.doesNotMatch(rulesSource, /project-rules template/);
+  });
+});
+
+test('rules refreshes legacy untouched scaffold without import kind or review gate', async () => {
+  await withTempProject(async (workspace) => {
+    await writeProjectConfig(workspace);
+    await writeTextFile(
+      path.join(workspace, 'openapi/config/project-rules.jsonc'),
+      legacyProjectRulesTemplate(),
+    );
+    await writeTextFile(
+      path.join(workspace, 'src/features/orders/api.ts'),
+      [
+        "import { request } from '@/shared/request';",
+        '',
+        "export const createOrder = () => request({ url: '/orders', method: 'POST' });",
+        '',
+      ].join('\n'),
+    );
+
+    await rulesCommand.run({
+      context: {
+        targetRoot: workspace,
+      },
+    });
+
+    const rulesSource = await fs.readFile(
+      path.join(workspace, 'openapi/config/project-rules.jsonc'),
+      'utf8',
+    );
+
+    assert.match(rulesSource, /"rulesReviewed": false/);
+    assert.match(rulesSource, /"fetchApiImportPath": "@\/shared\/request"/);
+    assert.match(rulesSource, /"fetchApiSymbol": "request"/);
+    assert.match(rulesSource, /"fetchApiImportKind": "named"/);
     assert.match(rulesSource, /"adapterStyle": "request-object"/);
     assert.match(rulesSource, /"apiDirName": "apis"/);
     assert.doesNotMatch(rulesSource, /project-rules template/);
@@ -363,6 +757,7 @@ test('rules preserves customized project rules while writing analysis outputs', 
     assert.deepEqual(analysis.apiHelper.value, {
       symbol: 'request',
       importPath: '@/shared/request',
+      importKind: 'named',
       callStyle: 'request-object',
     });
     assert.match(rulesSource, /"fetchApiImportPath": "@\/custom\/api"/);
@@ -419,5 +814,6 @@ test('rules scaffolds normalized alias import paths from relative helper imports
     assert.match(analysisMarkdown, /`@\/\*` -> `\*`/);
     assert.match(rulesSource, /"fetchApiImportPath": "@\/shared\/request"/);
     assert.match(rulesSource, /"fetchApiSymbol": "request"/);
+    assert.match(rulesSource, /"fetchApiImportKind": "named"/);
   });
 });

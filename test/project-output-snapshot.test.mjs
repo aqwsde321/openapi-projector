@@ -20,6 +20,134 @@ const EXPECTED_MANIFEST = {
   generatedEndpoints: 2,
   skippedEndpoints: 0,
   skippedOperations: [],
+  applicationReview: {
+    runtimeWrapper: {
+      importPath: '../../test-support/fetch-api',
+      importSymbol: 'fetchAPI',
+      importKind: 'named',
+      adapterStyle: 'url-config',
+      callShape: 'fetchAPI(url, { method, params, data, headers })',
+      assumptions: [
+        'The imported helper returns the response body typed as T.',
+        'If the project helper returns AxiosResponse<T> or a response envelope, adapt the wrapper before copying generated API files.',
+        'Request params, data, headers, and method must match the existing frontend client contract.',
+      ],
+    },
+    endpoints: [
+      {
+        method: 'GET',
+        path: '/health/status',
+        functionName: 'getHealthStatus',
+        generatedFiles: {
+          dto: 'openapi/project/src/openapi-generated/default/get-health-status.dto.ts',
+          api: 'openapi/project/src/openapi-generated/default/get-health-status.api.ts',
+        },
+        requestDto: null,
+        responseDto: 'GetHealthStatusResponseDto',
+        request: {
+          dtoShape: 'none',
+          mediaType: null,
+          bodyRequired: false,
+          pathParams: [],
+          queryParams: [],
+          headerParams: [],
+          cookieParams: [],
+          body: {
+            schema: null,
+            shape: 'none',
+            fields: [],
+          },
+        },
+        response: {
+          status: '200',
+          mediaType: 'application/json',
+          body: {
+            schema: 'HealthStatus',
+            shape: 'HealthStatus',
+            fields: [
+              {
+                name: 'status',
+                required: true,
+                type: 'string',
+              },
+              {
+                name: 'message',
+                required: false,
+                type: 'string | null',
+              },
+            ],
+          },
+        },
+      },
+      {
+        method: 'PATCH',
+        path: '/profiles/{id}',
+        functionName: 'updateProfile',
+        generatedFiles: {
+          dto: 'openapi/project/src/openapi-generated/Profiles/update-profile.dto.ts',
+          api: 'openapi/project/src/openapi-generated/Profiles/update-profile.api.ts',
+        },
+        requestDto: 'UpdateProfileRequestDto',
+        responseDto: 'UpdateProfileResponseDto',
+        request: {
+          dtoShape: 'flat',
+          mediaType: 'application/json',
+          bodyRequired: true,
+          pathParams: [
+            {
+              name: 'id',
+              required: true,
+              type: 'string',
+            },
+          ],
+          queryParams: [],
+          headerParams: [],
+          cookieParams: [],
+          body: {
+            schema: 'UpdateProfileRequest',
+            shape: 'UpdateProfileRequest',
+            fields: [
+              {
+                name: 'nickname',
+                required: true,
+                type: 'string',
+              },
+              {
+                name: 'bio',
+                required: false,
+                type: 'string | null',
+              },
+            ],
+          },
+        },
+        response: {
+          status: '200',
+          mediaType: 'application/json',
+          body: {
+            schema: 'Profile',
+            shape: 'Profile',
+            fields: [
+              {
+                name: 'id',
+                required: true,
+                type: 'string',
+              },
+              {
+                name: 'nickname',
+                required: true,
+                type: 'string',
+              },
+              {
+                name: 'bio',
+                required: false,
+                type: 'string | null',
+              },
+            ],
+          },
+        },
+      },
+    ],
+  },
   files: [
     {
       kind: 'schema',
@@ -165,6 +293,31 @@ const EXPECTED_SUMMARY = [
   '- [api] `openapi/project/src/openapi-generated/Profiles/update-profile.api.ts` (tag=Profiles endpoint=update-profile)',
   '- [index] `openapi/project/src/openapi-generated/Profiles/index.ts` (tag=Profiles)',
   '- [index] `openapi/project/src/openapi-generated/index.ts`',
+  '',
+  '## Application Review',
+  '',
+  'Use this section before copying generated candidates into the app.',
+  '',
+  '### Runtime Wrapper',
+  '',
+  "- Import used by generated APIs: `import { fetchAPI } from '../../test-support/fetch-api'`",
+  '- Call shape: `fetchAPI(url, { method, params, data, headers })`',
+  '- Check: The imported helper returns the response body typed as T.',
+  '- Check: If the project helper returns AxiosResponse<T> or a response envelope, adapt the wrapper before copying generated API files.',
+  '- Check: Request params, data, headers, and method must match the existing frontend client contract.',
+  '',
+  '### Endpoint Contracts',
+  '',
+  '- `GET /health/status` -> `getHealthStatus`',
+  '  - Files: `openapi/project/src/openapi-generated/default/get-health-status.dto.ts`, `openapi/project/src/openapi-generated/default/get-health-status.api.ts`',
+  '  - Request: no request DTO',
+  '  - Response: `200` `application/json` -> `GetHealthStatusResponseDto`; body `HealthStatus`; fields: `status: string`, `message?: string | null`',
+  '- `PATCH /profiles/{id}` -> `updateProfile`',
+  '  - Files: `openapi/project/src/openapi-generated/Profiles/update-profile.dto.ts`, `openapi/project/src/openapi-generated/Profiles/update-profile.api.ts`',
+  '  - Request: `UpdateProfileRequestDto` (flat); media `application/json`; body required',
+  '  - Request params: path: `id: string`',
+  '  - Request body: `UpdateProfileRequest`; fields: `nickname: string`, `bio?: string | null`',
+  '  - Response: `200` `application/json` -> `UpdateProfileResponseDto`; body `Profile`; fields: `id: string`, `nickname: string`, `bio?: string | null`',
   '',
 ].join('\n');
 

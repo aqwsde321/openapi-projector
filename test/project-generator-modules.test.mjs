@@ -289,6 +289,7 @@ test('validateProjectRules reports unsupported and unsafe boundary values', () =
     api: {
       fetchApiImportPath: '',
       fetchApiSymbol: 'fetch-api',
+      fetchApiImportKind: 'namespace',
       adapterStyle: 'axios',
       wrapperGrouping: 'operation',
       tagFileCase: 'snake',
@@ -304,11 +305,34 @@ test('validateProjectRules reports unsupported and unsafe boundary values', () =
     [
       'api.fetchApiImportPath',
       'api.fetchApiSymbol',
+      'api.fetchApiImportKind',
       'api.adapterStyle',
       'api.wrapperGrouping',
       'api.tagFileCase',
       'layout.schemaFileName',
       'layout.apiDirName',
+    ],
+  );
+});
+
+test('validateProjectRules requires runtime helper fields after review confirmation', () => {
+  const issues = validateProjectRules({
+    review: {
+      rulesReviewed: true,
+    },
+    api: {
+      adapterStyle: 'url-config',
+      wrapperGrouping: 'tag',
+      tagFileCase: 'title',
+    },
+  });
+
+  assert.deepEqual(
+    issues.map((issue) => issue.path),
+    [
+      'api.fetchApiImportPath',
+      'api.fetchApiSymbol',
+      'api.fetchApiImportKind',
     ],
   );
 });
@@ -625,6 +649,44 @@ test('renderOperationSection nests request DTOs when path and body fields collid
   assert.deepEqual(rendered.apiImports, [
     "import { request as fetchAPI } from '@/shared/api';",
     "import type { UpdateUserRequestDto, UpdateUserResponseDto } from './update-user.dto';",
+  ]);
+});
+
+test('renderOperationSection can import default runtime helpers', () => {
+  const rendered = renderOperationSection({
+    spec: {},
+    operation: {
+      method: 'get',
+      path: '/health',
+      summary: 'Health',
+      parameters: [],
+      successResponse: {
+        description: 'OK',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                ok: {
+                  type: 'boolean',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    functionName: 'getHealth',
+    dtoImportPath: './get-health.dto',
+    runtimeFetchImportPath: '@/shared/api-client',
+    runtimeFetchSymbol: 'apiClient',
+    runtimeFetchImportKind: 'default',
+    runtimeCallStyle: 'url-config',
+  });
+
+  assert.deepEqual(rendered.apiImports, [
+    "import fetchAPI from '@/shared/api-client';",
+    "import type { GetHealthResponseDto } from './get-health.dto';",
   ]);
 });
 

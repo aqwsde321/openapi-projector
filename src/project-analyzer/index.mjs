@@ -59,10 +59,27 @@ function incrementCounter(map, key, count = 1) {
   map.set(key, (map.get(key) ?? 0) + count);
 }
 
+function incrementNestedCounter(map, parentKey, childKey, count = 1) {
+  if (!map.has(parentKey)) {
+    map.set(parentKey, new Map());
+  }
+
+  incrementCounter(map.get(parentKey), childKey, count);
+}
+
 function sortedCounts(map) {
   return [...map.entries()]
     .map(([value, count]) => ({ value, count }))
     .sort((left, right) => right.count - left.count || String(left.value).localeCompare(String(right.value)));
+}
+
+function makeHelperKey({ symbol, importPath, importKind }) {
+  return [symbol, importPath, importKind ?? 'named'].join('\0');
+}
+
+function parseHelperKey(value) {
+  const [symbol, importPath, importKind = 'named'] = String(value).split('\0');
+  return { symbol, importPath, importKind };
 }
 
 function stripLeadingDotSlash(value) {
@@ -353,6 +370,14 @@ function getRuntimeImportSymbol(imported) {
   return imported.localName;
 }
 
+function getRuntimeImportKind(imported) {
+  if (!imported) {
+    return 'local';
+  }
+
+  return imported.kind;
+}
+
 function isLikelyApiImportPath(importPath) {
   return API_HELPER_IMPORT_PATH_PATTERN.test(importPath);
 }
@@ -513,7 +538,11 @@ function analyzeSourceFile({
 
         if (HELPER_SYMBOLS.has(binding.localName) || HELPER_SYMBOLS.has(binding.importedName)) {
           const symbol = binding.kind === 'named' ? binding.importedName : binding.localName;
-          const key = `${symbol}\0${normalizedImportPath}`;
+          const key = makeHelperKey({
+            symbol,
+            importPath: normalizedImportPath,
+            importKind: binding.kind,
+          });
           incrementCounter(signals.helperImports, key);
           signals.helperEvidence.push(
             createEvidence(
@@ -560,10 +589,15 @@ function analyzeSourceFile({
         if (isHelperCall) {
           const importPath = imported?.importPath ?? '<local>';
           const runtimeSymbol = getRuntimeImportSymbol(imported) ?? symbol;
-          const key = `${runtimeSymbol}\0${importPath}`;
+          const key = makeHelperKey({
+            symbol: runtimeSymbol,
+            importPath,
+            importKind: getRuntimeImportKind(imported),
+          });
 
           incrementCounter(signals.helperCalls, key);
           incrementCounter(signals.callStyles, callStyle);
+          incrementNestedCounter(signals.helperCallStyles, key, callStyle);
           signals.callStyleEvidence.push(
             createEvidence(
               rootDir,
@@ -672,6 +706,7 @@ function pickApiHelperCandidate(signals) {
       {
         symbol: 'fetchAPI',
         importPath: '@/shared/api',
+        importKind: 'named',
         callStyle: 'url-config',
       },
       0.2,
@@ -679,9 +714,13 @@ function pickApiHelperCandidate(signals) {
     );
   }
 
-  const [symbol, importPath] = top.value.split('\0');
+  const { symbol, importPath, importKind } = parseHelperKey(top.value);
   const [topCallStyle] = sortedCounts(
-    new Map([...signals.callStyles].filter(([style]) => style !== 'unknown')),
+    new Map(
+      [...(signals.helperCallStyles.get(top.value) ?? new Map())].filter(
+        ([style]) => style !== 'unknown',
+      ),
+    ),
   );
   const callStyle = topCallStyle?.value ?? 'unknown';
 
@@ -689,6 +728,7 @@ function pickApiHelperCandidate(signals) {
     {
       symbol,
       importPath,
+      importKind,
       callStyle,
     },
     Math.min(1, 0.45 + top.count * 0.12),
@@ -726,6 +766,48 @@ function pickNamingCandidate(signals) {
   );
 }
 
+function summarizeFileSections(rootDir, files) {
+  const counts = new Map();
+
+  for (const filePath of files) {
+    const relative = relativePath(rootDir, filePath);
+    const segments = relative.split('/');
+    const section =
+      segments[0] === 'src' && segments.length > 2
+        ? `src/${segments[1]}`
+        : segments[0] ?? '.';
+    incrementCounter(counts, section);
+  }
+
+  return sortedCounts(counts).map((entry) => ({
+    section: entry.value,
+    count: entry.count,
+  }));
+}
+
+function buildAnalysisWarnings(apiHelper) {
+  const warnings = [];
+  const value = apiHelper.value ?? {};
+
+  if (apiHelper.confidence > 0 && value.callStyle === 'unknown') {
+    warnings.push({
+      code: 'unknown-api-helper-call-style',
+      message:
+        'API helper candidate was found, but the request call shape was not url-config or request-object. Inspect member calls such as apiClient.get/post before trusting adapterStyle.',
+    });
+  }
+
+  if (value.importKind && !['named', 'default'].includes(value.importKind)) {
+    warnings.push({
+      code: 'unsupported-api-helper-import-kind',
+      message:
+        'API helper candidate uses an import kind that generated wrappers cannot reproduce automatically. Confirm fetchApiImportPath and fetchApiSymbol manually.',
+    });
+  }
+
+  return warnings;
+}
+
 async function analyzeProject(rootDir, options = {}) {
   const generatedAt = options.generatedAt ?? new Date().toISOString();
   const { roots, files } = await scanTypeScriptFiles(rootDir);
@@ -743,6 +825,7 @@ async function analyzeProject(rootDir, options = {}) {
     fetchCalls: new Map(),
     functionPrefixes: new Map(),
     helperCalls: new Map(),
+    helperCallStyles: new Map(),
     helperEvidence: [],
     helperImports: new Map(),
     httpClientEvidence: [],
@@ -762,6 +845,8 @@ async function analyzeProject(rootDir, options = {}) {
 
   const analysisRoot = roots[0] ?? path.resolve(rootDir, 'src');
 
+  const apiHelper = pickApiHelperCandidate(signals);
+
   return {
     generatedAt,
     root: toPosixPath(rootDir),
@@ -769,12 +854,14 @@ async function analyzeProject(rootDir, options = {}) {
       scanned: files.length,
       roots: roots.map((root) => relativePath(rootDir, root)),
       analysisRoot: relativePath(rootDir, analysisRoot),
+      sections: summarizeFileSections(rootDir, files),
     },
     pathAliases: importAliases,
     httpClient: pickHttpClientCandidate(packageEvidence, signals),
-    apiHelper: pickApiHelperCandidate(signals),
+    apiHelper,
     apiLayer: pickApiLayerCandidate(signals),
     naming: pickNamingCandidate(signals),
+    warnings: buildAnalysisWarnings(apiHelper),
     legacy: {
       fetchApiImportStats: sortedCounts(signals.fetchApiImportPaths).map((entry) => ({
         importPath: entry.value,

@@ -49,12 +49,7 @@ async function collectFiles(targetDir, predicate) {
 }
 
 async function resolveAnalysisRoots(rootDir) {
-  const preferredEntitiesRoot = path.resolve(rootDir, 'src/entities');
   const fallbackSrcRoot = path.resolve(rootDir, 'src');
-
-  if (await pathExists(preferredEntitiesRoot)) {
-    return [preferredEntitiesRoot];
-  }
 
   return [fallbackSrcRoot];
 }

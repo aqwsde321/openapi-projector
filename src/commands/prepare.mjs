@@ -2,7 +2,8 @@ import { initCommand } from './init.mjs';
 import { refreshCommand } from './refresh.mjs';
 import { rulesCommand } from './rules.mjs';
 import { projectCommand } from './project.mjs';
-import { loadProjectConfig } from '../core/openapi-utils.mjs';
+import { loadProjectConfig, loadProjectRules } from '../core/openapi-utils.mjs';
+import { assertProjectRulesReviewed } from '../config/validation.mjs';
 
 async function hasProjectConfig(rootDir) {
   try {
@@ -50,6 +51,9 @@ const prepareCommand = {
 
     console.log('- rules: analyzing target project conventions');
     await rulesCommand.run(options);
+
+    const { projectRules } = await loadProjectRules(rootDir, projectConfig);
+    assertProjectRulesReviewed(projectRules);
 
     console.log('- project: generating DTO/API candidate files');
     await projectCommand.run(options);

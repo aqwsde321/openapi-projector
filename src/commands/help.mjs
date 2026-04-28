@@ -8,7 +8,7 @@ const commands = [
   ['project', '규칙 기반 DTO/API 후보 코드 생성'],
   ['refresh', 'download + catalog + generate'],
   ['doctor', '로컬 설정과 대상 프로젝트 준비 상태 점검'],
-  ['prepare', 'init 필요 시 생성 후 refresh + rules + project 실행'],
+  ['prepare', 'init 필요 시 생성 후 refresh + rules 실행, 검토된 rules에서 project까지 실행'],
 ];
 
 const helpCommand = {
@@ -46,7 +46,7 @@ const helpCommand = {
     console.log('  - 새 프로젝트 시작은 init 명령으로 bootstrap 합니다.');
     console.log('');
     console.log('Recommended flow:');
-    console.log('  init -> read openapi/README.md -> doctor -> refresh -> rules -> project');
+    console.log('  init -> read openapi/README.md -> doctor -> refresh -> rules -> review rules -> project');
     console.log('');
     console.log('Docs:');
     console.log('  - 빠른 사용법: README.md');

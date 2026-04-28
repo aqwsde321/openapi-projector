@@ -61,6 +61,7 @@ function renderOperationSection({
   dtoImportPath,
   runtimeFetchImportPath,
   runtimeFetchSymbol,
+  runtimeFetchImportKind = 'named',
   runtimeCallStyle,
 }) {
   const dtoBaseName = toPascalIdentifier(functionName);
@@ -318,7 +319,9 @@ function renderOperationSection({
   }
 
   const runtimeFetchImport =
-    runtimeFetchSymbol === 'fetchAPI'
+    runtimeFetchImportKind === 'default'
+      ? `import fetchAPI from '${runtimeFetchImportPath}';`
+      : runtimeFetchSymbol === 'fetchAPI'
       ? `import { fetchAPI } from '${runtimeFetchImportPath}';`
       : `import { ${runtimeFetchSymbol} as fetchAPI } from '${runtimeFetchImportPath}';`;
 
@@ -338,6 +341,7 @@ function renderTagFolderOutputs({
   operations,
   runtimeFetchImportPath,
   runtimeFetchSymbol,
+  runtimeFetchImportKind = 'named',
   runtimeCallStyle,
 }) {
   const usedNames = new Set();
@@ -364,6 +368,7 @@ function renderTagFolderOutputs({
       dtoImportPath: `./${endpointFileBase}.dto`,
       runtimeFetchImportPath,
       runtimeFetchSymbol,
+      runtimeFetchImportKind,
       runtimeCallStyle,
     });
 

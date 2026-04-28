@@ -1,4 +1,5 @@
 const SUPPORTED_ADAPTER_STYLES = new Set(['url-config', 'request-object']);
+const SUPPORTED_FETCH_API_IMPORT_KINDS = new Set(['named', 'default']);
 const SUPPORTED_TAG_FILE_CASES = new Set(['kebab', 'title']);
 const SUPPORTED_WRAPPER_GROUPINGS = new Set(['tag', 'flat']);
 const IDENTIFIER_PATTERN = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
@@ -37,6 +38,15 @@ function validateOptionalEnum(issues, path, value, supportedValues) {
   }
 }
 
+function validateRequiredEnum(issues, path, value, supportedValues) {
+  if (value == null) {
+    addIssue(issues, path, 'is required when review.rulesReviewed is true');
+    return;
+  }
+
+  validateOptionalEnum(issues, path, value, supportedValues);
+}
+
 function validateOptionalString(issues, path, value) {
   if (value == null) {
     return;
@@ -47,6 +57,15 @@ function validateOptionalString(issues, path, value) {
   }
 }
 
+function validateRequiredString(issues, path, value) {
+  if (value == null) {
+    addIssue(issues, path, 'is required when review.rulesReviewed is true');
+    return;
+  }
+
+  validateOptionalString(issues, path, value);
+}
+
 function validateOptionalIdentifier(issues, path, value) {
   if (value == null) {
     return;
@@ -55,6 +74,15 @@ function validateOptionalIdentifier(issues, path, value) {
   if (typeof value !== 'string' || !IDENTIFIER_PATTERN.test(value)) {
     addIssue(issues, path, 'must be a valid JavaScript identifier');
   }
+}
+
+function validateRequiredIdentifier(issues, path, value) {
+  if (value == null) {
+    addIssue(issues, path, 'is required when review.rulesReviewed is true');
+    return;
+  }
+
+  validateOptionalIdentifier(issues, path, value);
 }
 
 function validateOptionalFileName(issues, path, value) {
@@ -151,12 +179,31 @@ function validateProjectRules(projectRules) {
 
   const api = projectRules.api ?? {};
   const layout = projectRules.layout ?? {};
+  const review = projectRules.review ?? {};
+  const rulesReviewed = isPlainObject(review) && review.rulesReviewed === true;
 
   if (!isPlainObject(api)) {
     addIssue(issues, 'api', 'must be an object');
   } else {
-    validateOptionalString(issues, 'api.fetchApiImportPath', api.fetchApiImportPath);
-    validateOptionalIdentifier(issues, 'api.fetchApiSymbol', api.fetchApiSymbol);
+    if (rulesReviewed) {
+      validateRequiredString(issues, 'api.fetchApiImportPath', api.fetchApiImportPath);
+      validateRequiredIdentifier(issues, 'api.fetchApiSymbol', api.fetchApiSymbol);
+      validateRequiredEnum(
+        issues,
+        'api.fetchApiImportKind',
+        api.fetchApiImportKind,
+        SUPPORTED_FETCH_API_IMPORT_KINDS,
+      );
+    } else {
+      validateOptionalString(issues, 'api.fetchApiImportPath', api.fetchApiImportPath);
+      validateOptionalIdentifier(issues, 'api.fetchApiSymbol', api.fetchApiSymbol);
+      validateOptionalEnum(
+        issues,
+        'api.fetchApiImportKind',
+        api.fetchApiImportKind,
+        SUPPORTED_FETCH_API_IMPORT_KINDS,
+      );
+    }
     validateOptionalEnum(
       issues,
       'api.adapterStyle',
@@ -184,6 +231,21 @@ function validateProjectRules(projectRules) {
     validateOptionalPathSegment(issues, 'layout.apiDirName', layout.apiDirName);
   }
 
+  if (!isPlainObject(review)) {
+    addIssue(issues, 'review', 'must be an object');
+  } else {
+    if (review.rulesReviewed != null && typeof review.rulesReviewed !== 'boolean') {
+      addIssue(issues, 'review.rulesReviewed', 'must be a boolean');
+    }
+
+    if (
+      review.notes != null &&
+      (!Array.isArray(review.notes) || review.notes.some((item) => typeof item !== 'string'))
+    ) {
+      addIssue(issues, 'review.notes', 'must be an array of strings');
+    }
+  }
+
   return issues;
 }
 
@@ -199,6 +261,20 @@ function assertValidProjectRules(projectRules) {
   }
 }
 
+function assertProjectRulesReviewed(projectRules) {
+  assertValidProjectRules(projectRules);
+
+  if (!isPlainObject(projectRules.review) || projectRules.review.rulesReviewed !== true) {
+    throw new Error(
+      [
+        'Project rules have not been reviewed.',
+        'Review openapi/review/project-rules/analysis.md and analysis.json, then update openapi/config/project-rules.jsonc.',
+        'Set review.rulesReviewed to true before generating project candidates.',
+      ].join('\n'),
+    );
+  }
+}
+
 function assertValidProjectConfig(projectConfig) {
   const issues = validateProjectConfig(projectConfig);
 
@@ -208,6 +284,7 @@ function assertValidProjectConfig(projectConfig) {
 }
 
 export {
+  assertProjectRulesReviewed,
   assertValidProjectConfig,
   assertValidProjectRules,
   formatValidationIssues,

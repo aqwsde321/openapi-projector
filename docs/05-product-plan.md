@@ -80,8 +80,16 @@ OpenAPI 스펙만으로 결정 가능한 정보를 사용해 아래 산출물을
    - Swagger UI 주소가 아니라 OpenAPI JSON 요청 URL을 입력
 3. `doctor`
    - 로컬 설정과 대상 프로젝트 준비 상태 점검
-4. `prepare`
-   - 필요하면 `init` 후 `refresh -> rules -> project`까지 실행
+4. `refresh`
+   - OpenAPI 다운로드, catalog 생성, review 산출물 생성
+5. `rules`
+   - 현재 프로젝트 구조를 분석하고 규칙 파일 초안 생성
+6. `project-rules.jsonc` 검토
+   - 분석 근거와 실제 API client를 확인한 뒤 `review.rulesReviewed`를 true로 설정
+7. `project`
+   - 검토된 규칙 파일을 읽어 프로젝트 맞춤 후보 코드 생성
+
+`prepare`는 위 흐름을 보조하는 shortcut입니다. 기본적으로 `refresh -> rules`까지 진행하고, `review.rulesReviewed`가 true인 경우에만 `project`까지 실행합니다.
 
 세부 단계를 나눠 실행할 때의 의미:
 

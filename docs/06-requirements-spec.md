@@ -98,7 +98,7 @@
 ### FR-C1. 프로젝트 구조 분석
 
 - 시스템은 대상 프로젝트 구조를 분석해 `fetchAPI`, request config 타입 import 후보를 요약해야 합니다.
-- `src/entities`가 없을 때도 `src` fallback 으로 동작해야 합니다.
+- `src` 전체를 스캔하고 `src/entities`, `src/shared`, `src/features` 같은 section별 근거를 분리해야 합니다.
 
 ### FR-C2. 규칙 분석 문서 생성
 

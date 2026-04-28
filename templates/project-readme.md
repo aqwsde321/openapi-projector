@@ -78,6 +78,7 @@ openapi-projector rules
 # Read openapi/review/project-rules/analysis.md
 # Keep openapi/review/project-rules/analysis.json for machine-readable evidence
 # Edit openapi/config/project-rules.jsonc for this project
+# Set review.rulesReviewed to true after confirming the rules
 openapi-projector project
 ```
 
@@ -95,9 +96,9 @@ Shortcut:
 openapi-projector prepare
 ```
 
-`prepare` runs `refresh -> rules -> project`. Use the step-by-step flow when adapting this tool to a real project for the first time.
+`prepare` runs `refresh -> rules`, then continues to `project` only after the rules are reviewed. Use the step-by-step flow when adapting this tool to a real project for the first time.
 
-For first-time adoption, prefer the step-by-step flow over `prepare`. `rules` needs human or AI review before the generated candidates are trusted.
+For first-time adoption, prefer the step-by-step flow over `prepare`. `rules` needs human or AI review before the generated candidates are trusted. By default, `prepare` stops after `rules` until `openapi/config/project-rules.jsonc` has `"review": { "rulesReviewed": true }`. The standalone `project` command uses the same review gate.
 
 ### 3. Repeated Runs: Review OpenAPI Changes
 
@@ -137,6 +138,24 @@ Then inspect the real project source before editing `project-rules.jsonc`.
 
 `analysis.md` is for human review. `analysis.json` preserves the same evidence in a machine-readable format for AI agents, tests, and future automation.
 
+How `rules` analyzed the project:
+
+- It scans TypeScript files under `src/`, excluding `node_modules` and `.git`.
+- It summarizes scanned source sections such as `src/shared`, `src/features`, `src/entities`, and `src/services`.
+- It reads `tsconfig.json` / `jsconfig.json` path aliases and normalizes relative helper imports when possible.
+- It detects likely HTTP clients from dependencies and imports such as `axios`, `ky`, and `fetch`.
+- It detects likely API helpers from imports and calls using names such as `fetchAPI`, `apiClient`, `request`, `http`, `client`, and `httpClient`.
+- It records evidence and confidence, not final truth. AI agents must cross-check the result against the real frontend code before applying generated candidates.
+
+Recommended AI follow-up after reading `analysis.json`:
+
+1. Inspect `warnings`. If a warning exists, treat generated `project-rules.jsonc` as unconfirmed.
+2. Open the evidence files listed under `apiHelper.evidence` and `apiLayer.evidence`.
+3. Verify the import kind: named imports use `"fetchApiImportKind": "named"`, default imports use `"fetchApiImportKind": "default"`.
+4. Verify the call style. If existing code uses `fetchAPI('/url', config)`, use `url-config`. If it uses `fetchAPI({ url, ...config })`, use `request-object`.
+5. If the project uses member calls like `apiClient.get('/url')`, pick or write a wrapper helper before setting `rulesReviewed` to true, because generated wrappers only support `url-config` and `request-object`.
+6. After manual/AI verification, set `"review": { "rulesReviewed": true }` in `project-rules.jsonc` and then run `openapi-projector project` or `openapi-projector prepare` again.
+
 Useful searches:
 
 ```bash
@@ -169,9 +188,14 @@ Typical shape:
 
 ```jsonc
 {
+  "review": {
+    "rulesReviewed": false,
+    "notes": []
+  },
   "api": {
     "fetchApiImportPath": "@/shared/api",
     "fetchApiSymbol": "fetchAPI",
+    "fetchApiImportKind": "named",
     "adapterStyle": "url-config",
     "wrapperGrouping": "tag",
     "tagFileCase": "title"
@@ -188,9 +212,11 @@ Edit these fields based on the real project:
 | --- | --- |
 | `api.fetchApiImportPath` | Import path of the existing HTTP client/helper used by app code. |
 | `api.fetchApiSymbol` | Imported function/object name used to make requests. |
+| `api.fetchApiImportKind` | Import form for the helper: `named` or `default`. |
 | `api.adapterStyle` | Existing request call shape: `url-config` or `request-object`. |
 | `api.wrapperGrouping` | Candidate file layout: `tag` creates tag folders, `flat` writes endpoint files directly under the generated root. |
 | `api.tagFileCase` | Generated tag folder naming convention. Usually `title` unless the project prefers kebab-case. |
+| `review.rulesReviewed` | Set to `true` only after checking `analysis.md`, `analysis.json`, and the real API client code. |
 
 ### `adapterStyle` Decision
 
@@ -230,12 +256,17 @@ Then read:
 - `openapi/project/summary.md`
 - `openapi/project/src/openapi-generated/`
 
+Start with the `Application Review` section in `summary.md`. It records the runtime wrapper import/call shape and each generated endpoint's request DTO, response DTO, params, body schema, media types, and generated files.
+
 Check generated API files for:
 
 - Correct import path from `fetchApiImportPath`.
 - Correct imported symbol from `fetchApiSymbol`.
 - Correct request call shape from `adapterStyle`.
 - Correct path/query/body/header parameter handling.
+- Request DTO fields match how the real feature code builds params/body/header values.
+- Response DTO fields match how the real UI, hooks, stores, and mappers consume the returned value.
+- Generated wrappers assume the imported client returns the response body as `T`. If the real client returns `AxiosResponse<T>` or `{ data: T }`, adapt the wrapper/client usage before copying `.api.ts`.
 - Path parameters are URL-encoded before being inserted into endpoint URLs.
 - Unsupported endpoints are listed under `Skipped Operations` in `openapi/project/summary.md`.
 - No generated code copied into the app until it matches the existing project conventions.
@@ -251,10 +282,11 @@ Do not treat `openapi/project/src/openapi-generated/` as final app code.
 Recommended process:
 
 1. Read `openapi/project/summary.md`.
-2. Pick the endpoint DTO/API candidates you actually need.
-3. Move or adapt them into the real app source tree.
-4. Align naming, folder location, imports, error handling, and client usage with existing code.
-5. Run the app's typecheck, lint, and relevant tests.
+2. For each requested endpoint, compare the `Application Review` request/response contract with the real feature code that will call it.
+3. Pick the endpoint DTO/API candidates you actually need.
+4. Move or adapt them into the real app source tree.
+5. Align naming, folder location, imports, error handling, response unwrapping, and client usage with existing code.
+6. Run the app's typecheck, lint, and relevant tests.
 
 If the user only needs DTOs, copy or adapt only the `.dto.ts` candidates and ignore the generated `.api.ts` wrappers. Still review `openapi/project/summary.md` first so skipped or unsupported endpoints are not missed.
 

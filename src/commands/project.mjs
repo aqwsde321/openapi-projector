@@ -11,7 +11,7 @@ import {
   loadSupportedOpenApiSpec,
   resolveGeneratedSchemaPath,
 } from '../openapi/load-spec.mjs';
-import { assertValidProjectRules } from '../config/validation.mjs';
+import { assertProjectRulesReviewed } from '../config/validation.mjs';
 import { renderProjectSummary, writeProjectOutputs } from '../openapi/project-generator.mjs';
 
 function toPosixPath(value) {
@@ -26,7 +26,7 @@ const projectCommand = {
     const { projectConfig } = await loadProjectConfig(rootDir);
     const { projectRulesPath, projectRules } = await loadProjectRules(rootDir, projectConfig);
 
-    assertValidProjectRules(projectRules);
+    assertProjectRulesReviewed(projectRules);
 
     const sourcePath = path.resolve(rootDir, projectConfig.sourcePath);
     const generatedSchemaPath = resolveGeneratedSchemaPath(rootDir, projectConfig);
