@@ -151,6 +151,61 @@ test('analyzeProject ignores unrelated imported function calls when selecting he
   });
 });
 
+test('analyzeProject normalizes relative helper imports with the most specific path alias', async () => {
+  await withTempProject(async (workspace) => {
+    await writeJsonFile(path.join(workspace, 'tsconfig.json'), {
+      compilerOptions: {
+        baseUrl: '.',
+        paths: {
+          '@/*': ['src/*'],
+          '@shared/*': ['src/shared/*'],
+        },
+      },
+    });
+    await writeTextFile(
+      path.join(workspace, 'src/features/users/api.ts'),
+      [
+        "import { request } from '../../shared/request';",
+        '',
+        "export const loadUsers = () => request({ url: '/users', method: 'GET' });",
+        '',
+      ].join('\n'),
+    );
+
+    const analysis = await analyzeProject(workspace, {
+      generatedAt: '2026-04-28T00:00:00.000Z',
+    });
+
+    assert.deepEqual(analysis.pathAliases, {
+      configPath: 'tsconfig.json',
+      mappings: [
+        {
+          aliasPattern: '@shared/*',
+          aliasPrefix: '@shared/',
+          targetPattern: 'src/shared/*',
+          targetPrefix: 'src/shared/',
+        },
+        {
+          aliasPattern: '@/*',
+          aliasPrefix: '@/',
+          targetPattern: 'src/*',
+          targetPrefix: 'src/',
+        },
+      ],
+    });
+    assert.deepEqual(analysis.apiHelper.value, {
+      symbol: 'request',
+      importPath: '@shared/request',
+      callStyle: 'request-object',
+    });
+    assert.ok(
+      analysis.apiHelper.evidence.some((item) =>
+        item.reason.includes('normalized from ../../shared/request'),
+      ),
+    );
+  });
+});
+
 test('rules writes analysis JSON and scaffolds custom request helper defaults', async () => {
   await withTempProject(async (workspace) => {
     await writeProjectConfig(workspace);
@@ -197,5 +252,55 @@ test('rules writes analysis JSON and scaffolds custom request helper defaults', 
     assert.match(rulesSource, /"fetchApiImportPath": "@\/shared\/request"/);
     assert.match(rulesSource, /"fetchApiSymbol": "request"/);
     assert.match(rulesSource, /"adapterStyle": "request-object"/);
+  });
+});
+
+test('rules scaffolds normalized alias import paths from relative helper imports', async () => {
+  await withTempProject(async (workspace) => {
+    await writeProjectConfig(workspace);
+    await writeTextFile(
+      path.join(workspace, 'tsconfig.json'),
+      [
+        '{',
+        '  // JSONC path aliases are accepted.',
+        '  "compilerOptions": {',
+        '    "baseUrl": "src",',
+        '    "paths": {',
+        '      "@/*": ["*"],',
+        '    },',
+        '  },',
+        '}',
+        '',
+      ].join('\n'),
+    );
+    await writeTextFile(
+      path.join(workspace, 'src/features/orders/api.ts'),
+      [
+        "import { request } from '../../shared/request';",
+        '',
+        "export const createOrder = () => request({ url: '/orders', method: 'POST' });",
+        '',
+      ].join('\n'),
+    );
+
+    await rulesCommand.run({
+      context: {
+        targetRoot: workspace,
+      },
+    });
+
+    const analysisMarkdown = await fs.readFile(
+      path.join(workspace, 'openapi/review/project-rules/analysis.md'),
+      'utf8',
+    );
+    const rulesSource = await fs.readFile(
+      path.join(workspace, 'openapi/config/project-rules.jsonc'),
+      'utf8',
+    );
+
+    assert.match(analysisMarkdown, /## Path alias mappings/);
+    assert.match(analysisMarkdown, /`@\/\*` -> `\*`/);
+    assert.match(rulesSource, /"fetchApiImportPath": "@\/shared\/request"/);
+    assert.match(rulesSource, /"fetchApiSymbol": "request"/);
   });
 });

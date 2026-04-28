@@ -20,6 +20,19 @@ function renderStatsList(stats) {
   return stats.map((item) => `- \`${item.importPath}\`: ${item.count}`).join('\n');
 }
 
+function renderPathAliasList(pathAliases) {
+  if (!pathAliases?.configPath || pathAliases.mappings.length === 0) {
+    return '- 없음';
+  }
+
+  return [
+    `- Config: \`${pathAliases.configPath}\``,
+    ...pathAliases.mappings.map(
+      (item) => `- \`${item.aliasPattern}\` -> \`${item.targetPattern}\``,
+    ),
+  ].join('\n');
+}
+
 function renderEvidenceList(evidence) {
   if (!evidence || evidence.length === 0) {
     return '- 근거 없음';
@@ -73,6 +86,10 @@ function renderAnalysisMarkdown({
     renderCandidateSection('API helper candidate', analysis.apiHelper),
     renderCandidateSection('API layer candidate', analysis.apiLayer),
     renderCandidateSection('Naming candidate', analysis.naming),
+    '## Path alias mappings',
+    '',
+    renderPathAliasList(analysis.pathAliases),
+    '',
     '## fetchAPI import candidates',
     '',
     renderStatsList(analysis.legacy.fetchApiImportStats),

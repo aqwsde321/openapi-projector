@@ -65,6 +65,38 @@ function sortedCounts(map) {
     .sort((left, right) => right.count - left.count || String(left.value).localeCompare(String(right.value)));
 }
 
+function stripLeadingDotSlash(value) {
+  return value.replace(/^\.\//, '');
+}
+
+function stripWildcardSuffix(value) {
+  if (value === '*') {
+    return '';
+  }
+
+  return value.endsWith('*') ? value.slice(0, -1) : value;
+}
+
+function normalizeImportAliasPrefix(value) {
+  return stripWildcardSuffix(value);
+}
+
+function normalizeImportTargetPrefix(baseUrl, value) {
+  const isWildcardTarget = value === '*' || value.endsWith('*');
+  const targetPrefix = stripWildcardSuffix(value);
+
+  if (targetPrefix == null) {
+    return null;
+  }
+
+  const normalized = stripLeadingDotSlash(toPosixPath(path.normalize(path.join(baseUrl, targetPrefix))));
+  if (isWildcardTarget && normalized && !normalized.endsWith('/')) {
+    return `${normalized}/`;
+  }
+
+  return normalized;
+}
+
 async function readPackageJson(rootDir) {
   try {
     const source = await fs.readFile(path.join(rootDir, 'package.json'), 'utf8');
@@ -96,6 +128,118 @@ function collectPackageDependencyEvidence(rootDir, packageJson) {
   }
 
   return evidence;
+}
+
+async function readConfigFileJsonc(filePath) {
+  try {
+    const source = await fs.readFile(filePath, 'utf8');
+    const parsed = ts.parseConfigFileTextToJson(filePath, source);
+
+    if (parsed.error) {
+      return null;
+    }
+
+    return parsed.config;
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return null;
+    }
+    throw error;
+  }
+}
+
+async function readImportAliasConfig(rootDir) {
+  for (const configName of ['tsconfig.json', 'jsconfig.json']) {
+    const configPath = path.join(rootDir, configName);
+    const config = await readConfigFileJsonc(configPath);
+    const compilerOptions = config?.compilerOptions;
+
+    if (!compilerOptions || !compilerOptions.paths) {
+      continue;
+    }
+
+    const baseUrl = compilerOptions.baseUrl ?? '.';
+    const mappings = [];
+
+    for (const [aliasPattern, targets] of Object.entries(compilerOptions.paths)) {
+      if (!Array.isArray(targets)) {
+        continue;
+      }
+
+      const aliasPrefix = normalizeImportAliasPrefix(aliasPattern);
+      if (aliasPrefix == null) {
+        continue;
+      }
+
+      for (const targetPattern of targets) {
+        if (typeof targetPattern !== 'string') {
+          continue;
+        }
+
+        const targetPrefix = normalizeImportTargetPrefix(baseUrl, targetPattern);
+        if (targetPrefix == null) {
+          continue;
+        }
+
+        mappings.push({
+          aliasPattern,
+          aliasPrefix,
+          targetPattern,
+          targetPrefix,
+        });
+      }
+    }
+
+    return {
+      configPath: relativePath(rootDir, configPath),
+      mappings: mappings.sort(
+        (left, right) =>
+          right.targetPrefix.length - left.targetPrefix.length ||
+          left.aliasPattern.localeCompare(right.aliasPattern) ||
+          left.targetPattern.localeCompare(right.targetPattern),
+      ),
+    };
+  }
+
+  return {
+    configPath: null,
+    mappings: [],
+  };
+}
+
+function applyImportAlias(projectPath, importAliases) {
+  const normalizedProjectPath = stripLeadingDotSlash(toPosixPath(projectPath));
+
+  for (const mapping of importAliases.mappings) {
+    const isPrefixMapping = mapping.targetPrefix.endsWith('/');
+    const exactTarget = isPrefixMapping ? mapping.targetPrefix.slice(0, -1) : mapping.targetPrefix;
+
+    if (normalizedProjectPath === exactTarget) {
+      return mapping.aliasPrefix.endsWith('/')
+        ? mapping.aliasPrefix.slice(0, -1)
+        : mapping.aliasPrefix;
+    }
+
+    if (isPrefixMapping && normalizedProjectPath.startsWith(mapping.targetPrefix)) {
+      return `${mapping.aliasPrefix}${normalizedProjectPath.slice(mapping.targetPrefix.length)}`;
+    }
+  }
+
+  return null;
+}
+
+function normalizeImportPath({ rootDir, filePath, importPath, importAliases }) {
+  if (importAliases.mappings.length === 0) {
+    return importPath;
+  }
+
+  if (importPath.startsWith('.')) {
+    const absoluteImportPath = path.resolve(path.dirname(filePath), importPath);
+    const projectPath = path.relative(rootDir, absoluteImportPath);
+    return applyImportAlias(projectPath, importAliases) ?? importPath;
+  }
+
+  return applyImportAlias(importPath, importAliases) ?? importPath;
 }
 
 function getNodeText(sourceFile, node) {
@@ -258,6 +402,7 @@ function analyzeSourceFile({
   filePath,
   source,
   signals,
+  importAliases,
 }) {
   const sourceFile = ts.createSourceFile(
     filePath,
@@ -279,6 +424,12 @@ function analyzeSourceFile({
   const visit = (node) => {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
       const importPath = node.moduleSpecifier.text;
+      const normalizedImportPath = normalizeImportPath({
+        rootDir,
+        filePath,
+        importPath,
+        importAliases,
+      });
       const bindings = getImportBindings(node.importClause);
 
       if (HTTP_CLIENT_PACKAGES.includes(importPath)) {
@@ -290,27 +441,32 @@ function analyzeSourceFile({
 
       for (const binding of bindings) {
         importedSymbols.set(binding.localName, {
-          importPath,
+          importPath: normalizedImportPath,
           importedName: binding.importedName,
           kind: binding.kind,
           localName: binding.localName,
+          originalImportPath: importPath,
         });
 
         if (binding.importedName === 'fetchAPI') {
-          incrementCounter(signals.fetchApiImportPaths, importPath);
+          incrementCounter(signals.fetchApiImportPaths, normalizedImportPath);
         }
 
         if (HELPER_SYMBOLS.has(binding.localName) || HELPER_SYMBOLS.has(binding.importedName)) {
           const symbol = binding.kind === 'named' ? binding.importedName : binding.localName;
-          const key = `${symbol}\0${importPath}`;
+          const key = `${symbol}\0${normalizedImportPath}`;
           incrementCounter(signals.helperImports, key);
           signals.helperEvidence.push(
             createEvidence(
               rootDir,
               filePath,
               binding.localName === symbol
-                ? `imports API helper ${symbol} from ${importPath}`
-                : `imports API helper ${symbol} as ${binding.localName} from ${importPath}`,
+                ? `imports API helper ${symbol} from ${normalizedImportPath}${
+                    normalizedImportPath !== importPath ? ` (normalized from ${importPath})` : ''
+                  }`
+                : `imports API helper ${symbol} as ${binding.localName} from ${normalizedImportPath}${
+                    normalizedImportPath !== importPath ? ` (normalized from ${importPath})` : ''
+                  }`,
               getNodeText(sourceFile, node),
             ),
           );
@@ -516,6 +672,7 @@ async function analyzeProject(rootDir, options = {}) {
   const { roots, files } = await scanTypeScriptFiles(rootDir);
   const packageJson = await readPackageJson(rootDir);
   const packageEvidence = collectPackageDependencyEvidence(rootDir, packageJson);
+  const importAliases = await readImportAliasConfig(rootDir);
   const signals = {
     apiLayerBaseDirs: new Map(),
     apiLayerEvidence: [],
@@ -540,6 +697,7 @@ async function analyzeProject(rootDir, options = {}) {
       filePath,
       source,
       signals,
+      importAliases,
     });
   }
 
@@ -553,6 +711,7 @@ async function analyzeProject(rootDir, options = {}) {
       roots: roots.map((root) => relativePath(rootDir, root)),
       analysisRoot: relativePath(rootDir, analysisRoot),
     },
+    pathAliases: importAliases,
     httpClient: pickHttpClientCandidate(packageEvidence, signals),
     apiHelper: pickApiHelperCandidate(signals),
     apiLayer: pickApiLayerCandidate(signals),

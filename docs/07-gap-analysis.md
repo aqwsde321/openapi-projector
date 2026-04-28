@@ -52,6 +52,7 @@
 - `rules`로 기계 처리 가능한 분석 JSON 생성
 - `project-rules.jsonc` scaffold 생성
 - TypeScript AST 기반으로 API helper import/call style, HTTP client, API layer 후보 추론
+- `tsconfig.json` / `jsconfig.json` path alias 기준으로 상대 helper import 경로 정규화
 - 기존 `fetchAPI` import 경로 추론은 legacy 호환용 통계로 유지
 
 근거:
@@ -63,7 +64,7 @@
 핵심 갭:
 
 - 분석이 개선됐지만 여전히 heuristic 기반 후보 추천임
-- alias/path mapping 이 복잡한 프로젝트에서는 추론 품질이 제한될 수 있음
+- path alias 기본 매핑은 반영하지만 `extends` 체인이나 복잡한 조건부 mapping 은 추론 품질이 제한될 수 있음
 - fetch helper 계약 외의 런타임 규칙은 아직 설정 범위에 없음
 
 즉 현재는 “프로젝트 컨벤션을 일반적으로 분석”한다기보다 “현재 가정한 구조에서 힌트를 뽑아 scaffold를 만든다”에 가깝습니다.
@@ -166,7 +167,7 @@
 먼저 해야 할 일:
 
 - import 추론 대상을 더 늘리기
-- alias/path mapping 프로젝트에 대한 fallback 전략 추가
+- path alias fallback 범위 확대 (`extends` chain, 복수 tsconfig 조합 등)
 - 규칙 scaffold 에 사용자 수정 가이드를 더 보강하기
 
 이유:
