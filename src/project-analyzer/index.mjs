@@ -81,15 +81,18 @@ function normalizeImportAliasPrefix(value) {
   return stripWildcardSuffix(value);
 }
 
-function normalizeImportTargetPrefix(baseUrl, value) {
-  const isWildcardTarget = value === '*' || value.endsWith('*');
-  const targetPrefix = stripWildcardSuffix(value);
+function normalizeImportTargetPrefix({ rootDir, baseUrl, targetPattern }) {
+  const isWildcardTarget = targetPattern === '*' || targetPattern.endsWith('*');
+  const targetPrefix = stripWildcardSuffix(targetPattern);
 
   if (targetPrefix == null) {
     return null;
   }
 
-  const normalized = stripLeadingDotSlash(toPosixPath(path.normalize(path.join(baseUrl, targetPrefix))));
+  const absoluteTargetPrefix = path.resolve(baseUrl, targetPrefix);
+  const normalized = stripLeadingDotSlash(
+    toPosixPath(path.relative(rootDir, absoluteTargetPrefix)),
+  );
   if (isWildcardTarget && normalized && !normalized.endsWith('/')) {
     return `${normalized}/`;
   }
@@ -130,68 +133,124 @@ function collectPackageDependencyEvidence(rootDir, packageJson) {
   return evidence;
 }
 
-async function readConfigFileJsonc(filePath) {
-  try {
-    const source = await fs.readFile(filePath, 'utf8');
-    const parsed = ts.parseConfigFileTextToJson(filePath, source);
+function parseConfigForAliases(filePath) {
+  const parsedConfig = ts.readConfigFile(filePath, ts.sys.readFile);
 
-    if (parsed.error) {
-      return null;
-    }
-
-    return parsed.config;
-  } catch (error) {
-    if (error?.code === 'ENOENT') {
-      return null;
-    }
-    throw error;
+  if (parsedConfig.error || !parsedConfig.config) {
+    return null;
   }
+
+  const configDir = path.dirname(filePath);
+  const parsed = ts.parseJsonConfigFileContent(
+    parsedConfig.config,
+    ts.sys,
+    configDir,
+    {},
+    filePath,
+  );
+
+  return {
+    baseUrl: parsed.options.baseUrl ?? configDir,
+    paths: parsed.options.paths,
+    projectReferences: parsed.projectReferences ?? [],
+  };
 }
 
-async function readImportAliasConfig(rootDir) {
-  for (const configName of ['tsconfig.json', 'jsconfig.json']) {
-    const configPath = path.join(rootDir, configName);
-    const config = await readConfigFileJsonc(configPath);
-    const compilerOptions = config?.compilerOptions;
+function resolveProjectReferenceConfig(referencePath) {
+  if (path.extname(referencePath)) {
+    return referencePath;
+  }
 
-    if (!compilerOptions || !compilerOptions.paths) {
+  return path.join(referencePath, 'tsconfig.json');
+}
+
+function buildImportAliasMappings({ rootDir, baseUrl, paths }) {
+  const mappings = [];
+
+  if (!paths) {
+    return mappings;
+  }
+
+  for (const [aliasPattern, targets] of Object.entries(paths)) {
+    if (!Array.isArray(targets)) {
       continue;
     }
 
-    const baseUrl = compilerOptions.baseUrl ?? '.';
-    const mappings = [];
+    const aliasPrefix = normalizeImportAliasPrefix(aliasPattern);
+    if (aliasPrefix == null) {
+      continue;
+    }
 
-    for (const [aliasPattern, targets] of Object.entries(compilerOptions.paths)) {
-      if (!Array.isArray(targets)) {
+    for (const targetPattern of targets) {
+      if (typeof targetPattern !== 'string') {
         continue;
       }
 
-      const aliasPrefix = normalizeImportAliasPrefix(aliasPattern);
-      if (aliasPrefix == null) {
+      const targetPrefix = normalizeImportTargetPrefix({
+        rootDir,
+        baseUrl,
+        targetPattern,
+      });
+      if (targetPrefix == null) {
         continue;
       }
 
-      for (const targetPattern of targets) {
-        if (typeof targetPattern !== 'string') {
-          continue;
-        }
+      mappings.push({
+        aliasPattern,
+        aliasPrefix,
+        targetPattern,
+        targetPrefix,
+      });
+    }
+  }
 
-        const targetPrefix = normalizeImportTargetPrefix(baseUrl, targetPattern);
-        if (targetPrefix == null) {
-          continue;
-        }
+  return mappings;
+}
 
-        mappings.push({
-          aliasPattern,
-          aliasPrefix,
-          targetPattern,
-          targetPrefix,
-        });
+async function readImportAliasConfig(rootDir) {
+  const queue = ['tsconfig.json', 'jsconfig.json'].map((configName) =>
+    path.join(rootDir, configName),
+  );
+  const seen = new Set();
+
+  for (let index = 0; index < queue.length; index += 1) {
+    const configPath = queue[index];
+    const normalizedConfigPath = path.resolve(configPath);
+
+    if (seen.has(normalizedConfigPath)) {
+      continue;
+    }
+    seen.add(normalizedConfigPath);
+
+    let configForAliases = null;
+    try {
+      configForAliases = parseConfigForAliases(normalizedConfigPath);
+    } catch (error) {
+      if (error?.code !== 'ENOENT') {
+        throw error;
       }
     }
 
+    if (!configForAliases) {
+      continue;
+    }
+
+    const mappings = buildImportAliasMappings({
+      rootDir,
+      baseUrl: configForAliases.baseUrl,
+      paths: configForAliases.paths,
+    });
+    if (mappings.length === 0) {
+      queue.push(
+        ...configForAliases.projectReferences.map((reference) =>
+          resolveProjectReferenceConfig(reference.path),
+        ),
+      );
+      continue;
+    }
+
     return {
-      configPath: relativePath(rootDir, configPath),
+      configPath: relativePath(rootDir, normalizedConfigPath),
       mappings: mappings.sort(
         (left, right) =>
           right.targetPrefix.length - left.targetPrefix.length ||

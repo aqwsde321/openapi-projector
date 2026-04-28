@@ -154,6 +154,14 @@ test('analyzeProject ignores unrelated imported function calls when selecting he
 test('analyzeProject normalizes relative helper imports with the most specific path alias', async () => {
   await withTempProject(async (workspace) => {
     await writeJsonFile(path.join(workspace, 'tsconfig.json'), {
+      files: [],
+      references: [
+        {
+          path: './tsconfig.app.json',
+        },
+      ],
+    });
+    await writeJsonFile(path.join(workspace, 'tsconfig.app.json'), {
       compilerOptions: {
         baseUrl: '.',
         paths: {
@@ -177,7 +185,7 @@ test('analyzeProject normalizes relative helper imports with the most specific p
     });
 
     assert.deepEqual(analysis.pathAliases, {
-      configPath: 'tsconfig.json',
+      configPath: 'tsconfig.app.json',
       mappings: [
         {
           aliasPattern: '@shared/*',

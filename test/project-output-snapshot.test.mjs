@@ -69,7 +69,7 @@ const EXPECTED_GENERATED_FILES = {
     '',
   ].join('\n'),
   'Profiles/update-profile.api.ts': [
-    "import { fetchAPI as fetchAPI } from '../../test-support/fetch-api';",
+    "import { fetchAPI } from '../../test-support/fetch-api';",
     "import type { UpdateProfileRequestDto, UpdateProfileResponseDto } from './update-profile.dto';",
     '',
     '/**',
@@ -106,7 +106,7 @@ const EXPECTED_GENERATED_FILES = {
     '',
   ].join('\n'),
   'default/get-health-status.api.ts': [
-    "import { fetchAPI as fetchAPI } from '../../test-support/fetch-api';",
+    "import { fetchAPI } from '../../test-support/fetch-api';",
     "import type { GetHealthStatusResponseDto } from './get-health-status.dto';",
     '',
     '/**',

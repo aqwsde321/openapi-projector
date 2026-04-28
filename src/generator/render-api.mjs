@@ -317,11 +317,16 @@ function renderOperationSection({
     );
   }
 
+  const runtimeFetchImport =
+    runtimeFetchSymbol === 'fetchAPI'
+      ? `import { fetchAPI } from '${runtimeFetchImportPath}';`
+      : `import { ${runtimeFetchSymbol} as fetchAPI } from '${runtimeFetchImportPath}';`;
+
   return {
     apiSource: apiLines.join('\n'),
     dtoSource: dtoLines.join('\n').trimEnd(),
     apiImports: [
-      `import { ${runtimeFetchSymbol} as fetchAPI } from '${runtimeFetchImportPath}';`,
+      runtimeFetchImport,
       `import type { ${Array.from(apiTypeImports).sort((left, right) => left.localeCompare(right)).join(', ')} } from '${dtoImportPath}';`,
     ],
   };
