@@ -110,6 +110,47 @@ test('analyzeProject detects helpers, call style, API layer, and naming evidence
   });
 });
 
+test('analyzeProject ignores unrelated imported function calls when selecting helper', async () => {
+  await withTempProject(async (workspace) => {
+    await writeTextFile(
+      path.join(workspace, 'src/features/users/api.ts'),
+      [
+        "import { useQuery } from '@tanstack/react-query';",
+        "import { clsx } from 'clsx';",
+        "import { request } from '@/shared/request';",
+        '',
+        'export const buildClassName = () => {',
+        "  clsx('one');",
+        "  clsx('two');",
+        "  clsx('three');",
+        "  clsx('four');",
+        "  return clsx('five');",
+        '};',
+        '',
+        'export const useUsers = () =>',
+        '  useQuery({',
+        "    queryKey: ['users'],",
+        "    queryFn: () => request({ url: '/users', method: 'GET' }),",
+        '  });',
+        '',
+      ].join('\n'),
+    );
+
+    const analysis = await analyzeProject(workspace, {
+      generatedAt: '2026-04-28T00:00:00.000Z',
+    });
+
+    assert.deepEqual(analysis.apiHelper.value, {
+      symbol: 'request',
+      importPath: '@/shared/request',
+      callStyle: 'request-object',
+    });
+    assert.ok(
+      analysis.apiHelper.evidence.every((item) => !item.reason.includes('clsx')),
+    );
+  });
+});
+
 test('rules writes analysis JSON and scaffolds custom request helper defaults', async () => {
   await withTempProject(async (workspace) => {
     await writeProjectConfig(workspace);

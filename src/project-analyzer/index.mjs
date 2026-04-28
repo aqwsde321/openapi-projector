@@ -13,6 +13,9 @@ const HELPER_SYMBOLS = new Set([
   'client',
   'httpClient',
 ]);
+const HTTP_METHOD_MEMBERS = new Set(['get', 'post', 'put', 'patch', 'delete', 'request']);
+const API_HELPER_IMPORT_PATH_PATTERN =
+  /(^|[/@_-])(api|apis|client|fetch|http|request)([/._-]|$)/i;
 const FUNCTION_PREFIXES = [
   'get',
   'fetch',
@@ -145,6 +148,33 @@ function getRuntimeImportSymbol(imported) {
   }
 
   return imported.localName;
+}
+
+function isLikelyApiImportPath(importPath) {
+  return API_HELPER_IMPORT_PATH_PATTERN.test(importPath);
+}
+
+function isLikelyHelperBinding(imported) {
+  return Boolean(
+    imported &&
+      (HELPER_SYMBOLS.has(imported.localName) ||
+        HELPER_SYMBOLS.has(imported.importedName) ||
+        isLikelyApiImportPath(imported.importPath)),
+  );
+}
+
+function shouldTrackHelperCall({ symbol, imported, memberName, callStyle }) {
+  const symbolLooksHelper =
+    HELPER_SYMBOLS.has(symbol) ||
+    HELPER_SYMBOLS.has(imported?.localName) ||
+    HELPER_SYMBOLS.has(imported?.importedName);
+  const importLooksHelper = isLikelyHelperBinding(imported);
+
+  if (memberName) {
+    return HTTP_METHOD_MEMBERS.has(memberName) && (symbolLooksHelper || importLooksHelper);
+  }
+
+  return symbolLooksHelper || (importLooksHelper && callStyle !== 'unknown');
 }
 
 function isExported(node) {
@@ -304,16 +334,18 @@ function analyzeSourceFile({
 
       if (symbol) {
         const imported = importedSymbols.get(symbol);
-        const isHelperCall =
-          HELPER_SYMBOLS.has(symbol) ||
-          imported ||
-          (memberName && ['get', 'post', 'put', 'patch', 'delete', 'request'].includes(memberName));
+        const callStyle = memberName ? 'unknown' : detectCallStyle(node);
+        const isHelperCall = shouldTrackHelperCall({
+          symbol,
+          imported,
+          memberName,
+          callStyle,
+        });
 
         if (isHelperCall) {
           const importPath = imported?.importPath ?? '<local>';
           const runtimeSymbol = getRuntimeImportSymbol(imported) ?? symbol;
           const key = `${runtimeSymbol}\0${importPath}`;
-          const callStyle = memberName ? 'unknown' : detectCallStyle(node);
 
           incrementCounter(signals.helperCalls, key);
           incrementCounter(signals.callStyles, callStyle);
