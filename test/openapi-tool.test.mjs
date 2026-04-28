@@ -606,6 +606,33 @@ test(
 );
 
 test(
+  'doctor fails when existing project config has unsafe generated paths',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-doctor-'));
+
+    try {
+      await writeJsonFile(path.join(workspace, 'openapi/config/project.jsonc'), {
+        sourceUrl: 'https://api.example.com/v3/api-docs',
+        sourcePath: '../openapi.json',
+      });
+
+      const result = await doctorCommand.run({
+        context: {
+          targetRoot: workspace,
+          toolLocalConfigPath: path.join(REPO_ROOT, '.openapi-projector.local.jsonc'),
+          toolLocalConfig: null,
+        },
+      });
+
+      assert.equal(result.ok, false);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
   'doctor fails when existing project config has blank sourceUrl',
   { concurrency: false },
   async () => {

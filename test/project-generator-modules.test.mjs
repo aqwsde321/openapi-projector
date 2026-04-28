@@ -6,7 +6,10 @@ import test from 'node:test';
 
 import { classifyProjectOperations } from '../src/openapi/classify-operations.mjs';
 import { collectProjectOperations } from '../src/openapi/collect-operations.mjs';
-import { validateProjectRules } from '../src/config/validation.mjs';
+import {
+  validateProjectConfig,
+  validateProjectRules,
+} from '../src/config/validation.mjs';
 import { createTypeRenderer } from '../src/core/openapi-utils.mjs';
 import {
   buildFieldEntriesFromParameters,
@@ -288,6 +291,22 @@ test('validateProjectRules reports unsupported and unsafe boundary values', () =
       'layout.schemaFileName',
       'layout.apiDirName',
     ],
+  );
+});
+
+test('validateProjectConfig reports unsafe project-relative paths', () => {
+  const issues = validateProjectConfig({
+    sourceUrl: 123,
+    sourcePath: '../openapi.json',
+    catalogJsonPath: '/tmp/endpoints.json',
+    generatedSchemaPath: 'openapi/review/generated/schema.ts',
+    projectRulesPath: 'openapi/config/project-rules.jsonc',
+    projectGeneratedSrcDir: 'openapi/project/src/openapi-generated',
+  });
+
+  assert.deepEqual(
+    issues.map((issue) => issue.path),
+    ['sourceUrl', 'sourcePath', 'catalogJsonPath'],
   );
 });
 

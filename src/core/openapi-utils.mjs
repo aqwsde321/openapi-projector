@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertValidProjectConfig } from '../config/validation.mjs';
 
 const HTTP_METHOD_ORDER = [
   'get',
@@ -595,6 +596,7 @@ async function loadProjectConfig(rootDir) {
     ...defaults,
     ...(await readJson(projectConfigPath)),
   };
+  assertValidProjectConfig(projectConfig);
 
   return {
     defaultConfigPath: DEFAULT_CONFIG_PATH,

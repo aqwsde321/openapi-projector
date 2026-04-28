@@ -8,6 +8,7 @@
   "docsDir": "openapi/review/docs",
   "generatedSchemaPath": "openapi/review/generated/schema.ts",
   "projectRulesAnalysisPath": "openapi/review/project-rules/analysis.md",
+  "projectRulesAnalysisJsonPath": "openapi/review/project-rules/analysis.json",
   "projectRulesPath": "openapi/config/project-rules.jsonc",
   "projectGeneratedSrcDir": "openapi/project/src/openapi-generated"
 }

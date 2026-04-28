@@ -66,6 +66,8 @@
 | `generatedSchemaPath` | review용 `schema.ts` 출력 경로 |
 | `projectGeneratedSrcDir` | `project` 후보 코드 생성 경로 |
 
+경로 설정값은 프로젝트 루트 기준 상대 경로여야 하며, `..` 경로 세그먼트나 절대 경로는 허용하지 않습니다. `sourceUrl`은 빈 문자열일 수 있지만 문자열 타입이어야 합니다.
+
 ### 보통 안 건드리는 값
 
 - `catalogJsonPath`
