@@ -6,6 +6,10 @@ import {
   loadProjectRules,
   readJson,
 } from '../core/openapi-utils.mjs';
+import {
+  formatValidationIssues,
+  validateProjectRules,
+} from '../config/validation.mjs';
 
 async function pathExists(targetPath) {
   try {
@@ -30,26 +34,6 @@ function isConfiguredSourceUrl(sourceUrl) {
 
 function isConfiguredString(value) {
   return typeof value === 'string' && value.trim();
-}
-
-function validateProjectRules(projectRules) {
-  const wrapperGrouping = projectRules?.api?.wrapperGrouping ?? 'tag';
-  const tagFileCase = projectRules?.api?.tagFileCase ?? 'title';
-  const adapterStyle = projectRules?.api?.adapterStyle ?? 'url-config';
-
-  if (wrapperGrouping !== 'tag') {
-    return `Unsupported api.wrapperGrouping: ${wrapperGrouping}`;
-  }
-
-  if (!['kebab', 'title'].includes(tagFileCase)) {
-    return `Unsupported api.tagFileCase: ${tagFileCase}`;
-  }
-
-  if (!['url-config', 'request-object'].includes(adapterStyle)) {
-    return `Unsupported api.adapterStyle: ${adapterStyle}`;
-  }
-
-  return null;
 }
 
 function isProjectConfigMissingError(error) {
@@ -89,8 +73,9 @@ const doctorCommand = {
 
       try {
         const projectRules = await readJson(rulesPath);
-        const rulesError = validateProjectRules(projectRules);
-        if (rulesError) {
+        const rulesIssues = validateProjectRules(projectRules);
+        if (rulesIssues.length > 0) {
+          const rulesError = formatValidationIssues(rulesIssues);
           fail(`${toRelative(rootDir, rulesPath)} is invalid: ${rulesError}`);
         } else {
           pass(`Existing project rules are valid: ${toRelative(rootDir, rulesPath)}`);
@@ -248,8 +233,9 @@ const doctorCommand = {
 
     try {
       const { projectRulesPath, projectRules } = await loadProjectRules(rootDir, projectConfig);
-      const rulesError = validateProjectRules(projectRules);
-      if (rulesError) {
+      const rulesIssues = validateProjectRules(projectRules);
+      if (rulesIssues.length > 0) {
+        const rulesError = formatValidationIssues(rulesIssues);
         fail(`${toRelative(rootDir, projectRulesPath)} is invalid: ${rulesError}`);
       } else {
         pass(`Project rules are valid: ${toRelative(rootDir, projectRulesPath)}`);

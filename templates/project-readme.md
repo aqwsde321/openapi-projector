@@ -241,6 +241,8 @@ Check generated API files for:
 
 If generated code is wrong, edit `openapi/config/project-rules.jsonc` and run `openapi-projector project` again.
 
+If `project` rejects `project-rules.jsonc`, fix the reported field first. Common validation failures are invalid `api.fetchApiSymbol`, unsupported `api.adapterStyle`, unsupported `api.tagFileCase`, and `layout.schemaFileName` values that are paths instead of file names.
+
 ### 7. Applying Code to the App
 
 Do not treat `openapi/project/src/openapi-generated/` as final app code.

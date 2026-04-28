@@ -11,34 +11,11 @@ import {
   loadSupportedOpenApiSpec,
   resolveGeneratedSchemaPath,
 } from '../openapi/load-spec.mjs';
+import { assertValidProjectRules } from '../config/validation.mjs';
 import { renderProjectSummary, writeProjectOutputs } from '../openapi/project-generator.mjs';
 
 function toPosixPath(value) {
   return value.replaceAll(path.sep, '/');
-}
-
-function validateProjectRules(projectRules) {
-  const wrapperGrouping = projectRules?.api?.wrapperGrouping ?? 'tag';
-  const tagFileCase = projectRules?.api?.tagFileCase ?? 'title';
-  const adapterStyle = projectRules?.api?.adapterStyle ?? 'url-config';
-
-  if (wrapperGrouping !== 'tag') {
-    throw new Error(
-      `Unsupported api.wrapperGrouping: ${wrapperGrouping}\nMVP v2 only supports "tag".`,
-    );
-  }
-
-  if (!['kebab', 'title'].includes(tagFileCase)) {
-    throw new Error(
-      `Unsupported api.tagFileCase: ${tagFileCase}\nMVP v2 supports "kebab" or "title".`,
-    );
-  }
-
-  if (!['url-config', 'request-object'].includes(adapterStyle)) {
-    throw new Error(
-      `Unsupported api.adapterStyle: ${adapterStyle}\nMVP v2 supports "url-config" or "request-object".`,
-    );
-  }
 }
 
 const projectCommand = {
@@ -49,7 +26,7 @@ const projectCommand = {
     const { projectConfig } = await loadProjectConfig(rootDir);
     const { projectRulesPath, projectRules } = await loadProjectRules(rootDir, projectConfig);
 
-    validateProjectRules(projectRules);
+    assertValidProjectRules(projectRules);
 
     const sourcePath = path.resolve(rootDir, projectConfig.sourcePath);
     const generatedSchemaPath = resolveGeneratedSchemaPath(rootDir, projectConfig);

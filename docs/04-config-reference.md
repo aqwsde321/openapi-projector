@@ -94,6 +94,14 @@
 | `api.adapterStyle` | runtime client 호출 방식 | `url-config`, `request-object` |
 | `api.tagFileCase` | 태그 폴더명 방식 | `title`, `kebab` |
 
+검증 규칙:
+
+- `api.fetchApiSymbol`은 JavaScript identifier 여야 합니다.
+- `api.adapterStyle`은 `url-config` 또는 `request-object`만 지원합니다.
+- `api.wrapperGrouping`은 현재 `tag`만 지원합니다.
+- `api.tagFileCase`는 `title` 또는 `kebab`만 지원합니다.
+- `layout.schemaFileName`은 경로가 아닌 `.ts` 파일명이어야 합니다.
+
 ### 현재 고정에 가까운 값
 
 | 필드 | 설명 |

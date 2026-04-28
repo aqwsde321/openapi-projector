@@ -6,6 +6,7 @@ import test from 'node:test';
 
 import { classifyProjectOperations } from '../src/openapi/classify-operations.mjs';
 import { collectProjectOperations } from '../src/openapi/collect-operations.mjs';
+import { validateProjectRules } from '../src/config/validation.mjs';
 import { createTypeRenderer } from '../src/core/openapi-utils.mjs';
 import {
   buildFieldEntriesFromParameters,
@@ -259,6 +260,35 @@ test('buildTagDirectoryName sanitizes title folders and preserves kebab fallback
   assert.equal(buildTagDirectoryName('...   ', 'title'), 'default');
   assert.equal(buildTagDirectoryName('', 'title'), 'default');
   assert.equal(buildTagDirectoryName('Admin Reports / v1', 'kebab'), 'admin-reports-v1');
+});
+
+test('validateProjectRules reports unsupported and unsafe boundary values', () => {
+  const issues = validateProjectRules({
+    api: {
+      fetchApiImportPath: '',
+      fetchApiSymbol: 'fetch-api',
+      adapterStyle: 'axios',
+      wrapperGrouping: 'operation',
+      tagFileCase: 'snake',
+    },
+    layout: {
+      schemaFileName: '../schema.ts',
+      apiDirName: '../apis',
+    },
+  });
+
+  assert.deepEqual(
+    issues.map((issue) => issue.path),
+    [
+      'api.fetchApiImportPath',
+      'api.fetchApiSymbol',
+      'api.adapterStyle',
+      'api.wrapperGrouping',
+      'api.tagFileCase',
+      'layout.schemaFileName',
+      'layout.apiDirName',
+    ],
+  );
 });
 
 test('naming helpers strip controller noise, fall back safely, and deduplicate names', () => {
