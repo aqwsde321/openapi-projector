@@ -926,24 +926,100 @@ function findPrimaryResponse(responses = {}) {
   return explicitSuccessEntry ?? [null, null];
 }
 
-function getResponseSchema(spec, response) {
-  const resolvedResponse = response?.$ref ? getByRef(spec, response.$ref) : response;
-  const content = resolvedResponse?.content ?? {};
-  const mediaType = Object.keys(content)[0];
-  return mediaType ? content[mediaType]?.schema ?? null : null;
+function normalizeMediaType(mediaType) {
+  return typeof mediaType === 'string'
+    ? mediaType.split(';', 1)[0].trim().toLowerCase()
+    : '';
 }
 
-function getRequestBodySchema(spec, requestBody) {
+function isJsonLikeMediaType(mediaType) {
+  const normalized = normalizeMediaType(mediaType);
+
+  return (
+    normalized === 'application/json' ||
+    normalized === '*/*' ||
+    normalized.endsWith('+json')
+  );
+}
+
+function isMultipartMediaType(mediaType) {
+  return normalizeMediaType(mediaType) === 'multipart/form-data';
+}
+
+function getMediaTypePriority(mediaType, options = {}) {
+  const normalized = normalizeMediaType(mediaType);
+
+  if (normalized === 'application/json') {
+    return 0;
+  }
+
+  if (normalized.endsWith('+json')) {
+    return 1;
+  }
+
+  if (normalized === '*/*') {
+    return 2;
+  }
+
+  if (options.allowMultipart && normalized === 'multipart/form-data') {
+    return 3;
+  }
+
+  return null;
+}
+
+function choosePreferredMediaType(mediaTypes, options = {}) {
+  const candidates = mediaTypes
+    .map((mediaType) => ({
+      mediaType,
+      normalized: normalizeMediaType(mediaType),
+      priority: getMediaTypePriority(mediaType, options),
+    }))
+    .filter((candidate) => candidate.priority != null)
+    .sort(
+      (left, right) =>
+        left.priority - right.priority ||
+        left.normalized.localeCompare(right.normalized) ||
+        String(left.mediaType).localeCompare(String(right.mediaType)),
+    );
+
+  return candidates[0]?.mediaType ?? null;
+}
+
+function choosePreferredRequestMediaType(mediaTypes) {
+  return choosePreferredMediaType(mediaTypes, { allowMultipart: true });
+}
+
+function choosePreferredResponseMediaType(mediaTypes) {
+  return choosePreferredMediaType(mediaTypes);
+}
+
+function getContentSchema(content, preferredMediaType, chooseMediaType) {
+  if (preferredMediaType && content[preferredMediaType]) {
+    return content[preferredMediaType]?.schema ?? null;
+  }
+
+  const mediaTypes = Object.keys(content);
+  const selectedMediaType = chooseMediaType(mediaTypes) ?? mediaTypes[0];
+  return selectedMediaType ? content[selectedMediaType]?.schema ?? null : null;
+}
+
+function getResponseSchema(spec, response, preferredMediaType = null) {
+  const resolvedResponse = response?.$ref ? getByRef(spec, response.$ref) : response;
+  const content = resolvedResponse?.content ?? {};
+  return getContentSchema(content, preferredMediaType, choosePreferredResponseMediaType);
+}
+
+function getRequestBodySchema(spec, requestBody, preferredMediaType = null) {
   const resolvedBody = requestBody?.$ref ? getByRef(spec, requestBody.$ref) : requestBody;
   const content = resolvedBody?.content ?? {};
-  const mediaType = Object.keys(content)[0];
-  return mediaType ? content[mediaType]?.schema ?? null : null;
+  return getContentSchema(content, preferredMediaType, choosePreferredRequestMediaType);
 }
 
 function getRequestBodyMediaType(spec, requestBody) {
   const resolvedBody = requestBody?.$ref ? getByRef(spec, requestBody.$ref) : requestBody;
   const content = resolvedBody?.content ?? {};
-  return Object.keys(content)[0] ?? null;
+  return choosePreferredRequestMediaType(Object.keys(content)) ?? Object.keys(content)[0] ?? null;
 }
 
 function getOperationParameters(spec, pathItem, operation) {
@@ -980,6 +1056,8 @@ export {
   HTTP_METHODS,
   HTTP_METHOD_ORDER,
   buildEndpointCatalog,
+  choosePreferredRequestMediaType,
+  choosePreferredResponseMediaType,
   collectRefs,
   collectSchemaRefsFromOperation,
   cleanDir,
@@ -995,6 +1073,8 @@ export {
   getResponseSchema,
   initProject,
   initToolLocalConfig,
+  isJsonLikeMediaType,
+  isMultipartMediaType,
   isValidIdentifier,
   loadProjectConfig,
   loadProjectRules,

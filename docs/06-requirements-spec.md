@@ -79,6 +79,7 @@
   - request body media type
   - success response media type
 - success response는 명시적 `2xx` 상태 코드 또는 `2XX` 응답으로 판단해야 합니다.
+- project 후보 생성은 여러 media type 중 지원 가능한 JSON 계열 response와 JSON/multipart request를 deterministic 하게 선택해야 합니다.
 - 명시적 success response가 없는 endpoint는 project 후보 생성에서 제외하고 summary/manifest에 skip 사유를 기록해야 합니다.
 
 ### FR-B4. review schema 생성

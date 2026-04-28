@@ -1283,6 +1283,91 @@ test(
 );
 
 test(
+  'project selects supported JSON media types from alternatives',
+  { concurrency: false },
+  async () => {
+    const spec = await readFixtureJson('oas30.json');
+    spec.paths['/reports/typed'] = {
+      post: {
+        tags: ['Reports'],
+        operationId: 'createTypedReport',
+        requestBody: {
+          required: true,
+          content: {
+            'text/plain': {
+              schema: {
+                type: 'string',
+              },
+            },
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['name'],
+                properties: {
+                  name: {
+                    type: 'string',
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'OK',
+            content: {
+              'text/csv': {
+                schema: {
+                  type: 'string',
+                },
+              },
+              'application/vnd.report+json': {
+                schema: {
+                  type: 'object',
+                  required: ['id'],
+                  properties: {
+                    id: {
+                      type: 'string',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => generateCommand.run());
+      await runInWorkspace(workspace, () => projectCommand.run());
+
+      const generatedRoot = path.join(workspace, 'openapi/project/src/openapi-generated');
+      const dtoSource = await fs.readFile(
+        path.join(generatedRoot, 'Reports/create-typed-report.dto.ts'),
+        'utf8',
+      );
+      const apiSource = await fs.readFile(
+        path.join(generatedRoot, 'Reports/create-typed-report.api.ts'),
+        'utf8',
+      );
+      const manifest = JSON.parse(
+        await fs.readFile(path.join(workspace, 'openapi/project/manifest.json'), 'utf8'),
+      );
+
+      assert.match(dtoSource, /export interface CreateTypedReportRequestDto \{/);
+      assert.match(dtoSource, /name: string;/);
+      assert.match(dtoSource, /export interface CreateTypedReportResponseDto \{/);
+      assert.match(dtoSource, /id: string;/);
+      assert.doesNotMatch(dtoSource, /export type CreateTypedReportRequestDto = string;/);
+      assert.doesNotMatch(dtoSource, /export type CreateTypedReportResponseDto = string;/);
+      assert.match(apiSource, /data: requestDto/);
+      assert.equal(manifest.skippedEndpoints, 0);
+    });
+  },
+);
+
+test(
   'project expands nested component schemas inside dto files',
   { concurrency: false },
   async () => {

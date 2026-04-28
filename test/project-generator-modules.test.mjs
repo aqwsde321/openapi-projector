@@ -109,6 +109,11 @@ function buildCollectSpec() {
         AlphaBody: {
           required: true,
           content: {
+            'text/plain': {
+              schema: {
+                type: 'string',
+              },
+            },
             'application/json': {
               schema: {
                 type: 'object',
@@ -126,6 +131,11 @@ function buildCollectSpec() {
         AlphaResponse: {
           description: 'OK',
           content: {
+            'text/csv': {
+              schema: {
+                type: 'string',
+              },
+            },
             'application/vnd.alpha+json': {
               schema: {
                 type: 'object',
@@ -162,13 +172,15 @@ test('collectProjectOperations resolves refs and keeps deterministic path/method
     getAlpha.parameters.map((parameter) => `${parameter.in}:${parameter.name}`),
     ['path:id', 'header:x-trace-id'],
   );
-  assert.deepEqual(getAlpha.responseContentTypes, ['application/vnd.alpha+json']);
+  assert.deepEqual(getAlpha.responseContentTypes, ['text/csv', 'application/vnd.alpha+json']);
+  assert.equal(getAlpha.responseMediaType, 'application/vnd.alpha+json');
   assert.equal(getAlpha.successStatus, '200');
   assert.equal(getAlpha.successResponse, spec.components.responses.AlphaResponse);
 
   const postAlpha = operations[1];
   assert.equal(postAlpha.requestBody, spec.components.requestBodies.AlphaBody);
-  assert.deepEqual(postAlpha.requestContentTypes, ['application/json']);
+  assert.deepEqual(postAlpha.requestContentTypes, ['text/plain', 'application/json']);
+  assert.equal(postAlpha.requestMediaType, 'application/json');
 
   const fallback = operations[2];
   assert.equal(fallback.tag, 'default');
@@ -199,6 +211,13 @@ test('classifyProjectOperations allows json-like, multipart, and empty 2xx bodie
       successStatus: '204',
       responseContentTypes: [],
     },
+    {
+      method: 'post',
+      path: '/prefers-json',
+      requestContentTypes: ['text/plain', 'application/json; charset=utf-8'],
+      successStatus: '200',
+      responseContentTypes: ['text/csv', 'application/vnd.report+json'],
+    },
   ];
 
   const result = classifyProjectOperations(operations);
@@ -212,7 +231,7 @@ test('classifyProjectOperations records every unsupported reason on boundary inp
     {
       method: 'post',
       path: '/multi-request',
-      requestContentTypes: ['application/json', 'multipart/form-data'],
+      requestContentTypes: ['text/plain', 'application/xml'],
       successStatus: '200',
       responseContentTypes: ['application/json'],
     },
@@ -228,7 +247,7 @@ test('classifyProjectOperations records every unsupported reason on boundary inp
       path: '/multi-response',
       requestContentTypes: [],
       successStatus: '200',
-      responseContentTypes: ['application/json', 'application/problem+json'],
+      responseContentTypes: ['text/csv', 'application/pdf'],
     },
   ];
 
@@ -238,7 +257,7 @@ test('classifyProjectOperations records every unsupported reason on boundary inp
       {
         method: 'POST',
         path: '/multi-request',
-        reasons: ['multiple request body media types'],
+        reasons: ['request media types text/plain, application/xml'],
       },
       {
         method: 'PUT',
@@ -252,7 +271,7 @@ test('classifyProjectOperations records every unsupported reason on boundary inp
       {
         method: 'GET',
         path: '/multi-response',
-        reasons: ['multiple response media types'],
+        reasons: ['response media types text/csv, application/pdf'],
       },
     ],
   });
@@ -654,6 +673,74 @@ test('renderOperationSection aliases non-identifier path parameters before URL e
   assert.match(rendered.apiSource, /const \{ "user-id": userId \} = requestDto;/);
   assert.match(rendered.apiSource, /\/users\/\$\{encodeURIComponent\(String\(userId\)\)\}/);
   assert.doesNotMatch(rendered.apiSource, /requestDto\["user-id"\]/);
+});
+
+test('renderOperationSection uses preferred supported media types when alternatives exist', () => {
+  const rendered = renderOperationSection({
+    spec: {},
+    operation: {
+      method: 'post',
+      path: '/reports',
+      summary: 'Create report',
+      parameters: [],
+      requestBody: {
+        required: true,
+        content: {
+          'text/plain': {
+            schema: {
+              type: 'string',
+            },
+          },
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['name'],
+              properties: {
+                name: {
+                  type: 'string',
+                },
+              },
+            },
+          },
+        },
+      },
+      requestMediaType: 'application/json',
+      successResponse: {
+        description: 'OK',
+        content: {
+          'text/csv': {
+            schema: {
+              type: 'string',
+            },
+          },
+          'application/vnd.report+json': {
+            schema: {
+              type: 'object',
+              required: ['id'],
+              properties: {
+                id: {
+                  type: 'string',
+                },
+              },
+            },
+          },
+        },
+      },
+      responseMediaType: 'application/vnd.report+json',
+    },
+    functionName: 'createReport',
+    dtoImportPath: './create-report.dto',
+    runtimeFetchImportPath: '@/shared/api',
+    runtimeFetchSymbol: 'fetchAPI',
+    runtimeCallStyle: 'url-config',
+  });
+
+  assert.match(rendered.dtoSource, /export interface CreateReportRequestDto \{/);
+  assert.match(rendered.dtoSource, /name: string;/);
+  assert.match(rendered.dtoSource, /export interface CreateReportResponseDto \{/);
+  assert.match(rendered.dtoSource, /id: string;/);
+  assert.doesNotMatch(rendered.dtoSource, /export type CreateReportRequestDto = string;/);
+  assert.doesNotMatch(rendered.dtoSource, /export type CreateReportResponseDto = string;/);
 });
 
 test('writeProjectOutputs throws before writing when the spec has no endpoints', async () => {

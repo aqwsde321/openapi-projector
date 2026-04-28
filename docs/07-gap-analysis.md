@@ -38,7 +38,7 @@
 남은 갭:
 
 - OpenAPI 3.0/3.1 JSON만 지원하고 OAS2/YAML 은 제외됨
-- 다중 media type 선택 로직은 제한적이며, non-JSON success response는 project 단계에서 skip 됨
+- 다중 media type 중 지원 가능한 JSON 계열 response와 JSON/multipart request를 선택하지만, non-JSON success response는 project 단계에서 skip 됨
 - cookie parameter와 multipart request body는 기본 wrapper 생성까지 지원하지만, 프로젝트별 런타임 client 계약 검증은 아직 제한적임
 - schema validation, runtime validation 은 아직 없음
 
@@ -85,7 +85,7 @@
 
 - 출력 구조는 `tag`와 `flat` 배치를 지원하지만 더 복잡한 프로젝트별 배치는 아직 제한적
 - wrapper 분할은 현재 `tag`, `flat`만 지원
-- 성공 응답은 명시적 `2xx`/`2XX` JSON 계열만 생성 대상으로 삼고, multiple media type 선택 로직은 미지원
+- 성공 응답은 명시적 `2xx`/`2XX` JSON 계열만 생성 대상으로 삼고, 여러 media type 중 지원 가능한 타입이 없으면 skip 됨
 
 즉 “규칙 파일이 존재한다”와 “여러 프로젝트 규칙을 폭넓게 흡수한다” 사이에 아직 갭이 있습니다.
 
@@ -120,7 +120,7 @@
 | NFR-2 명시성 | 부분 충족 | 규칙 파일은 있으나 일부 규칙은 미연결 |
 | NFR-3 안전성 | 충족 | 자동 복사 대신 후보 생성까지만 담당 |
 | NFR-4 재사용성 | 부분 충족 | 특정 프로젝트 구조 의존성이 큼 |
-| NFR-5 유지보수성 | 부분 충족 | 명령은 얇아졌지만 config/schema validation 은 미구현 |
+| NFR-5 유지보수성 | 부분 충족 | 명령은 얇아졌고 config/rules validation 은 있으나 schema/runtime validation 은 미구현 |
 
 ## 가장 큰 갭 5개
 
@@ -151,7 +151,7 @@
 
 ### 4. 검증 체계 확장 필요
 
-- config/schema validation 없음
+- OpenAPI schema validation 없음
 - runtime validation 없음
 - openapi lint 연동 없음
 

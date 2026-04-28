@@ -158,8 +158,14 @@ function buildLocalSchemaContext(spec, operation, reservedNames = []) {
     collectRefs(parameter.schema, refs);
   }
 
-  const requestSchema = resolveSchema(spec, getRequestBodySchema(spec, operation.requestBody));
-  const responseSchema = resolveSchema(spec, getResponseSchema(spec, operation.successResponse));
+  const requestSchema = resolveSchema(
+    spec,
+    getRequestBodySchema(spec, operation.requestBody, operation.requestMediaType),
+  );
+  const responseSchema = resolveSchema(
+    spec,
+    getResponseSchema(spec, operation.successResponse, operation.responseMediaType),
+  );
 
   collectRefs(requestSchema, refs);
   collectRefs(responseSchema, refs);

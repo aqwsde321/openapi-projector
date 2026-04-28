@@ -1,13 +1,14 @@
-function isJsonLikeMediaType(mediaType) {
-  return (
-    mediaType === 'application/json' ||
-    mediaType === '*/*' ||
-    (typeof mediaType === 'string' && mediaType.endsWith('+json'))
-  );
-}
+import {
+  choosePreferredRequestMediaType,
+  choosePreferredResponseMediaType,
+} from '../core/openapi-utils.mjs';
 
-function isMultipartMediaType(mediaType) {
-  return mediaType === 'multipart/form-data';
+function formatUnsupportedMediaTypeReason(kind, mediaTypes) {
+  if (mediaTypes.length === 1) {
+    return `${kind} media type ${mediaTypes[0]}`;
+  }
+
+  return `${kind} media types ${mediaTypes.join(', ')}`;
 }
 
 function classifyProjectOperations(operations) {
@@ -16,16 +17,14 @@ function classifyProjectOperations(operations) {
 
   for (const operation of operations) {
     const unsupportedReasons = [];
+    const requestContentTypes = operation.requestContentTypes ?? [];
+    const responseContentTypes = operation.responseContentTypes ?? [];
+    const requestMediaType = choosePreferredRequestMediaType(requestContentTypes);
+    const responseMediaType = choosePreferredResponseMediaType(responseContentTypes);
 
-    if (operation.requestContentTypes.length > 1) {
-      unsupportedReasons.push('multiple request body media types');
-    } else if (
-      operation.requestContentTypes.length === 1 &&
-      !isJsonLikeMediaType(operation.requestContentTypes[0]) &&
-      !isMultipartMediaType(operation.requestContentTypes[0])
-    ) {
+    if (requestContentTypes.length > 0 && !requestMediaType) {
       unsupportedReasons.push(
-        `request media type ${operation.requestContentTypes[0]}`,
+        formatUnsupportedMediaTypeReason('request', requestContentTypes),
       );
     }
 
@@ -33,14 +32,9 @@ function classifyProjectOperations(operations) {
       unsupportedReasons.push('missing success response');
     }
 
-    if (operation.responseContentTypes.length > 1) {
-      unsupportedReasons.push('multiple response media types');
-    } else if (
-      operation.responseContentTypes.length === 1 &&
-      !isJsonLikeMediaType(operation.responseContentTypes[0])
-    ) {
+    if (responseContentTypes.length > 0 && !responseMediaType) {
       unsupportedReasons.push(
-        `response media type ${operation.responseContentTypes[0]}`,
+        formatUnsupportedMediaTypeReason('response', responseContentTypes),
       );
     }
 

@@ -71,8 +71,14 @@ function renderOperationSection({
   const queryFields = buildFieldEntriesFromParameters(operation.parameters, 'query');
   const headerFields = buildFieldEntriesFromParameters(operation.parameters, 'header');
   const cookieFields = buildFieldEntriesFromParameters(operation.parameters, 'cookie');
-  const requestSchema = resolveSchema(spec, getRequestBodySchema(spec, operation.requestBody));
-  const responseSchema = resolveSchema(spec, getResponseSchema(spec, operation.successResponse));
+  const requestSchema = resolveSchema(
+    spec,
+    getRequestBodySchema(spec, operation.requestBody, operation.requestMediaType),
+  );
+  const responseSchema = resolveSchema(
+    spec,
+    getResponseSchema(spec, operation.successResponse, operation.responseMediaType),
+  );
   const bodyFields =
     requestSchema && isSimpleObjectSchema(requestSchema)
       ? buildFieldEntriesFromSchema(requestSchema)

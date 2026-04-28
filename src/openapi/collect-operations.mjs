@@ -1,6 +1,8 @@
 import {
   HTTP_METHOD_ORDER,
   buildEndpointCatalog,
+  choosePreferredRequestMediaType,
+  choosePreferredResponseMediaType,
   findPrimaryResponse,
   getByRef,
   getOperationParameters,
@@ -47,9 +49,11 @@ function collectProjectOperations(spec) {
       const parameters = getOperationParameters(spec, pathItem, operation);
       const requestBody = resolveRequestBody(spec, operation.requestBody);
       const requestContentTypes = Object.keys(requestBody?.content ?? {});
+      const requestMediaType = choosePreferredRequestMediaType(requestContentTypes);
       const [successStatus, successResponseRaw] = findPrimaryResponse(operation.responses ?? {});
       const successResponse = resolveResponse(spec, successResponseRaw);
       const responseContentTypes = Object.keys(successResponse?.content ?? {});
+      const responseMediaType = choosePreferredResponseMediaType(responseContentTypes);
       const tag = operation.tags?.[0] ?? 'default';
 
       operations.push({
@@ -62,9 +66,11 @@ function collectProjectOperations(spec) {
         parameters,
         requestBody,
         requestContentTypes,
+        requestMediaType,
         successStatus,
         successResponse,
         responseContentTypes,
+        responseMediaType,
         tag,
       });
     }
