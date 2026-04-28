@@ -408,6 +408,60 @@ test('projectOperations builds deterministic tag directories and endpoint file n
   );
 });
 
+test('projectOperations supports flat grouping with global endpoint name dedupe', () => {
+  const operations = [
+    {
+      tag: 'Users',
+      operationId: 'UserController_getUserUsingGET',
+      endpointId: 'get-user',
+      method: 'get',
+      path: '/users/{id}',
+      requestContentTypes: [],
+      successStatus: '200',
+      responseContentTypes: [],
+    },
+    {
+      tag: 'Admins',
+      operationId: 'UserController_getUserUsingGET',
+      endpointId: 'get-admin-user',
+      method: 'get',
+      path: '/admins/{id}',
+      requestContentTypes: [],
+      successStatus: '200',
+      responseContentTypes: [],
+    },
+  ];
+
+  const projection = projectOperations(operations, {
+    wrapperGrouping: 'flat',
+  });
+
+  assert.equal(projection.wrapperGrouping, 'flat');
+  assert.deepEqual(projection.tagDirectories, []);
+  assert.deepEqual(
+    projection.flatEndpoints.map((endpoint) => ({
+      tagDirectoryName: endpoint.tagDirectoryName,
+      functionName: endpoint.functionName,
+      endpointFileBase: endpoint.endpointFileBase,
+      path: endpoint.operation.path,
+    })),
+    [
+      {
+        tagDirectoryName: null,
+        functionName: 'getUser',
+        endpointFileBase: 'get-user',
+        path: '/users/{id}',
+      },
+      {
+        tagDirectoryName: null,
+        functionName: 'getUser2',
+        endpointFileBase: 'get-user2',
+        path: '/admins/{id}',
+      },
+    ],
+  );
+});
+
 test('render DTO helpers escape comments, quote unsafe fields, and avoid nullable interfaces', () => {
   const renderer = createTypeRenderer((name) => name);
 
@@ -708,5 +762,130 @@ test('writeProjectOutputs handles all-skipped specs and custom schema file names
     assert.match(summarySource, /Generated endpoints: 0/);
     assert.match(summarySource, /`GET \/reports\/export`: response media type text\/csv/);
     await assert.rejects(() => fs.access(path.join(generatedDir, 'Reports')), /ENOENT/);
+  });
+});
+
+test('writeProjectOutputs can generate flat endpoint files without tag folders', async () => {
+  await withTempDir(async (workspace) => {
+    const generatedDir = path.join(workspace, 'openapi/project/src/openapi-generated');
+    const manifest = await writeProjectOutputs({
+      rootDir: workspace,
+      spec: {
+        openapi: '3.0.3',
+        info: {
+          title: 'Flat',
+          version: '1.0.0',
+        },
+        paths: {
+          '/admins/{id}': {
+            get: {
+              tags: ['Admins'],
+              operationId: 'UserController_getUserUsingGET',
+              parameters: [
+                {
+                  name: 'id',
+                  in: 'path',
+                  required: true,
+                  schema: {
+                    type: 'string',
+                  },
+                },
+              ],
+              responses: {
+                200: {
+                  description: 'OK',
+                  content: {
+                    'application/json': {
+                      schema: {
+                        type: 'object',
+                        properties: {
+                          id: {
+                            type: 'string',
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '/users/{id}': {
+            get: {
+              tags: ['Users'],
+              operationId: 'UserController_getUserUsingGET',
+              parameters: [
+                {
+                  name: 'id',
+                  in: 'path',
+                  required: true,
+                  schema: {
+                    type: 'string',
+                  },
+                },
+              ],
+              responses: {
+                200: {
+                  description: 'OK',
+                  content: {
+                    'application/json': {
+                      schema: {
+                        type: 'object',
+                        properties: {
+                          id: {
+                            type: 'string',
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      schemaSourcePath: path.join(workspace, 'openapi/_internal/source/openapi.json'),
+      schemaContents: 'export type Contracts = never;\n',
+      projectGeneratedSrcDir: generatedDir,
+      projectManifestPath: path.join(workspace, 'openapi/project/manifest.json'),
+      projectSummaryPath: path.join(workspace, 'openapi/project/summary.md'),
+      projectRulesPath: 'openapi/config/project-rules.jsonc',
+      generatedSchemaPath: 'openapi/review/generated/schema.ts',
+      apiRules: {
+        fetchApiImportPath: '@/shared/api',
+        fetchApiSymbol: 'fetchAPI',
+        wrapperGrouping: 'flat',
+      },
+      layoutRules: {},
+    });
+
+    const indexSource = await fs.readFile(path.join(generatedDir, 'index.ts'), 'utf8');
+
+    assert.equal(manifest.generatedEndpoints, 2);
+    assert.deepEqual(
+      manifest.files.map((file) => file.generated),
+      [
+        'openapi/project/src/openapi-generated/schema.ts',
+        'openapi/project/src/openapi-generated/get-user.dto.ts',
+        'openapi/project/src/openapi-generated/get-user.api.ts',
+        'openapi/project/src/openapi-generated/get-user2.dto.ts',
+        'openapi/project/src/openapi-generated/get-user2.api.ts',
+        'openapi/project/src/openapi-generated/index.ts',
+      ],
+    );
+    assert.equal(
+      indexSource,
+      [
+        "export * from './schema';",
+        "export * from './get-user.dto';",
+        "export * from './get-user.api';",
+        "export * from './get-user2.dto';",
+        "export * from './get-user2.api';",
+        '',
+      ].join('\n'),
+    );
+    await assert.rejects(() => fs.access(path.join(generatedDir, 'Admins')), /ENOENT/);
+    await assert.rejects(() => fs.access(path.join(generatedDir, 'Users')), /ENOENT/);
   });
 });

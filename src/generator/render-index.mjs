@@ -20,7 +20,18 @@ function renderIndexSource(tagDirectoryNames, schemaFileBase = 'schema') {
   return lines.join('\n');
 }
 
+function renderFlatIndexSource(endpointFiles, schemaFileBase = 'schema') {
+  return [
+    `export * from './${schemaFileBase}';`,
+    renderTagIndexSource(endpointFiles).trimEnd(),
+    '',
+  ]
+    .filter((line, index, lines) => line || index === lines.length - 1)
+    .join('\n');
+}
+
 export {
+  renderFlatIndexSource,
   renderIndexSource,
   renderTagIndexSource,
 };

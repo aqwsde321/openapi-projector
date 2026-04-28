@@ -1,6 +1,6 @@
 const SUPPORTED_ADAPTER_STYLES = new Set(['url-config', 'request-object']);
 const SUPPORTED_TAG_FILE_CASES = new Set(['kebab', 'title']);
-const SUPPORTED_WRAPPER_GROUPINGS = new Set(['tag']);
+const SUPPORTED_WRAPPER_GROUPINGS = new Set(['tag', 'flat']);
 const IDENTIFIER_PATTERN = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const PROJECT_CONFIG_PATH_FIELDS = [
   'sourcePath',

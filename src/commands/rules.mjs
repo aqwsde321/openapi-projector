@@ -79,7 +79,7 @@ function renderAnalysisMarkdown({
     '',
     '## MVP v2 fixed defaults',
     '',
-    '- wrapper grouping: `tag`',
+    '- wrapper grouping default: `tag` (`flat` is also supported)',
     '- tag file case: `title`',
     '- schema file name: `schema.ts`',
     '- api dir name: `apis`',

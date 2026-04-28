@@ -4,6 +4,7 @@
     "fetchApiImportPath": "@/shared/api",
     "fetchApiSymbol": "fetchAPI",
     "adapterStyle": "url-config",
+    // "tag" creates tag folders. "flat" writes endpoint files directly under the generated root.
     "wrapperGrouping": "tag",
     "tagFileCase": "title"
   },

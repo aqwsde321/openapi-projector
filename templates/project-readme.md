@@ -189,6 +189,7 @@ Edit these fields based on the real project:
 | `api.fetchApiImportPath` | Import path of the existing HTTP client/helper used by app code. |
 | `api.fetchApiSymbol` | Imported function/object name used to make requests. |
 | `api.adapterStyle` | Existing request call shape: `url-config` or `request-object`. |
+| `api.wrapperGrouping` | Candidate file layout: `tag` creates tag folders, `flat` writes endpoint files directly under the generated root. |
 | `api.tagFileCase` | Generated tag folder naming convention. Usually `title` unless the project prefers kebab-case. |
 
 ### `adapterStyle` Decision

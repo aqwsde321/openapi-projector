@@ -83,8 +83,8 @@
 
 핵심 갭:
 
-- 출력 구조는 `schema.ts + <tag>/<endpoint>.dto.ts + <tag>/<endpoint>.api.ts + <tag>/index.ts + index.ts`로 고정
-- wrapper 분할은 현재 `tag`만 지원
+- 출력 구조는 `tag`와 `flat` 배치를 지원하지만 더 복잡한 프로젝트별 배치는 아직 제한적
+- wrapper 분할은 현재 `tag`, `flat`만 지원
 - 성공 응답은 명시적 `2xx`/`2XX` JSON 계열만 생성 대상으로 삼고, multiple media type 선택 로직은 미지원
 
 즉 “규칙 파일이 존재한다”와 “여러 프로젝트 규칙을 폭넓게 흡수한다” 사이에 아직 갭이 있습니다.

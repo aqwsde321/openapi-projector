@@ -4,7 +4,7 @@ import { writeText } from '../core/openapi-utils.mjs';
 import { collectProjectOperations } from '../openapi/collect-operations.mjs';
 import { projectOperations } from '../projector/project-endpoints.mjs';
 import { renderTagFolderOutputs } from './render-api.mjs';
-import { renderIndexSource } from './render-index.mjs';
+import { renderFlatIndexSource, renderIndexSource } from './render-index.mjs';
 import { renderProjectSummary } from './render-summary.mjs';
 
 async function writeProjectOutputs({
@@ -47,48 +47,91 @@ async function writeProjectOutputs({
     (tagDirectory) => tagDirectory.tagDirectoryName,
   );
 
-  for (const tagDirectory of projection.tagDirectories) {
-    const tagFileName = tagDirectory.tagDirectoryName;
-    const tagDirectoryPath = path.join(projectGeneratedSrcDir, tagFileName);
-    const tagIndexPath = path.join(tagDirectoryPath, 'index.ts');
-    const renderedTag = renderTagFolderOutputs({
-      spec,
-      endpoints: tagDirectory.endpoints,
-      runtimeFetchImportPath: apiRules.fetchApiImportPath ?? '@/shared/api',
-      runtimeFetchSymbol: apiRules.fetchApiSymbol ?? 'fetchAPI',
-      runtimeCallStyle: apiRules.adapterStyle === 'request-object' ? 'request-object' : 'url-config',
+  const renderOptions = {
+    spec,
+    runtimeFetchImportPath: apiRules.fetchApiImportPath ?? '@/shared/api',
+    runtimeFetchSymbol: apiRules.fetchApiSymbol ?? 'fetchAPI',
+    runtimeCallStyle: apiRules.adapterStyle === 'request-object' ? 'request-object' : 'url-config',
+  };
+
+  if (projection.wrapperGrouping === 'flat') {
+    const renderedFlat = renderTagFolderOutputs({
+      ...renderOptions,
+      endpoints: projection.flatEndpoints,
     });
-    for (const endpointFile of renderedTag.endpointFiles) {
-      const dtoFilePath = path.join(tagDirectoryPath, `${endpointFile.endpointFileBase}.dto.ts`);
-      const apiFilePath = path.join(tagDirectoryPath, `${endpointFile.endpointFileBase}.api.ts`);
+
+    for (const endpointFile of renderedFlat.endpointFiles) {
+      const dtoFilePath = path.join(projectGeneratedSrcDir, `${endpointFile.endpointFileBase}.dto.ts`);
+      const apiFilePath = path.join(projectGeneratedSrcDir, `${endpointFile.endpointFileBase}.api.ts`);
 
       await writeText(dtoFilePath, endpointFile.dtoSource);
       manifestFiles.push({
         kind: 'dto',
         generated: path.relative(rootDir, dtoFilePath).replaceAll(path.sep, '/'),
-        summary: `tag=${tagFileName} endpoint=${endpointFile.endpointFileBase}`,
+        summary: `endpoint=${endpointFile.endpointFileBase}`,
       });
 
       await writeText(apiFilePath, endpointFile.apiSource);
       manifestFiles.push({
         kind: 'api',
         generated: path.relative(rootDir, apiFilePath).replaceAll(path.sep, '/'),
-        summary: `tag=${tagFileName} endpoint=${endpointFile.endpointFileBase}`,
+        summary: `endpoint=${endpointFile.endpointFileBase}`,
       });
     }
 
-    await writeText(tagIndexPath, renderedTag.indexSource);
-    manifestFiles.push({
-      kind: 'index',
-      generated: path.relative(rootDir, tagIndexPath).replaceAll(path.sep, '/'),
-      summary: `tag=${tagFileName}`,
-    });
+    await writeText(
+      indexOutputPath,
+      renderFlatIndexSource(renderedFlat.endpointFiles, schemaFileBase),
+    );
+  } else {
+    for (const tagDirectory of projection.tagDirectories) {
+      const tagFileName = tagDirectory.tagDirectoryName;
+      const tagDirectoryPath = path.join(projectGeneratedSrcDir, tagFileName);
+      const tagIndexPath = path.join(tagDirectoryPath, 'index.ts');
+      const renderedTag = renderTagFolderOutputs({
+        ...renderOptions,
+        endpoints: tagDirectory.endpoints,
+      });
+
+      for (const endpointFile of renderedTag.endpointFiles) {
+        const dtoFilePath = path.join(
+          tagDirectoryPath,
+          `${endpointFile.endpointFileBase}.dto.ts`,
+        );
+        const apiFilePath = path.join(
+          tagDirectoryPath,
+          `${endpointFile.endpointFileBase}.api.ts`,
+        );
+
+        await writeText(dtoFilePath, endpointFile.dtoSource);
+        manifestFiles.push({
+          kind: 'dto',
+          generated: path.relative(rootDir, dtoFilePath).replaceAll(path.sep, '/'),
+          summary: `tag=${tagFileName} endpoint=${endpointFile.endpointFileBase}`,
+        });
+
+        await writeText(apiFilePath, endpointFile.apiSource);
+        manifestFiles.push({
+          kind: 'api',
+          generated: path.relative(rootDir, apiFilePath).replaceAll(path.sep, '/'),
+          summary: `tag=${tagFileName} endpoint=${endpointFile.endpointFileBase}`,
+        });
+      }
+
+      await writeText(tagIndexPath, renderedTag.indexSource);
+      manifestFiles.push({
+        kind: 'index',
+        generated: path.relative(rootDir, tagIndexPath).replaceAll(path.sep, '/'),
+        summary: `tag=${tagFileName}`,
+      });
+    }
+
+    await writeText(
+      indexOutputPath,
+      renderIndexSource(sortedTagFileNames, schemaFileBase),
+    );
   }
 
-  await writeText(
-    indexOutputPath,
-    renderIndexSource(sortedTagFileNames, schemaFileBase),
-  );
   manifestFiles.push({
     kind: 'index',
     generated: path.relative(rootDir, indexOutputPath).replaceAll(path.sep, '/'),
