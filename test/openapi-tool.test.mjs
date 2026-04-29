@@ -597,10 +597,10 @@ test(
       assert.match(projectReadmeSource, /openapi\/review\/changes\/summary\.md/);
       assert.match(projectReadmeSource, /openapi\/review\/project-rules\/analysis\.json/);
       assert.match(projectReadmeSource, /Contract Changed/);
-      assert.match(projectReadmeSource, /openapi-projector rules/);
+      assert.match(projectReadmeSource, /npx --yes openapi-projector rules/);
       assert.match(projectReadmeSource, /rg "fetchAPI\|apiClient\|request\|axios\|ky\|httpClient" src/);
       assert.match(projectReadmeSource, /openapi\/config\/project-rules\.jsonc/);
-      assert.match(projectReadmeSource, /openapi-projector prepare/);
+      assert.match(projectReadmeSource, /npx --yes openapi-projector prepare/);
       assert.match(gitignoreSource, /\.openapi-projector\.local\.jsonc/);
 
       const openapiGitignoreSource = await fs.readFile(

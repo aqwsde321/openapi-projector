@@ -590,7 +590,7 @@ async function loadProjectConfig(rootDir) {
 
   if (!projectConfigPath) {
     throw new Error(
-      `Project config not found.\nRun openapi-projector init first.\nSearched:\n- ${PROJECT_CONFIG_CANDIDATES.join('\n- ')}`,
+      `Project config not found.\nRun npx --yes openapi-projector init first.\nSearched:\n- ${PROJECT_CONFIG_CANDIDATES.join('\n- ')}`,
     );
   }
 

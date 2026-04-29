@@ -124,7 +124,7 @@ const doctorCommand = {
         warn('Local config not found. Using current target root.');
       } else {
         fail('Local config not found.');
-        lines.push('  Fix: run openapi-projector init.');
+        lines.push('  Fix: run npx --yes openapi-projector init.');
       }
     }
 
@@ -188,7 +188,9 @@ const doctorCommand = {
         }
       } else {
         fail('Project config is missing.');
-        lines.push('  Fix: run openapi-projector init, then set sourceUrl in openapi/config/project.jsonc.');
+        lines.push(
+          '  Fix: run npx --yes openapi-projector init, then set sourceUrl in openapi/config/project.jsonc.',
+        );
       }
 
       skip('Downloaded OpenAPI JSON will be checked after prepare/init creates project config.');
@@ -231,7 +233,7 @@ const doctorCommand = {
       }
     } else {
       warn(`Downloaded OpenAPI JSON not found: ${toRelative(rootDir, sourcePath)}`);
-      lines.push('  Next: run openapi-projector refresh after sourceUrl is configured.');
+      lines.push('  Next: run npx --yes openapi-projector refresh after sourceUrl is configured.');
     }
 
     try {
@@ -251,10 +253,12 @@ const doctorCommand = {
     } catch (error) {
       if (error?.code === 'ENOENT') {
         warn(`Project rules are not ready: ${error.message}`);
-        lines.push('  Next: run openapi-projector rules.');
+        lines.push('  Next: run npx --yes openapi-projector rules.');
       } else {
         fail(`Project rules are invalid: ${error.message}`);
-        lines.push('  Fix: repair or remove the existing project rules file, then run openapi-projector rules.');
+        lines.push(
+          '  Fix: repair or remove the existing project rules file, then run npx --yes openapi-projector rules.',
+        );
       }
     }
 

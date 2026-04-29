@@ -10,7 +10,8 @@
 
 - 이 저장소 자체는 보통 결과물을 담지 않습니다.
 - 결과물은 대상 프로젝트 안의 `openapi/`에 생성됩니다.
-- 배포 빌드 단계는 없고, 로컬 사용은 보통 `pnpm install && pnpm link --global`로 CLI bin을 연결합니다.
+- 배포 빌드 단계는 없고, 사용자는 보통 `npx --yes openapi-projector ...`로 npm 패키지를 바로 실행합니다.
+- 저장소 내부 개발/검증은 `pnpm install` 후 `node ./bin/openapi-tool.mjs ...` 또는 `pnpm test`로 진행합니다.
 
 ## 핵심 엔트리포인트
 
@@ -49,6 +50,7 @@
 ```bash
 node ./bin/openapi-tool.mjs help
 pnpm test
+npm pack --dry-run
 ```
 
 회귀 테스트를 추가할 때는 최소한 아래 케이스를 고려합니다.
@@ -58,7 +60,29 @@ pnpm test
 - 명시적 성공 응답이 없는 endpoint skip
 - path parameter URL encoding
 
-### 2. bootstrap 시나리오
+### 2. npm 배포
+
+배포는 GitHub Actions의 npm Trusted Publishing을 기준으로 자동화합니다. npm 패키지 설정에서 Trusted Publisher를 아래 값으로 등록해야 합니다.
+
+| 항목 | 값 |
+| --- | --- |
+| Publisher | GitHub Actions |
+| Organization or user | `aqwsde321` |
+| Repository | `openapi-projector` |
+| Workflow filename | `publish.yml` |
+| Environment name | 비워둠 |
+
+배포 절차:
+
+```bash
+# package.json version을 먼저 올리고 커밋
+git tag v0.1.1
+git push origin main --tags
+```
+
+`.github/workflows/publish.yml`은 태그의 `v`를 제외한 값과 `package.json`의 `version`이 같을 때만 `pnpm test`, `npm pack --dry-run`, `npm publish`를 실행합니다.
+
+### 3. bootstrap 시나리오
 
 새 빈 프론트엔드 프로젝트 디렉터리에서 `init`이 로컬 설정과 `openapi/`를 만들고, `sourceUrl` 설정 후 `refresh -> rules`가 review gate 앞까지 정상 진행해야 합니다. `project-rules.jsonc` 검토 전에는 `doctor`가 unreviewed rules를 FAIL로 보고하는 것이 기대 동작입니다.
 
@@ -83,7 +107,7 @@ node <openapi-projector 저장소 루트>/bin/openapi-tool.mjs project
 node <openapi-projector 저장소 루트>/bin/openapi-tool.mjs init --force
 ```
 
-### 3. config discovery
+### 4. config discovery
 
 현재는 아래 순서를 지원합니다.
 

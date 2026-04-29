@@ -1,12 +1,41 @@
 {
   "name": "openapi-projector",
-  "private": true,
-  "version": "0.0.0",
+  "version": "0.1.1",
+  "description": "Review-first OpenAPI DTO/API candidate generator for frontend projects",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aqwsde321/openapi-projector.git"
+  },
+  "bugs": {
+    "url": "https://github.com/aqwsde321/openapi-projector/issues"
+  },
+  "homepage": "https://github.com/aqwsde321/openapi-projector#readme",
   "packageManager": "pnpm@10.28.2",
   "type": "module",
   "bin": {
     "openapi-projector": "./bin/openapi-tool.mjs",
     "openapi-tool": "./bin/openapi-tool.mjs"
+  },
+  "files": [
+    "bin",
+    "config",
+    "docs",
+    "src",
+    "templates",
+    "README.md"
+  ],
+  "keywords": [
+    "openapi",
+    "typescript",
+    "frontend",
+    "dto",
+    "api-client"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "help": "node ./bin/openapi-tool.mjs help",
