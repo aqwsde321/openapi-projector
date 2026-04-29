@@ -6,6 +6,11 @@ import {
   loadProjectRules,
   readJson,
 } from '../core/openapi-utils.mjs';
+import {
+  formatValidationIssues,
+  validateProjectRules,
+} from '../config/validation.mjs';
+import { loadSupportedOpenApiSpec } from '../openapi/load-spec.mjs';
 
 async function pathExists(targetPath) {
   try {
@@ -30,26 +35,6 @@ function isConfiguredSourceUrl(sourceUrl) {
 
 function isConfiguredString(value) {
   return typeof value === 'string' && value.trim();
-}
-
-function validateProjectRules(projectRules) {
-  const wrapperGrouping = projectRules?.api?.wrapperGrouping ?? 'tag';
-  const tagFileCase = projectRules?.api?.tagFileCase ?? 'title';
-  const adapterStyle = projectRules?.api?.adapterStyle ?? 'url-config';
-
-  if (wrapperGrouping !== 'tag') {
-    return `Unsupported api.wrapperGrouping: ${wrapperGrouping}`;
-  }
-
-  if (!['kebab', 'title'].includes(tagFileCase)) {
-    return `Unsupported api.tagFileCase: ${tagFileCase}`;
-  }
-
-  if (!['url-config', 'request-object'].includes(adapterStyle)) {
-    return `Unsupported api.adapterStyle: ${adapterStyle}`;
-  }
-
-  return null;
 }
 
 function isProjectConfigMissingError(error) {
@@ -89,9 +74,15 @@ const doctorCommand = {
 
       try {
         const projectRules = await readJson(rulesPath);
-        const rulesError = validateProjectRules(projectRules);
-        if (rulesError) {
+        const rulesIssues = validateProjectRules(projectRules);
+        if (rulesIssues.length > 0) {
+          const rulesError = formatValidationIssues(rulesIssues);
           fail(`${toRelative(rootDir, rulesPath)} is invalid: ${rulesError}`);
+        } else if (projectRules.review?.rulesReviewed !== true) {
+          fail(`Existing project rules are valid but not reviewed: ${toRelative(rootDir, rulesPath)}`);
+          lines.push(
+            '  Next: review openapi/review/project-rules/analysis.md and analysis.json, then set review.rulesReviewed to true.',
+          );
         } else {
           pass(`Existing project rules are valid: ${toRelative(rootDir, rulesPath)}`);
         }
@@ -102,10 +93,7 @@ const doctorCommand = {
     };
     const checkSourceScanRoot = async () => {
       const srcDir = path.join(rootDir, 'src');
-      const entitiesDir = path.join(srcDir, 'entities');
-      if (await pathExists(entitiesDir)) {
-        pass('Target project source scan root exists: src/entities');
-      } else if (await pathExists(srcDir)) {
+      if (await pathExists(srcDir)) {
         pass('Target project source scan root exists: src');
       } else {
         warn('Target project src directory was not found. rules will still create a default scaffold.');
@@ -236,8 +224,8 @@ const doctorCommand = {
     const sourcePath = path.resolve(rootDir, projectConfig.sourcePath);
     if (await pathExists(sourcePath)) {
       try {
-        await readJson(sourcePath);
-        pass(`Downloaded OpenAPI JSON is readable: ${toRelative(rootDir, sourcePath)}`);
+        await loadSupportedOpenApiSpec(sourcePath);
+        pass(`Downloaded OpenAPI JSON is valid: ${toRelative(rootDir, sourcePath)}`);
       } catch (error) {
         fail(`Downloaded OpenAPI JSON is invalid: ${error.message}`);
       }
@@ -248,9 +236,15 @@ const doctorCommand = {
 
     try {
       const { projectRulesPath, projectRules } = await loadProjectRules(rootDir, projectConfig);
-      const rulesError = validateProjectRules(projectRules);
-      if (rulesError) {
+      const rulesIssues = validateProjectRules(projectRules);
+      if (rulesIssues.length > 0) {
+        const rulesError = formatValidationIssues(rulesIssues);
         fail(`${toRelative(rootDir, projectRulesPath)} is invalid: ${rulesError}`);
+      } else if (projectRules.review?.rulesReviewed !== true) {
+        fail(`Project rules are valid but not reviewed: ${toRelative(rootDir, projectRulesPath)}`);
+        lines.push(
+          '  Next: review openapi/review/project-rules/analysis.md and analysis.json, then set review.rulesReviewed to true.',
+        );
       } else {
         pass(`Project rules are valid: ${toRelative(rootDir, projectRulesPath)}`);
       }

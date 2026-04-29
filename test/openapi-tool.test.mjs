@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 import { runCli } from '../src/cli.mjs';
+import { catalogCommand } from '../src/commands/catalog.mjs';
 import { doctorCommand } from '../src/commands/doctor.mjs';
 import { generateCommand } from '../src/commands/generate.mjs';
 import { projectCommand } from '../src/commands/project.mjs';
@@ -72,18 +73,35 @@ async function setupWorkspace({
   );
 
   if (createRulesFile) {
+    const projectRules = rules ?? {
+      api: {
+        fetchApiImportPath: '../../test-support/fetch-api',
+        fetchApiSymbol: 'fetchAPI',
+        adapterStyle: 'url-config',
+        wrapperGrouping: 'tag',
+        tagFileCase: 'title',
+      },
+      layout: {
+        schemaFileName: 'schema.ts',
+      },
+    };
+
     await writeJsonFile(
       path.join(workspace, 'openapi/config/project-rules.jsonc'),
-      rules ?? {
+      {
+        ...projectRules,
+        review: {
+          rulesReviewed: true,
+          notes: [],
+          ...(projectRules.review ?? {}),
+        },
         api: {
-          fetchApiImportPath: '../../test-support/fetch-api',
-          fetchApiSymbol: 'fetchAPI',
-          adapterStyle: 'url-config',
-          wrapperGrouping: 'tag',
-          tagFileCase: 'title',
+          fetchApiImportKind: 'named',
+          ...(projectRules.api ?? {}),
         },
         layout: {
           schemaFileName: 'schema.ts',
+          ...(projectRules.layout ?? {}),
         },
       },
     );
@@ -115,6 +133,24 @@ async function runInWorkspace(workspace, callback) {
     return await callback();
   } finally {
     process.chdir(previousCwd);
+  }
+}
+
+async function captureConsoleLog(callback) {
+  const originalLog = console.log;
+  const lines = [];
+  console.log = (...args) => {
+    lines.push(args.join(' '));
+  };
+
+  try {
+    const result = await callback();
+    return {
+      result,
+      output: lines.join('\n'),
+    };
+  } finally {
+    console.log = originalLog;
   }
 }
 
@@ -245,6 +281,60 @@ test(
 );
 
 test(
+  'generate rejects malformed OpenAPI root shape before writing outputs',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Malformed API',
+        version: '1.0.0',
+      },
+      paths: [],
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await assert.rejects(
+        () => runInWorkspace(workspace, () => generateCommand.run()),
+        /OpenAPI source is invalid: paths must be an object\./,
+      );
+
+      await assert.rejects(
+        () => fs.access(path.join(workspace, 'openapi/review/generated/schema.ts')),
+        /ENOENT/,
+      );
+    });
+  },
+);
+
+test(
+  'catalog rejects unsupported OpenAPI versions before writing outputs',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      swagger: '2.0',
+      info: {
+        title: 'Swagger API',
+        version: '1.0.0',
+      },
+      paths: {},
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await assert.rejects(
+        () => runInWorkspace(workspace, () => catalogCommand.run()),
+        /Swagger\/OpenAPI 2\.0 is not supported in MVP v2\./,
+      );
+
+      await assert.rejects(
+        () => fs.access(path.join(workspace, 'openapi/review/catalog/endpoints.json')),
+        /ENOENT/,
+      );
+    });
+  },
+);
+
+test(
   'cli init uses projector local config before legacy config',
   { concurrency: false },
   async () => {
@@ -315,11 +405,16 @@ test(
       assert.match(localConfigSource, /"projectRoot": "\."/);
       assert.doesNotMatch(localConfigSource, /"sourceUrl"/);
       assert.match(projectConfigSource, /"sourceUrl": "https:\/\/example\.com\/v3\/api-docs"/);
+      assert.match(
+        projectConfigSource,
+        /"projectRulesAnalysisJsonPath": "openapi\/review\/project-rules\/analysis\.json"/,
+      );
       assert.match(projectReadmeSource, /# openapi-projector Usage Guide/);
       assert.match(projectReadmeSource, /project-specific usage guide/);
       assert.match(projectReadmeSource, /## For Humans: What You Need To Know/);
       assert.match(projectReadmeSource, /## For AI Agents: Detailed Workflow/);
       assert.match(projectReadmeSource, /openapi\/review\/changes\/summary\.md/);
+      assert.match(projectReadmeSource, /openapi\/review\/project-rules\/analysis\.json/);
       assert.match(projectReadmeSource, /Contract Changed/);
       assert.match(projectReadmeSource, /openapi-projector rules/);
       assert.match(projectReadmeSource, /rg "fetchAPI\|apiClient\|request\|axios\|ky\|httpClient" src/);
@@ -402,7 +497,9 @@ test(
       const openapiGitignoreSource = await fs.readFile(openapiGitignorePath, 'utf8');
 
       assert.match(projectConfigSource, /"sourceUrl": "https:\/\/example\.com\/v3\/api-docs"/);
+      assert.match(projectRulesSource, /"rulesReviewed": false/);
       assert.match(projectRulesSource, /"fetchApiImportPath": "@\/shared\/api"/);
+      assert.match(projectRulesSource, /"fetchApiImportKind": "named"/);
       assert.match(projectReadmeSource, /# openapi-projector Usage Guide/);
       assert.match(projectReadmeSource, /project-specific usage guide/);
       assert.match(projectReadmeSource, /## For Humans: What You Need To Know/);
@@ -601,6 +698,33 @@ test(
 );
 
 test(
+  'doctor fails when existing project config has unsafe generated paths',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-doctor-'));
+
+    try {
+      await writeJsonFile(path.join(workspace, 'openapi/config/project.jsonc'), {
+        sourceUrl: 'https://api.example.com/v3/api-docs',
+        sourcePath: '../openapi.json',
+      });
+
+      const result = await doctorCommand.run({
+        context: {
+          targetRoot: workspace,
+          toolLocalConfigPath: path.join(REPO_ROOT, '.openapi-projector.local.jsonc'),
+          toolLocalConfig: null,
+        },
+      });
+
+      assert.equal(result.ok, false);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
   'doctor fails when existing project config has blank sourceUrl',
   { concurrency: false },
   async () => {
@@ -617,6 +741,96 @@ test(
 
       assert.equal(result.ok, false);
     });
+  },
+);
+
+test(
+  'doctor fails when downloaded OpenAPI JSON has invalid root shape',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Malformed API',
+        version: '1.0.0',
+      },
+      paths: [],
+    };
+    const sourceUrl = `data:application/json,${encodeURIComponent(JSON.stringify(spec))}`;
+
+    await withWorkspace({ spec }, async (workspace) => {
+      const projectConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
+      const projectConfig = JSON.parse(await fs.readFile(projectConfigPath, 'utf8'));
+      await writeJsonFile(projectConfigPath, {
+        ...projectConfig,
+        sourceUrl,
+      });
+
+      const result = await doctorCommand.run({
+        context: {
+          targetRoot: workspace,
+          toolLocalConfigPath: path.join(REPO_ROOT, '.openapi-projector.local.jsonc'),
+          toolLocalConfig: null,
+        },
+      });
+
+      assert.equal(result.ok, false);
+    });
+  },
+);
+
+test(
+  'doctor fails readiness when project rules are valid but not reviewed',
+  { concurrency: false },
+  async () => {
+    const spec = await readFixtureJson('oas30.json');
+    const sourceUrl = `data:application/json,${encodeURIComponent(JSON.stringify(spec))}`;
+
+    await withWorkspace(
+      {
+        spec,
+        rules: {
+          review: {
+            rulesReviewed: false,
+            notes: [],
+          },
+          api: {
+            fetchApiImportPath: '../../test-support/fetch-api',
+            fetchApiSymbol: 'fetchAPI',
+            fetchApiImportKind: 'named',
+            adapterStyle: 'url-config',
+            wrapperGrouping: 'tag',
+            tagFileCase: 'title',
+          },
+          layout: {
+            schemaFileName: 'schema.ts',
+          },
+        },
+      },
+      async (workspace) => {
+        const projectConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
+        const projectConfig = JSON.parse(await fs.readFile(projectConfigPath, 'utf8'));
+        await writeJsonFile(projectConfigPath, {
+          ...projectConfig,
+          sourceUrl,
+        });
+
+        const { result, output } = await captureConsoleLog(() =>
+          doctorCommand.run({
+            context: {
+              targetRoot: workspace,
+              toolLocalConfigPath: path.join(REPO_ROOT, '.openapi-projector.local.jsonc'),
+              toolLocalConfig: null,
+            },
+          }),
+        );
+
+        assert.equal(result.ok, false);
+        assert.match(output, /Project rules are valid but not reviewed/);
+        assert.match(output, /review\.rulesReviewed to true/);
+        assert.match(output, /Result: fix failed checks before continuing/);
+      },
+    );
   },
 );
 
@@ -694,6 +908,56 @@ test(
 );
 
 test(
+  'doctor fails readiness on fresh target when stale project rules are unreviewed',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-doctor-'));
+    const spec = await readFixtureJson('oas30.json');
+    const sourceUrl = `data:application/json,${encodeURIComponent(JSON.stringify(spec))}`;
+
+    try {
+      await fs.mkdir(path.join(workspace, 'openapi/config'), { recursive: true });
+      await writeJsonFile(path.join(workspace, 'openapi/config/project-rules.jsonc'), {
+        review: {
+          rulesReviewed: false,
+          notes: [],
+        },
+        api: {
+          fetchApiImportPath: '@/shared/api',
+          fetchApiSymbol: 'fetchAPI',
+          fetchApiImportKind: 'named',
+          adapterStyle: 'url-config',
+          wrapperGrouping: 'tag',
+          tagFileCase: 'title',
+        },
+        layout: {
+          schemaFileName: 'schema.ts',
+        },
+      });
+
+      const { result, output } = await captureConsoleLog(() =>
+        doctorCommand.run({
+          context: {
+            targetRoot: workspace,
+            toolLocalConfigPath: path.join(REPO_ROOT, '.openapi-projector.local.jsonc'),
+            toolLocalConfig: {
+              initDefaults: {
+                sourceUrl,
+              },
+            },
+          },
+        }),
+      );
+
+      assert.equal(result.ok, false);
+      assert.match(output, /Existing project rules are valid but not reviewed/);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
   'prepare generates project candidate output from current working directory',
   { concurrency: false },
   async () => {
@@ -707,6 +971,15 @@ test(
         async () => {
           await runCli(['init']);
           await setProjectSourceUrl(workspace, sourceUrl);
+          const projectRulesPath = path.join(workspace, 'openapi/config/project-rules.jsonc');
+          const projectRules = await readJson(projectRulesPath);
+          await writeJsonFile(projectRulesPath, {
+            ...projectRules,
+            review: {
+              ...(projectRules.review ?? {}),
+              rulesReviewed: true,
+            },
+          });
           await runCli(['prepare']);
 
           await assertExists(path.join(workspace, 'openapi/config/project.jsonc'));
@@ -714,6 +987,51 @@ test(
           await assertExists(path.join(workspace, 'openapi/config/project-rules.jsonc'));
           await assertExists(path.join(workspace, 'openapi/project/manifest.json'));
           await assertExists(path.join(workspace, 'openapi/project/summary.md'));
+        },
+      );
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'prepare stops before project until project rules are reviewed',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-prepare-review-'));
+    const spec = await readFixtureJson('oas30.json');
+    const sourceUrl = `data:application/json,${encodeURIComponent(JSON.stringify(spec))}`;
+
+    try {
+      await runInWorkspace(
+        workspace,
+        async () => {
+          await runCli(['init']);
+          await setProjectSourceUrl(workspace, sourceUrl);
+
+          await assert.rejects(
+            () => runCli(['prepare']),
+            /Project rules have not been reviewed/,
+          );
+          await assert.rejects(
+            () => runCli(['prepare', '--project']),
+            /Project rules have not been reviewed/,
+          );
+          await assert.rejects(
+            () => runCli(['prepare', '--yes']),
+            /Project rules have not been reviewed/,
+          );
+          await assert.rejects(
+            () => runCli(['prepare', '--force-project']),
+            /Project rules have not been reviewed/,
+          );
+
+          await assertExists(path.join(workspace, 'openapi/review/project-rules/analysis.md'));
+          await assert.rejects(
+            () => fs.access(path.join(workspace, 'openapi/project/manifest.json')),
+            /ENOENT/,
+          );
         },
       );
     } finally {
@@ -756,6 +1074,48 @@ test(
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
     }
+  },
+);
+
+test(
+  'project stops until project rules are reviewed',
+  { concurrency: false },
+  async () => {
+    const spec = await readFixtureJson('oas30.json');
+
+    await withWorkspace(
+      {
+        spec,
+        rules: {
+          review: {
+            rulesReviewed: false,
+            notes: [],
+          },
+          api: {
+            fetchApiImportPath: '../../test-support/fetch-api',
+            fetchApiSymbol: 'fetchAPI',
+            fetchApiImportKind: 'named',
+            adapterStyle: 'url-config',
+            wrapperGrouping: 'tag',
+            tagFileCase: 'title',
+          },
+          layout: {
+            schemaFileName: 'schema.ts',
+          },
+        },
+      },
+      async (workspace) => {
+        await assert.rejects(
+          () => runInWorkspace(workspace, () => projectCommand.run()),
+          /Project rules have not been reviewed/,
+        );
+
+        await assert.rejects(
+          () => fs.access(path.join(workspace, 'openapi/project/manifest.json')),
+          /ENOENT/,
+        );
+      },
+    );
   },
 );
 
@@ -904,6 +1264,48 @@ test(
 );
 
 test(
+  'project rejects invalid project rules before cleaning generated output',
+  { concurrency: false },
+  async () => {
+    const spec = await readFixtureJson('oas30.json');
+
+    await withWorkspace(
+      {
+        spec,
+        rules: {
+          api: {
+            fetchApiImportPath: '../../test-support/fetch-api',
+            fetchApiSymbol: 'fetch-api',
+            adapterStyle: 'axios',
+            wrapperGrouping: 'operation',
+            tagFileCase: 'snake',
+          },
+          layout: {
+            schemaFileName: '../schema.ts',
+          },
+        },
+        extraFiles: [
+          {
+            path: 'openapi/project/src/openapi-generated/keep.ts',
+            content: 'export const keep = true;\n',
+          },
+        ],
+      },
+      async (workspace) => {
+        await assert.rejects(
+          () => runInWorkspace(workspace, () => projectCommand.run()),
+          /api\.fetchApiSymbol: must be a valid JavaScript identifier.*layout\.schemaFileName: must be a file name, not a path/,
+        );
+
+        await assertExists(
+          path.join(workspace, 'openapi/project/src/openapi-generated/keep.ts'),
+        );
+      },
+    );
+  },
+);
+
+test(
   'project can use raw tag titles as folder names',
   { concurrency: false },
   async () => {
@@ -1009,7 +1411,7 @@ test(
 );
 
 test(
-  'rules auto-migrates legacy kebab tagFileCase to title',
+  'rules preserves customized kebab tagFileCase',
   { concurrency: false },
   async () => {
     const spec = await readFixtureJson('oas30.json');
@@ -1072,8 +1474,8 @@ test(
           path.join(workspace, 'openapi/config/project-rules.jsonc'),
           'utf8',
         );
-        assert.match(migratedRulesSource, /"tagFileCase": "title"/);
-        assert.doesNotMatch(migratedRulesSource, /"tagFileCase": "kebab"/);
+        assert.match(migratedRulesSource, /"tagFileCase": "kebab"/);
+        assert.doesNotMatch(migratedRulesSource, /"tagFileCase": "title"/);
 
         await runInWorkspace(workspace, () => generateCommand.run());
         await runInWorkspace(workspace, () => projectCommand.run());
@@ -1081,7 +1483,7 @@ test(
         await assertExists(
           path.join(
             workspace,
-            'openapi/project/src/openapi-generated/199 - [BOS]원문 노출 API/get-banner.dto.ts',
+            'openapi/project/src/openapi-generated/199-bos-api/get-banner.dto.ts',
           ),
         );
       },
@@ -1204,6 +1606,91 @@ test(
 
       assert.match(devApiSource, /const getDevErrorCodes = async/);
       assert.doesNotMatch(devApiSource, /void/);
+    });
+  },
+);
+
+test(
+  'project selects supported JSON media types from alternatives',
+  { concurrency: false },
+  async () => {
+    const spec = await readFixtureJson('oas30.json');
+    spec.paths['/reports/typed'] = {
+      post: {
+        tags: ['Reports'],
+        operationId: 'createTypedReport',
+        requestBody: {
+          required: true,
+          content: {
+            'text/plain': {
+              schema: {
+                type: 'string',
+              },
+            },
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['name'],
+                properties: {
+                  name: {
+                    type: 'string',
+                  },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'OK',
+            content: {
+              'text/csv': {
+                schema: {
+                  type: 'string',
+                },
+              },
+              'application/vnd.report+json': {
+                schema: {
+                  type: 'object',
+                  required: ['id'],
+                  properties: {
+                    id: {
+                      type: 'string',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => generateCommand.run());
+      await runInWorkspace(workspace, () => projectCommand.run());
+
+      const generatedRoot = path.join(workspace, 'openapi/project/src/openapi-generated');
+      const dtoSource = await fs.readFile(
+        path.join(generatedRoot, 'Reports/create-typed-report.dto.ts'),
+        'utf8',
+      );
+      const apiSource = await fs.readFile(
+        path.join(generatedRoot, 'Reports/create-typed-report.api.ts'),
+        'utf8',
+      );
+      const manifest = JSON.parse(
+        await fs.readFile(path.join(workspace, 'openapi/project/manifest.json'), 'utf8'),
+      );
+
+      assert.match(dtoSource, /export interface CreateTypedReportRequestDto \{/);
+      assert.match(dtoSource, /name: string;/);
+      assert.match(dtoSource, /export interface CreateTypedReportResponseDto \{/);
+      assert.match(dtoSource, /id: string;/);
+      assert.doesNotMatch(dtoSource, /export type CreateTypedReportRequestDto = string;/);
+      assert.doesNotMatch(dtoSource, /export type CreateTypedReportResponseDto = string;/);
+      assert.match(apiSource, /data: requestDto/);
+      assert.equal(manifest.skippedEndpoints, 0);
     });
   },
 );

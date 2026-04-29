@@ -40,6 +40,7 @@ Swagger/OpenAPI 원본을 받아서 review 산출물을 만듭니다.
 현재 프로젝트 구조를 분석해서, 사람이 먼저 검토해야 하는 규칙 문서와 scaffold를 만듭니다.
 
 - `openapi/review/project-rules/analysis.md`
+- `openapi/review/project-rules/analysis.json`
 - `openapi/config/project-rules.jsonc`
 
 이 단계의 목적은 “프로젝트 맞춤 변환 규칙을 명시화”하는 것입니다.

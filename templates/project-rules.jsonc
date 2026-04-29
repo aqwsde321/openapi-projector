@@ -1,9 +1,16 @@
 {
   // MVP v2 project-rules template 입니다.
+  // rulesReviewed 를 true 로 바꾸기 전에는 prepare/project 가 후보 파일을 생성하지 않습니다.
+  "review": {
+    "rulesReviewed": false,
+    "notes": []
+  },
   "api": {
     "fetchApiImportPath": "@/shared/api",
     "fetchApiSymbol": "fetchAPI",
+    "fetchApiImportKind": "named",
     "adapterStyle": "url-config",
+    // "tag" creates tag folders. "flat" writes endpoint files directly under the generated root.
     "wrapperGrouping": "tag",
     "tagFileCase": "title"
   },

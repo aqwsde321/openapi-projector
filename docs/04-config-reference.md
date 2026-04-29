@@ -66,12 +66,15 @@
 | `generatedSchemaPath` | review용 `schema.ts` 출력 경로 |
 | `projectGeneratedSrcDir` | `project` 후보 코드 생성 경로 |
 
+경로 설정값은 프로젝트 루트 기준 상대 경로여야 하며, `..` 경로 세그먼트나 절대 경로는 허용하지 않습니다. `sourceUrl`은 빈 문자열일 수 있지만 문자열 타입이어야 합니다.
+
 ### 보통 안 건드리는 값
 
 - `catalogJsonPath`
 - `catalogMarkdownPath`
 - `docsDir`
 - `projectRulesAnalysisPath`
+- `projectRulesAnalysisJsonPath`
 - `projectRulesPath`
 
 ## 3. 대상 프로젝트 `project-rules.jsonc`
@@ -90,15 +93,27 @@
 | --- | --- | --- |
 | `api.fetchApiImportPath` | 기존 fetch helper import 경로 | `@/shared/api` |
 | `api.fetchApiSymbol` | fetch helper 이름 | `fetchAPI` |
+| `api.fetchApiImportKind` | fetch helper import 방식 | `named`, `default` |
 | `api.adapterStyle` | runtime client 호출 방식 | `url-config`, `request-object` |
+| `api.wrapperGrouping` | API/DTO wrapper 배치 방식 | `tag`, `flat` |
 | `api.tagFileCase` | 태그 폴더명 방식 | `title`, `kebab` |
+| `review.rulesReviewed` | `prepare`/`project` 후보 생성 전 분석 결과와 실제 API client 확인 여부 | `false`, `true` |
 
-### 현재 고정에 가까운 값
+검증 규칙:
 
-| 필드 | 설명 |
+- `api.fetchApiSymbol`은 JavaScript identifier 여야 합니다.
+- `api.fetchApiImportKind`는 `named` 또는 `default`만 지원합니다.
+- `api.adapterStyle`은 `url-config` 또는 `request-object`만 지원합니다.
+- `api.wrapperGrouping`은 `tag` 또는 `flat`만 지원합니다.
+- `api.tagFileCase`는 `title` 또는 `kebab`만 지원합니다.
+- `layout.schemaFileName`은 경로가 아닌 `.ts` 파일명이어야 합니다.
+
+### 배치 방식
+
+| 값 | 설명 |
 | --- | --- |
-| `api.wrapperGrouping` | 현재 MVP는 `tag` 고정 |
-| `layout.schemaFileName` | 기본값 `schema.ts` |
+| `tag` | 기본값. `<tag>/<endpoint>.dto.ts`, `<tag>/<endpoint>.api.ts`, `<tag>/index.ts` 형태로 생성 |
+| `flat` | 태그 폴더 없이 `<endpoint>.dto.ts`, `<endpoint>.api.ts`를 `projectGeneratedSrcDir` 바로 아래에 생성 |
 
 ## 4. Config Discovery
 

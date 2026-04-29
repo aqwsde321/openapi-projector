@@ -9,7 +9,7 @@
 | 단계 | 목표 | 현재 판단 |
 | --- | --- | --- |
 | 1 | OpenAPI만으로 결정 가능한 review 산출물과 `schema.ts` 생성 | 85~90% |
-| 2 | 현재 프로젝트 구조 파악 후 규칙 문서화 | 60~65% |
+| 2 | 현재 프로젝트 구조 파악 후 규칙 문서화 | 65~70% |
 | 3 | 1번 결과 + 2번 규칙으로 프로젝트 컨벤션에 맞는 파일 생성 | 80~85% |
 
 종합하면 방향은 맞습니다.
@@ -38,9 +38,9 @@
 남은 갭:
 
 - OpenAPI 3.0/3.1 JSON만 지원하고 OAS2/YAML 은 제외됨
-- 다중 media type 선택 로직은 제한적이며, non-JSON success response는 project 단계에서 skip 됨
+- 다중 media type 중 지원 가능한 JSON 계열 response와 JSON/multipart request를 선택하지만, non-JSON success response는 project 단계에서 skip 됨
 - cookie parameter와 multipart request body는 기본 wrapper 생성까지 지원하지만, 프로젝트별 런타임 client 계약 검증은 아직 제한적임
-- schema validation, runtime validation 은 아직 없음
+- OpenAPI root shape validation 은 있으나 전체 schema/lint validation, runtime validation 은 아직 없음
 
 ### 2단계: 프로젝트 구조 파악과 규칙 문서화
 
@@ -49,19 +49,22 @@
 이미 가능한 것:
 
 - `rules`로 분석 문서 생성
+- `rules`로 기계 처리 가능한 분석 JSON 생성
 - `project-rules.jsonc` scaffold 생성
-- 기존 `fetchAPI`, `AxiosRequestConfig` import 경로 추론
+- TypeScript AST 기반으로 API helper import/call style, HTTP client, API layer 후보 추론
+- `tsconfig.json` / `jsconfig.json` path alias 기준으로 상대 helper import 경로 정규화
+- 기존 `fetchAPI` import 경로 추론은 legacy 호환용 통계로 유지
 
 근거:
 
-- `rules`는 `src/entities`를 우선 보고, 없으면 `src`를 fallback 으로 사용함
-- `fetchAPI`, `AxiosRequestConfig` import 사용 빈도를 집계함
-- 관련 코드: [src/commands/rules.mjs](../src/commands/rules.mjs)
+- `rules`는 `src` 전체를 스캔하고 section별 파일 수를 분석 결과에 남김
+- 분석기는 TypeScript AST로 import, 호출 형태, export naming을 수집함
+- 관련 코드: [src/commands/rules.mjs](../src/commands/rules.mjs), [src/project-analyzer/index.mjs](../src/project-analyzer/index.mjs)
 
 핵심 갭:
 
-- 분석이 여전히 import heuristic 중심임
-- alias/path mapping 이 복잡한 프로젝트에서는 추론 품질이 제한될 수 있음
+- 분석이 개선됐지만 여전히 heuristic 기반 후보 추천임
+- path alias 기본 매핑은 반영하지만 `extends` 체인이나 복잡한 조건부 mapping 은 추론 품질이 제한될 수 있음
 - fetch helper 계약 외의 런타임 규칙은 아직 설정 범위에 없음
 
 즉 현재는 “프로젝트 컨벤션을 일반적으로 분석”한다기보다 “현재 가정한 구조에서 힌트를 뽑아 scaffold를 만든다”에 가깝습니다.
@@ -81,9 +84,9 @@
 
 핵심 갭:
 
-- 출력 구조는 `schema.ts + <tag>/<endpoint>.dto.ts + <tag>/<endpoint>.api.ts + <tag>/index.ts + index.ts`로 고정
-- wrapper 분할은 현재 `tag`만 지원
-- 성공 응답은 명시적 `2xx`/`2XX` JSON 계열만 생성 대상으로 삼고, multiple media type 선택 로직은 미지원
+- 출력 구조는 `tag`와 `flat` 배치를 지원하지만 더 복잡한 프로젝트별 배치는 아직 제한적
+- wrapper 분할은 현재 `tag`, `flat`만 지원
+- 성공 응답은 명시적 `2xx`/`2XX` JSON 계열만 생성 대상으로 삼고, 여러 media type 중 지원 가능한 타입이 없으면 skip 됨
 
 즉 “규칙 파일이 존재한다”와 “여러 프로젝트 규칙을 폭넓게 흡수한다” 사이에 아직 갭이 있습니다.
 
@@ -99,7 +102,7 @@
 | FR-B3 review 문서 생성 | 충족 | endpoint 문서 생성됨 |
 | FR-B4 review schema 생성 | 충족 | `openapi-typescript` 기반, OpenAPI 3.1 nullable 타입 기본 지원 |
 | FR-B5 재생성 가능성 | 대체로 충족 | deterministic 생성 구조이나 테스트 부재 |
-| FR-C1 프로젝트 구조 분석 | 부분 충족 | `src` fallback 이 있으나 heuristic 중심 |
+| FR-C1 프로젝트 구조 분석 | 부분 충족 | `src` 전체 스캔과 section 통계는 있으나 heuristic 중심 |
 | FR-C2 규칙 분석 문서 생성 | 충족 | 분석 문서 생성됨 |
 | FR-C3 규칙 scaffold 생성 | 충족 | JSONC scaffold 생성됨 |
 | FR-C4 AI/사람 협업 가능성 | 부분 충족 | 문서/설정은 존재하나 실제 반영 범위 제한 |
@@ -118,7 +121,7 @@
 | NFR-2 명시성 | 부분 충족 | 규칙 파일은 있으나 일부 규칙은 미연결 |
 | NFR-3 안전성 | 충족 | 자동 복사 대신 후보 생성까지만 담당 |
 | NFR-4 재사용성 | 부분 충족 | 특정 프로젝트 구조 의존성이 큼 |
-| NFR-5 유지보수성 | 부분 충족 | 명령은 얇아졌지만 config/schema validation 은 미구현 |
+| NFR-5 유지보수성 | 부분 충족 | 명령은 얇아졌고 config/rules validation 은 있으나 schema/runtime validation 은 미구현 |
 
 ## 가장 큰 갭 5개
 
@@ -149,7 +152,7 @@
 
 ### 4. 검증 체계 확장 필요
 
-- config/schema validation 없음
+- 전체 OpenAPI schema validation/lint 없음
 - runtime validation 없음
 - openapi lint 연동 없음
 
@@ -164,7 +167,7 @@
 먼저 해야 할 일:
 
 - import 추론 대상을 더 늘리기
-- alias/path mapping 프로젝트에 대한 fallback 전략 추가
+- path alias fallback 범위 확대 (`extends` chain, 복수 tsconfig 조합 등)
 - 규칙 scaffold 에 사용자 수정 가이드를 더 보강하기
 
 이유:

@@ -30,7 +30,7 @@
 - `refresh`
   - `download + catalog + generate`
 - `rules`
-  - 대상 프로젝트의 `src/entities`를 우선 분석하고, 없으면 `src` fallback 으로 규칙 문서/scaffold 생성
+  - 대상 프로젝트의 `src` 전체를 분석하고, source section 통계와 함께 규칙 문서/scaffold 생성
 - `project`
   - `project-rules.jsonc` 기준으로 `schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API` 후보 코드 생성
   - 명시적 `2xx`/`2XX` 성공 응답이 없는 endpoint는 생성하지 않고 summary/manifest에 skip 사유를 남김
@@ -38,7 +38,7 @@
 - `doctor`
   - 로컬 설정, 대상 프로젝트 config, 다운로드된 OpenAPI JSON, project-rules 준비 상태 점검
 - `prepare`
-  - `init` 필요 시 생성 후 `refresh -> rules -> project` 원샷 실행
+  - `init` 필요 시 생성 후 `refresh -> rules`를 실행하고, `review.rulesReviewed`가 true인 rules에서만 `project`까지 실행
 
 ## 개발 시 확인할 것
 
@@ -60,7 +60,7 @@ pnpm test
 
 ### 2. bootstrap 시나리오
 
-새 빈 프론트엔드 프로젝트 디렉터리에서 `init`이 로컬 설정과 `openapi/`를 만들고 `doctor`가 통과해야 합니다.
+새 빈 프론트엔드 프로젝트 디렉터리에서 `init`이 로컬 설정과 `openapi/`를 만들고, `sourceUrl` 설정 후 `refresh -> rules`가 review gate 앞까지 정상 진행해야 합니다. `project-rules.jsonc` 검토 전에는 `doctor`가 unreviewed rules를 FAIL로 보고하는 것이 기대 동작입니다.
 
 예:
 
@@ -69,6 +69,12 @@ cd /tmp/smoke-project
 node /path/to/openapi-projector/bin/openapi-tool.mjs init
 # openapi/config/project.jsonc 의 sourceUrl 을 실제 OpenAPI JSON URL로 설정
 node /path/to/openapi-projector/bin/openapi-tool.mjs doctor
+node /path/to/openapi-projector/bin/openapi-tool.mjs refresh
+node /path/to/openapi-projector/bin/openapi-tool.mjs rules
+# openapi/review/project-rules/analysis.md 와 실제 API client 를 확인
+# openapi/config/project-rules.jsonc 의 review.rulesReviewed 를 true 로 설정
+node /path/to/openapi-projector/bin/openapi-tool.mjs doctor
+node /path/to/openapi-projector/bin/openapi-tool.mjs project
 ```
 
 기존 bootstrap 초기화가 필요할 때만 아래처럼 실행합니다.
