@@ -179,7 +179,7 @@ How to interpret `summary.md`:
 - `Doc Changed`: summary/description/tag metadata changed without detected contract changes.
 
 `Contract Changed` items include a comparison table with field-level details when both the previous and current catalogs have comparison snapshots.
-Examples include query parameter additions, request body required changes, response schema field type changes, and response status/media-type changes.
+Examples include query parameter additions, request body required changes, response body field type changes, and response status/media-type changes.
 `Added`, `Contract Changed`, and `Doc Changed` entries also include DTO/API candidate links based on `project-rules.jsonc`; after `project` runs, those links open the generated files under `openapi/project/src/openapi-generated/...`.
 If the previous catalog was created by an older version without snapshots, the first run after upgrade can only report the affected endpoint; detailed comparison starts from the next refresh.
 

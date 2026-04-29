@@ -287,7 +287,10 @@ function toContractChangeItem(
     detailCount: details.length,
     detailsTruncated: details.length > MAX_CHANGE_DETAILS,
     details: details.slice(0, MAX_CHANGE_DETAILS),
-    comparisonRows: buildComparisonRows(details.slice(0, MAX_CHANGE_DETAILS)),
+    comparisonRows: buildComparisonRows(details.slice(0, MAX_CHANGE_DETAILS), {
+      previousSnapshot: previousEntry.contractSnapshot,
+      nextSnapshot: nextEntry.contractSnapshot,
+    }),
   };
 }
 
@@ -495,22 +498,116 @@ function appendComparisonTable(lines, rows) {
   lines.push('');
 }
 
-function buildComparisonRows(details) {
+function buildComparisonRows(details, context = {}) {
   const rows = [];
   const consumedIndexes = new Set();
+  const comparisonContext = buildComparisonContext(context);
 
   appendParameterObjectRows(rows, details, consumedIndexes);
-  appendSchemaPropertyObjectRows(rows, details, consumedIndexes);
+  appendSchemaPropertyObjectRows(rows, details, consumedIndexes, comparisonContext);
 
   details.forEach((detail, index) => {
     if (consumedIndexes.has(index)) {
       return;
     }
 
-    rows.push(toGenericComparisonRow(detail));
+    rows.push(toGenericComparisonRow(detail, comparisonContext));
   });
 
   return rows;
+}
+
+function buildComparisonContext({ previousSnapshot, nextSnapshot } = {}) {
+  return {
+    schemaUsageByName: mergeSchemaUsageMaps(
+      buildSchemaUsageMap(previousSnapshot),
+      buildSchemaUsageMap(nextSnapshot),
+    ),
+  };
+}
+
+function mergeSchemaUsageMaps(...usageMaps) {
+  const merged = new Map();
+
+  for (const usageMap of usageMaps) {
+    for (const [schemaName, usages] of usageMap) {
+      const mergedUsages = merged.get(schemaName) ?? new Set();
+      usages.forEach((usage) => mergedUsages.add(usage));
+      merged.set(schemaName, mergedUsages);
+    }
+  }
+
+  return merged;
+}
+
+function buildSchemaUsageMap(snapshot) {
+  const usageByName = new Map();
+  const operation = snapshot?.operation;
+
+  if (!operation) {
+    return usageByName;
+  }
+
+  addSchemaUsage(
+    usageByName,
+    'Request Body',
+    operation.requestBody,
+    snapshot.referencedSchemas,
+  );
+
+  for (const response of Object.values(operation.responses ?? {})) {
+    addSchemaUsage(usageByName, 'Response Body', response, snapshot.referencedSchemas);
+  }
+
+  for (const parameter of operation.parameters ?? []) {
+    addSchemaUsage(
+      usageByName,
+      `${toTitleCase(parameter?.in)} Parameter`,
+      parameter,
+      snapshot.referencedSchemas,
+    );
+  }
+
+  return usageByName;
+}
+
+function addSchemaUsage(usageByName, usage, value, referencedSchemas = {}) {
+  for (const schemaName of collectReferencedSchemaClosure(value, referencedSchemas)) {
+    const usages = usageByName.get(schemaName) ?? new Set();
+    usages.add(usage);
+    usageByName.set(schemaName, usages);
+  }
+}
+
+function collectReferencedSchemaClosure(value, referencedSchemas = {}, seen = new Set()) {
+  for (const schemaName of collectSchemaRefNames(value)) {
+    if (!schemaName || seen.has(schemaName)) {
+      continue;
+    }
+
+    seen.add(schemaName);
+    collectReferencedSchemaClosure(referencedSchemas?.[schemaName], referencedSchemas, seen);
+  }
+
+  return seen;
+}
+
+function collectSchemaRefNames(value, refs = new Set()) {
+  if (!value || typeof value !== 'object') {
+    return refs;
+  }
+
+  if (typeof value.$ref === 'string') {
+    refs.add(schemaRefName(value.$ref));
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectSchemaRefNames(item, refs));
+    return refs;
+  }
+
+  Object.values(value).forEach((item) => collectSchemaRefNames(item, refs));
+  return refs;
 }
 
 function appendParameterObjectRows(rows, details, consumedIndexes) {
@@ -553,7 +650,7 @@ function appendParameterObjectRows(rows, details, consumedIndexes) {
   }
 }
 
-function appendSchemaPropertyObjectRows(rows, details, consumedIndexes) {
+function appendSchemaPropertyObjectRows(rows, details, consumedIndexes, comparisonContext) {
   const groups = new Map();
 
   details.forEach((detail, index) => {
@@ -601,7 +698,7 @@ function appendSchemaPropertyObjectRows(rows, details, consumedIndexes) {
     }
 
     rows.push({
-      category: 'Schema Property',
+      category: getSchemaFieldCategory(group.schemaName, comparisonContext),
       target: formatInlineCode(`${group.schemaName}.${group.propertyName}`),
       previous: group.kind === 'added' ? '없음' : formatSchemaPropertySummary(group.values),
       next: group.kind === 'removed' ? '없음' : formatSchemaPropertySummary(group.values),
@@ -751,16 +848,22 @@ function parseParameterDetailPath(detailPath) {
   };
 }
 
-function toGenericComparisonRow(detail) {
+function toGenericComparisonRow(detail, comparisonContext) {
+  const schemaProperty = parseSchemaPropertyDetailPath(detail.path);
+
   return {
-    category: classifyChangeDetail(detail.path),
-    target: formatInlineCode(detail.path),
+    category: schemaProperty
+      ? getSchemaFieldCategory(schemaProperty.schemaName, comparisonContext)
+      : classifyChangeDetail(detail.path, comparisonContext),
+    target: formatInlineCode(
+      schemaProperty ? formatSchemaPropertyTarget(schemaProperty) : detail.path,
+    ),
     previous: detail.kind === 'added' ? '없음' : formatDetailValue(detail.previous),
     next: detail.kind === 'removed' ? '없음' : formatDetailValue(detail.next),
   };
 }
 
-function classifyChangeDetail(detailPath) {
+function classifyChangeDetail(detailPath, comparisonContext) {
   if (detailPath.startsWith('operation.parameters')) {
     return 'Parameter';
   }
@@ -774,7 +877,10 @@ function classifyChangeDetail(detailPath) {
   }
 
   if (detailPath.startsWith('referencedSchemas')) {
-    return 'Schema';
+    const schemaName = parseReferencedSchemaName(detailPath);
+    return schemaName
+      ? `${getSchemaUsageLabel(schemaName, comparisonContext)} Schema`
+      : 'Schema';
   }
 
   if (['summary', 'description', 'operationId', 'tags', 'documentation'].includes(detailPath)) {
@@ -782,6 +888,43 @@ function classifyChangeDetail(detailPath) {
   }
 
   return 'Contract';
+}
+
+function getSchemaFieldCategory(schemaName, comparisonContext) {
+  return `${getSchemaUsageLabel(schemaName, comparisonContext)} Field`;
+}
+
+function getSchemaUsageLabel(schemaName, comparisonContext) {
+  const usages = comparisonContext?.schemaUsageByName?.get(schemaName) ?? new Set();
+  const hasRequestBody = usages.has('Request Body');
+  const hasResponseBody = usages.has('Response Body');
+  const parameterUsages = [...usages].filter((usage) => usage.endsWith(' Parameter'));
+
+  if (hasRequestBody && hasResponseBody) {
+    return 'Request/Response Body';
+  }
+
+  if (hasRequestBody) {
+    return 'Request Body';
+  }
+
+  if (hasResponseBody) {
+    return 'Response Body';
+  }
+
+  if (parameterUsages.length === 1) {
+    return parameterUsages[0];
+  }
+
+  if (parameterUsages.length > 1) {
+    return 'Parameter';
+  }
+
+  return 'Schema';
+}
+
+function formatSchemaPropertyTarget({ schemaName, propertyName, fieldPath }) {
+  return `${schemaName}.${propertyName}${fieldPath ? `.${fieldPath}` : ''}`;
 }
 
 function formatParameterSummary(values) {

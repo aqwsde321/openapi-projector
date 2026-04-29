@@ -472,7 +472,7 @@ test(
         next: '`boolean`, required',
       });
       assert.deepEqual(historyJson.contractChanged[0].comparisonRows[1], {
-        category: 'Schema Property',
+        category: 'Response Body Field',
         target: '`User.attachments`',
         previous: '없음',
         next: '`File[]`',
@@ -504,11 +504,11 @@ test(
       );
       assert.match(
         historySource,
-        /\| Schema Property \| `User\.attachments` \| 없음 \| `File\[\]` \|/,
+        /\| Response Body Field \| `User\.attachments` \| 없음 \| `File\[\]` \|/,
       );
       assert.match(
         historySource,
-        /\| Schema \| `referencedSchemas\.User\.properties\.email\.type` \| `string` \| `integer` \|/,
+        /\| Response Body Field \| `User\.email\.type` \| `string` \| `integer` \|/,
       );
     });
   },
