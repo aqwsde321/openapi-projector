@@ -49,6 +49,7 @@ async function setupWorkspace({
   rules = null,
   createRulesFile = true,
   extraFiles = [],
+  projectConfigOverrides = {},
 }) {
   const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-tool-'));
   const projectConfig = {
@@ -61,6 +62,7 @@ async function setupWorkspace({
     projectRulesAnalysisPath: 'openapi/review/project-rules/analysis.md',
     projectRulesPath: 'openapi/config/project-rules.jsonc',
     projectGeneratedSrcDir: 'openapi/project/src/openapi-generated',
+    ...projectConfigOverrides,
   };
 
   await writeJsonFile(
@@ -156,6 +158,40 @@ async function captureConsoleLog(callback) {
 
 async function assertExists(filePath) {
   await fs.access(filePath);
+}
+
+function createSimpleSpec(summary = 'Ping') {
+  return {
+    openapi: '3.0.3',
+    info: {
+      title: 'Simple API',
+      version: '1.0.0',
+    },
+    paths: {
+      '/ping': {
+        get: {
+          summary,
+          responses: {
+            200: {
+              description: 'OK',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      ok: {
+                        type: 'boolean',
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  };
 }
 
 async function withToolLocalConfigs(configs, callback) {
@@ -604,6 +640,239 @@ test(
       assert.match(
         historySource,
         /\| Response Header Field \| `ChangedHeader\.expiresAt\.required` \| optional \| required \|/,
+      );
+    });
+  },
+);
+
+test(
+  'catalog skips oasdiff on first run and creates an oasdiff baseline',
+  { concurrency: false },
+  async () => {
+    await withWorkspace({
+      spec: createSimpleSpec(),
+      projectConfigOverrides: {
+        changeDetection: {
+          oasdiff: {
+            mode: 'auto',
+            command: 'openapi-projector-missing-oasdiff-for-test',
+            baselineSourcePath: 'openapi/_internal/source/openapi.oasdiff-baseline.json',
+            outputsDir: 'openapi/review/changes/oasdiff',
+          },
+        },
+      },
+    }, async (workspace) => {
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const summaryJson = await readJson(
+        path.join(workspace, 'openapi/review/changes/summary.json'),
+      );
+      const summarySource = await fs.readFile(
+        path.join(workspace, 'openapi/review/changes/summary.md'),
+        'utf8',
+      );
+
+      assert.deepEqual(summaryJson.externalDiff.oasdiff, {
+        mode: 'auto',
+        command: 'openapi-projector-missing-oasdiff-for-test',
+        baselineSourcePath: 'openapi/_internal/source/openapi.oasdiff-baseline.json',
+        outputsDir: 'openapi/review/changes/oasdiff',
+        status: 'skipped',
+        reason: 'baseline_missing',
+      });
+      await assertExists(
+        path.join(workspace, 'openapi/_internal/source/openapi.oasdiff-baseline.json'),
+      );
+      assert.match(summarySource, /## Compatibility Check/);
+      assert.match(summarySource, /- oasdiff: `skipped`/);
+      assert.match(summarySource, /- Reason: `baseline_missing`/);
+    });
+  },
+);
+
+test(
+  'catalog records oasdiff off status without probing the command',
+  { concurrency: false },
+  async () => {
+    await withWorkspace({
+      spec: createSimpleSpec(),
+      projectConfigOverrides: {
+        changeDetection: {
+          oasdiff: {
+            mode: 'off',
+            command: 'openapi-projector-command-that-should-not-run',
+            baselineSourcePath: 'openapi/_internal/source/openapi.oasdiff-baseline.json',
+            outputsDir: 'openapi/review/changes/oasdiff',
+          },
+        },
+      },
+    }, async (workspace) => {
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const summaryJson = await readJson(
+        path.join(workspace, 'openapi/review/changes/summary.json'),
+      );
+
+      assert.equal(summaryJson.externalDiff.oasdiff.status, 'off');
+      assert.equal(summaryJson.externalDiff.oasdiff.reason, 'disabled');
+      await assertExists(
+        path.join(workspace, 'openapi/_internal/source/openapi.oasdiff-baseline.json'),
+      );
+    });
+  },
+);
+
+test(
+  'catalog continues when optional oasdiff command is missing after baseline exists',
+  { concurrency: false },
+  async () => {
+    await withWorkspace({
+      spec: createSimpleSpec(),
+      projectConfigOverrides: {
+        changeDetection: {
+          oasdiff: {
+            mode: 'auto',
+            command: 'openapi-projector-missing-oasdiff-for-test',
+            baselineSourcePath: 'openapi/_internal/source/openapi.oasdiff-baseline.json',
+            outputsDir: 'openapi/review/changes/oasdiff',
+          },
+        },
+      },
+    }, async (workspace) => {
+      await runInWorkspace(workspace, () => catalogCommand.run());
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.json'),
+        createSimpleSpec('Ping v2'),
+      );
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const summaryJson = await readJson(
+        path.join(workspace, 'openapi/review/changes/summary.json'),
+      );
+
+      assert.equal(summaryJson.externalDiff.oasdiff.status, 'skipped');
+      assert.equal(summaryJson.externalDiff.oasdiff.reason, 'command_not_found');
+      assert.match(
+        summaryJson.externalDiff.oasdiff.errorMessage,
+        /openapi-projector-missing-oasdiff-for-test/,
+      );
+    });
+  },
+);
+
+test(
+  'catalog writes oasdiff markdown artifacts when optional command succeeds',
+  { concurrency: false },
+  async () => {
+    await withWorkspace({ spec: createSimpleSpec() }, async (workspace) => {
+      const fakeOasdiffPath = path.join(workspace, 'fake-oasdiff.mjs');
+      await fs.writeFile(
+        fakeOasdiffPath,
+        [
+          '#!/usr/bin/env node',
+          'const command = process.argv[2];',
+          'process.stdout.write(`# ${command}\\n\\nFake oasdiff report\\n`);',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+      await fs.chmod(fakeOasdiffPath, 0o755);
+
+      const projectConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
+      const projectConfig = await readJson(projectConfigPath);
+      await writeJsonFile(projectConfigPath, {
+        ...projectConfig,
+        changeDetection: {
+          oasdiff: {
+            mode: 'auto',
+            command: fakeOasdiffPath,
+            baselineSourcePath: 'openapi/_internal/source/openapi.oasdiff-baseline.json',
+            outputsDir: 'openapi/review/changes/oasdiff',
+          },
+        },
+      });
+
+      await runInWorkspace(workspace, () => catalogCommand.run());
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.json'),
+        createSimpleSpec('Ping v2'),
+      );
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const summaryJson = await readJson(
+        path.join(workspace, 'openapi/review/changes/summary.json'),
+      );
+      const summarySource = await fs.readFile(
+        path.join(workspace, 'openapi/review/changes/summary.md'),
+        'utf8',
+      );
+      const breakingSource = await fs.readFile(
+        path.join(workspace, 'openapi/review/changes/oasdiff/breaking.md'),
+        'utf8',
+      );
+      const changelogSource = await fs.readFile(
+        path.join(workspace, 'openapi/review/changes/oasdiff/changelog.md'),
+        'utf8',
+      );
+
+      assert.equal(summaryJson.externalDiff.oasdiff.status, 'ok');
+      assert.equal(
+        summaryJson.externalDiff.oasdiff.breakingMarkdownPath,
+        'openapi/review/changes/oasdiff/breaking.md',
+      );
+      assert.equal(
+        summaryJson.externalDiff.oasdiff.changelogMarkdownPath,
+        'openapi/review/changes/oasdiff/changelog.md',
+      );
+      assert.match(summarySource, /\[breaking\]\(<oasdiff\/breaking\.md>\)/);
+      assert.match(summarySource, /\[changelog\]\(<oasdiff\/changelog\.md>\)/);
+      assert.match(breakingSource, /# breaking/);
+      assert.match(changelogSource, /# changelog/);
+    });
+  },
+);
+
+test(
+  'catalog fails when required oasdiff command fails after baseline exists',
+  { concurrency: false },
+  async () => {
+    await withWorkspace({ spec: createSimpleSpec() }, async (workspace) => {
+      const fakeOasdiffPath = path.join(workspace, 'failing-oasdiff.mjs');
+      await fs.writeFile(
+        fakeOasdiffPath,
+        [
+          '#!/usr/bin/env node',
+          'process.stderr.write("fake oasdiff failure\\n");',
+          'process.exit(2);',
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+      await fs.chmod(fakeOasdiffPath, 0o755);
+
+      const projectConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
+      const projectConfig = await readJson(projectConfigPath);
+      await writeJsonFile(projectConfigPath, {
+        ...projectConfig,
+        changeDetection: {
+          oasdiff: {
+            mode: 'required',
+            command: fakeOasdiffPath,
+            baselineSourcePath: 'openapi/_internal/source/openapi.oasdiff-baseline.json',
+            outputsDir: 'openapi/review/changes/oasdiff',
+          },
+        },
+      });
+
+      await runInWorkspace(workspace, () => catalogCommand.run());
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.json'),
+        createSimpleSpec('Ping v2'),
+      );
+
+      await assert.rejects(
+        () => runInWorkspace(workspace, () => catalogCommand.run()),
+        /oasdiff compatibility check failed: execution_failed/,
       );
     });
   },

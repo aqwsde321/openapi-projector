@@ -38,6 +38,10 @@ Swagger/OpenAPI 원본을 받아서 review 산출물을 만듭니다.
 `openapi/review/changes/summary.md`는 최신 비교 결과입니다. 매번 덮어쓰이며, 사람이 가장 먼저 확인하는 파일입니다.
 변경이 감지되면 같은 내용이 `openapi/review/changes/history/` 아래에 timestamp가 붙은 `.md`와 `.json` 파일로도 누적됩니다.
 
+`oasdiff` CLI가 설치되어 있으면 `Compatibility Check` 섹션에 별도 호환성 리포트 링크도 표시됩니다.
+설치되어 있지 않거나 첫 실행이라 기준 파일이 없으면 기존 endpoint 변경 요약은 그대로 생성되고,
+`summary.json`의 `externalDiff.oasdiff`에 skipped 이유가 기록됩니다.
+
 변경 구분은 endpoint 기준입니다.
 
 - `Added`: 새로 추가된 endpoint

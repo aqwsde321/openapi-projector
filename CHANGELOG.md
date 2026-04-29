@@ -6,7 +6,10 @@
 
 ## Unreleased
 
-아직 릴리스되지 않은 변경 사항이 없습니다.
+### Added
+
+- `catalog` 변경 요약에 선택적 `oasdiff` 호환성 리포트 병합을 추가했습니다.
+- `summary.json`의 `externalDiff.oasdiff`와 `summary.md`의 `Compatibility Check` 섹션을 추가했습니다.
 
 ## 0.1.4 - 2026-04-29
 

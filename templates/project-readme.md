@@ -210,12 +210,16 @@ Primary files:
 - `openapi/review/changes/summary.md`
 - `openapi/review/changes/summary.json`
 - `openapi/review/changes/history/`
+- `openapi/review/changes/oasdiff/` when optional `oasdiff` compatibility reports are available
 
 `summary.md` and `summary.json` are overwritten on each run and always represent the latest comparison.
 When changes are detected, timestamped `.md` and `.json` snapshots are also appended under `openapi/review/changes/history/`.
+If `oasdiff` is installed and enabled, `summary.md` also includes a `Compatibility Check` section with links to `breaking.md` and `changelog.md`.
+If `oasdiff` is missing or the first baseline has just been created, `summary.json.externalDiff.oasdiff` records the skipped reason while the normal endpoint diff still works.
 
 How to interpret `summary.md`:
 
+- `Compatibility Check`: optional `oasdiff` status and report links.
 - `Baseline`: first run or no usable previous catalog. Treat this as the initial snapshot.
 - `Added`: new endpoints.
 - `Removed`: endpoints that disappeared from the OpenAPI spec.

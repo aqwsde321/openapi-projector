@@ -10,5 +10,13 @@
   "projectRulesAnalysisPath": "openapi/review/project-rules/analysis.md",
   "projectRulesAnalysisJsonPath": "openapi/review/project-rules/analysis.json",
   "projectRulesPath": "openapi/config/project-rules.jsonc",
-  "projectGeneratedSrcDir": "openapi/project/src/openapi-generated"
+  "projectGeneratedSrcDir": "openapi/project/src/openapi-generated",
+  "changeDetection": {
+    "oasdiff": {
+      "mode": "auto",
+      "command": "oasdiff",
+      "baselineSourcePath": "openapi/_internal/source/openapi.oasdiff-baseline.json",
+      "outputsDir": "openapi/review/changes/oasdiff"
+    }
+  }
 }

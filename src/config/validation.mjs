@@ -2,6 +2,7 @@ const SUPPORTED_ADAPTER_STYLES = new Set(['url-config', 'request-object']);
 const SUPPORTED_FETCH_API_IMPORT_KINDS = new Set(['named', 'default']);
 const SUPPORTED_TAG_FILE_CASES = new Set(['kebab', 'title']);
 const SUPPORTED_WRAPPER_GROUPINGS = new Set(['tag', 'flat']);
+const SUPPORTED_OASDIFF_MODES = new Set(['auto', 'off', 'required']);
 const IDENTIFIER_PATTERN = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
 const PROJECT_CONFIG_PATH_FIELDS = [
   'sourcePath',
@@ -151,7 +152,48 @@ function validateProjectConfig(projectConfig) {
     validateOptionalRelativePath(issues, field, projectConfig[field]);
   }
 
+  validateChangeDetectionConfig(issues, projectConfig.changeDetection);
+
   return issues;
+}
+
+function validateChangeDetectionConfig(issues, changeDetection) {
+  if (changeDetection == null) {
+    return;
+  }
+
+  if (!isPlainObject(changeDetection)) {
+    addIssue(issues, 'changeDetection', 'must be an object');
+    return;
+  }
+
+  const oasdiff = changeDetection.oasdiff;
+  if (oasdiff == null) {
+    return;
+  }
+
+  if (!isPlainObject(oasdiff)) {
+    addIssue(issues, 'changeDetection.oasdiff', 'must be an object');
+    return;
+  }
+
+  validateOptionalEnum(
+    issues,
+    'changeDetection.oasdiff.mode',
+    oasdiff.mode,
+    SUPPORTED_OASDIFF_MODES,
+  );
+  validateOptionalString(issues, 'changeDetection.oasdiff.command', oasdiff.command);
+  validateOptionalRelativePath(
+    issues,
+    'changeDetection.oasdiff.baselineSourcePath',
+    oasdiff.baselineSourcePath,
+  );
+  validateOptionalRelativePath(
+    issues,
+    'changeDetection.oasdiff.outputsDir',
+    oasdiff.outputsDir,
+  );
 }
 
 function validateProjectRules(projectRules) {

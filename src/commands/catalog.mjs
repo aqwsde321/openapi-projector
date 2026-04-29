@@ -1,4 +1,7 @@
+import { execFile } from 'node:child_process';
+import fs from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
 
 import {
   buildEndpointCatalog,
@@ -15,6 +18,13 @@ import { projectOperations } from '../projector/project-endpoints.mjs';
 
 const CATALOG_FORMAT_VERSION = 2;
 const MAX_CHANGE_DETAILS = 60;
+const OASDIFF_DEFAULTS = {
+  mode: 'auto',
+  command: 'oasdiff',
+  baselineSourcePath: 'openapi/_internal/source/openapi.oasdiff-baseline.json',
+  outputsDir: 'openapi/review/changes/oasdiff',
+};
+const execFileAsync = promisify(execFile);
 
 const catalogCommand = {
   name: 'catalog',
@@ -46,6 +56,13 @@ const catalogCommand = {
       previousCatalog?.version ?? null,
       projectCandidateFilesByOperation,
     );
+    changeSummary.externalDiff = {
+      oasdiff: await buildOasdiffReport({
+        rootDir,
+        sourcePath,
+        projectConfig,
+      }),
+    };
 
     await writeJson(catalogJsonPath, {
       version: CATALOG_FORMAT_VERSION,
@@ -160,6 +177,124 @@ async function readJsonIfExists(filePath) {
     }
     throw error;
   }
+}
+
+async function pathExists(filePath) {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return false;
+    }
+    throw error;
+  }
+}
+
+async function copyFileEnsuringDir(sourcePath, targetPath) {
+  await fs.mkdir(path.dirname(targetPath), { recursive: true });
+  await fs.copyFile(sourcePath, targetPath);
+}
+
+function resolveOasdiffConfig(projectConfig) {
+  return {
+    ...OASDIFF_DEFAULTS,
+    ...(projectConfig.changeDetection?.oasdiff ?? {}),
+  };
+}
+
+function buildOasdiffBaseReport({ rootDir, config }) {
+  const baselineSourcePath = path.resolve(rootDir, config.baselineSourcePath);
+  const outputsDir = path.resolve(rootDir, config.outputsDir);
+
+  return {
+    mode: config.mode,
+    command: config.command,
+    baselineSourcePath: toProjectRelativePath(rootDir, baselineSourcePath),
+    outputsDir: toProjectRelativePath(rootDir, outputsDir),
+  };
+}
+
+async function buildOasdiffReport({ rootDir, sourcePath, projectConfig }) {
+  const config = resolveOasdiffConfig(projectConfig);
+  const baseReport = buildOasdiffBaseReport({ rootDir, config });
+  const baselineSourcePath = path.resolve(rootDir, config.baselineSourcePath);
+  const outputsDir = path.resolve(rootDir, config.outputsDir);
+  const breakingMarkdownPath = path.join(outputsDir, 'breaking.md');
+  const changelogMarkdownPath = path.join(outputsDir, 'changelog.md');
+
+  if (config.mode === 'off') {
+    await copyFileEnsuringDir(sourcePath, baselineSourcePath);
+    return {
+      ...baseReport,
+      status: 'off',
+      reason: 'disabled',
+    };
+  }
+
+  if (!(await pathExists(baselineSourcePath))) {
+    await copyFileEnsuringDir(sourcePath, baselineSourcePath);
+    return {
+      ...baseReport,
+      status: 'skipped',
+      reason: 'baseline_missing',
+    };
+  }
+
+  const runOptions = {
+    cwd: rootDir,
+    maxBuffer: 10 * 1024 * 1024,
+    timeout: 30_000,
+  };
+
+  try {
+    const breakingResult = await execFileAsync(
+      config.command,
+      ['breaking', baselineSourcePath, sourcePath, '-f', 'markdown'],
+      runOptions,
+    );
+    const changelogResult = await execFileAsync(
+      config.command,
+      ['changelog', baselineSourcePath, sourcePath, '-f', 'markdown'],
+      runOptions,
+    );
+
+    await writeText(breakingMarkdownPath, ensureTrailingNewline(breakingResult.stdout));
+    await writeText(changelogMarkdownPath, ensureTrailingNewline(changelogResult.stdout));
+    await copyFileEnsuringDir(sourcePath, baselineSourcePath);
+
+    return {
+      ...baseReport,
+      status: 'ok',
+      breakingMarkdownPath: toProjectRelativePath(rootDir, breakingMarkdownPath),
+      changelogMarkdownPath: toProjectRelativePath(rootDir, changelogMarkdownPath),
+    };
+  } catch (error) {
+    const isCommandNotFound = error?.code === 'ENOENT';
+    const status = isCommandNotFound ? 'skipped' : 'failed';
+    const reason = isCommandNotFound ? 'command_not_found' : 'execution_failed';
+    const report = {
+      ...baseReport,
+      status,
+      reason,
+      errorMessage: error?.message ?? String(error),
+    };
+
+    if (error?.stderr) {
+      report.stderr = String(error.stderr).slice(0, 4000);
+    }
+
+    if (config.mode === 'required') {
+      throw new Error(`oasdiff compatibility check failed: ${reason}\n${report.errorMessage}`);
+    }
+
+    return report;
+  }
+}
+
+function ensureTrailingNewline(value) {
+  const text = value && String(value).trim() ? String(value) : '(no output)\n';
+  return text.endsWith('\n') ? text : `${text}\n`;
 }
 
 function buildChangeSummary(
@@ -356,6 +491,8 @@ function renderChangeMarkdown(changeSummary, options = {}) {
     `- Current total endpoints: ${changeSummary.total}`,
   ];
 
+  appendCompatibilitySection(lines, changeSummary.externalDiff?.oasdiff, options);
+
   if (changeSummary.baseline) {
     lines.push('- Baseline: 이전 catalog 가 없어서 이번 결과를 기준선으로 저장했습니다.', '');
     return lines.join('\n');
@@ -373,6 +510,40 @@ function renderChangeMarkdown(changeSummary, options = {}) {
   appendSection(lines, 'Doc Changed', changeSummary.docChanged, options);
 
   return lines.join('\n');
+}
+
+function appendCompatibilitySection(lines, oasdiffReport, options = {}) {
+  if (!oasdiffReport) {
+    return;
+  }
+
+  lines.push('', '## Compatibility Check', '');
+  lines.push(`- oasdiff: ${formatInlineCode(oasdiffReport.status)}`);
+
+  if (oasdiffReport.reason) {
+    lines.push(`- Reason: ${formatInlineCode(oasdiffReport.reason)}`);
+  }
+
+  if (oasdiffReport.status === 'ok') {
+    const links = [
+      oasdiffReport.breakingMarkdownPath
+        ? formatMarkdownLink('breaking', oasdiffReport.breakingMarkdownPath, options)
+        : null,
+      oasdiffReport.changelogMarkdownPath
+        ? formatMarkdownLink('changelog', oasdiffReport.changelogMarkdownPath, options)
+        : null,
+    ].filter(Boolean);
+
+    if (links.length > 0) {
+      lines.push(`- Reports: ${links.join(' / ')}`);
+    }
+  }
+
+  if (oasdiffReport.status === 'failed' && oasdiffReport.errorMessage) {
+    lines.push(`- Error: ${formatDetailValue(oasdiffReport.errorMessage)}`);
+  }
+
+  lines.push('');
 }
 
 function hasRecordedChanges(changeSummary) {
