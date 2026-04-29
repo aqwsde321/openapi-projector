@@ -1120,6 +1120,52 @@ test(
 );
 
 test(
+  'project rejects reviewed rules without adapterStyle before cleaning generated output',
+  { concurrency: false },
+  async () => {
+    const spec = await readFixtureJson('oas30.json');
+
+    await withWorkspace(
+      {
+        spec,
+        rules: {
+          review: {
+            rulesReviewed: true,
+            notes: [],
+          },
+          api: {
+            fetchApiImportPath: '../../test-support/fetch-api',
+            fetchApiSymbol: 'fetchAPI',
+            fetchApiImportKind: 'named',
+            wrapperGrouping: 'tag',
+            tagFileCase: 'title',
+          },
+          layout: {
+            schemaFileName: 'schema.ts',
+          },
+        },
+        extraFiles: [
+          {
+            path: 'openapi/project/src/openapi-generated/keep.ts',
+            content: 'export const keep = true;\n',
+          },
+        ],
+      },
+      async (workspace) => {
+        await assert.rejects(
+          () => runInWorkspace(workspace, () => projectCommand.run()),
+          /api\.adapterStyle: is required when review\.rulesReviewed is true/,
+        );
+
+        await assertExists(
+          path.join(workspace, 'openapi/project/src/openapi-generated/keep.ts'),
+        );
+      },
+    );
+  },
+);
+
+test(
   'cli uses current working directory when local config projectRoot is blank',
   { concurrency: false },
   async () => {
