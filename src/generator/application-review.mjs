@@ -17,16 +17,24 @@ function formatSchemaType(schema) {
     return 'unknown';
   }
 
+  const renderNullable = (baseType) => {
+    const members = baseType.split('|').map((part) => part.trim());
+    if (!isSchemaNullable(schema) || members.includes('null')) {
+      return baseType;
+    }
+
+    return `${baseType} | null`;
+  };
+
   if (schema.$ref) {
-    return schemaRefName(schema.$ref);
+    return renderNullable(schemaRefName(schema.$ref));
   }
 
   if (Array.isArray(schema.enum)) {
-    return schema.enum.map((item) => JSON.stringify(item)).join(' | ');
+    return renderNullable(schema.enum.map((item) => JSON.stringify(item)).join(' | '));
   }
 
   const types = Array.isArray(schema.type) ? schema.type : [schema.type].filter(Boolean);
-  const nullable = Boolean(schema.nullable || types.includes('null'));
   const nonNullTypes = types.filter((type) => type !== 'null');
   let baseType = nonNullTypes.join(' | ');
 
@@ -44,7 +52,12 @@ function formatSchemaType(schema) {
     baseType = `${formatSchemaType(schema.items)}[]`;
   }
 
-  return nullable ? `${baseType} | null` : baseType;
+  return renderNullable(baseType);
+}
+
+function isSchemaNullable(schema) {
+  const types = Array.isArray(schema?.type) ? schema.type : [schema?.type].filter(Boolean);
+  return Boolean(schema?.nullable || types.includes('null'));
 }
 
 function summarizeFields(fields) {

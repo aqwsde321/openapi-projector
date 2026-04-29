@@ -16,6 +16,7 @@ import {
   buildJsDoc,
   renderConcreteNamedSchema,
 } from '../src/generator/render-dto.mjs';
+import { buildEndpointApplicationReview } from '../src/generator/application-review.mjs';
 import { renderOperationSection } from '../src/generator/render-api.mjs';
 import { writeProjectOutputs } from '../src/generator/write-project-output.mjs';
 import { buildTagDirectoryName } from '../src/projector/layout.mjs';
@@ -321,7 +322,6 @@ test('validateProjectRules requires runtime helper fields after review confirmat
       rulesReviewed: true,
     },
     api: {
-      adapterStyle: 'url-config',
       wrapperGrouping: 'tag',
       tagFileCase: 'title',
     },
@@ -333,6 +333,7 @@ test('validateProjectRules requires runtime helper fields after review confirmat
       'api.fetchApiImportPath',
       'api.fetchApiSymbol',
       'api.fetchApiImportKind',
+      'api.adapterStyle',
     ],
   );
 });
@@ -687,6 +688,64 @@ test('renderOperationSection can import default runtime helpers', () => {
   assert.deepEqual(rendered.apiImports, [
     "import fetchAPI from '@/shared/api-client';",
     "import type { GetHealthResponseDto } from './get-health.dto';",
+  ]);
+});
+
+test('buildEndpointApplicationReview preserves nullable enum field types', () => {
+  const spec = {
+    openapi: '3.0.3',
+    info: {
+      title: 'Unit API',
+      version: '1.0.0',
+    },
+    paths: {},
+    components: {
+      schemas: {
+        StatusResponse: {
+          type: 'object',
+          properties: {
+            status: {
+              type: 'string',
+              enum: ['ACTIVE', 'DISABLED'],
+              nullable: true,
+            },
+          },
+        },
+      },
+    },
+  };
+  const review = buildEndpointApplicationReview({
+    spec,
+    endpoint: {
+      functionName: 'getStatus',
+      operation: {
+        method: 'get',
+        path: '/status',
+        parameters: [],
+        successStatus: '200',
+        responseMediaType: 'application/json',
+        successResponse: {
+          description: 'OK',
+          content: {
+            'application/json': {
+              schema: {
+                $ref: '#/components/schemas/StatusResponse',
+              },
+            },
+          },
+        },
+      },
+    },
+    dtoPath: 'openapi/project/src/openapi-generated/status.dto.ts',
+    apiPath: 'openapi/project/src/openapi-generated/status.api.ts',
+  });
+
+  assert.deepEqual(review.response.body.fields, [
+    {
+      name: 'status',
+      required: false,
+      type: '"ACTIVE" | "DISABLED" | null',
+    },
   ]);
 });
 

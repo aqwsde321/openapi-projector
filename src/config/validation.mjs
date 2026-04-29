@@ -194,6 +194,12 @@ function validateProjectRules(projectRules) {
         api.fetchApiImportKind,
         SUPPORTED_FETCH_API_IMPORT_KINDS,
       );
+      validateRequiredEnum(
+        issues,
+        'api.adapterStyle',
+        api.adapterStyle,
+        SUPPORTED_ADAPTER_STYLES,
+      );
     } else {
       validateOptionalString(issues, 'api.fetchApiImportPath', api.fetchApiImportPath);
       validateOptionalIdentifier(issues, 'api.fetchApiSymbol', api.fetchApiSymbol);
@@ -203,13 +209,13 @@ function validateProjectRules(projectRules) {
         api.fetchApiImportKind,
         SUPPORTED_FETCH_API_IMPORT_KINDS,
       );
+      validateOptionalEnum(
+        issues,
+        'api.adapterStyle',
+        api.adapterStyle,
+        SUPPORTED_ADAPTER_STYLES,
+      );
     }
-    validateOptionalEnum(
-      issues,
-      'api.adapterStyle',
-      api.adapterStyle,
-      SUPPORTED_ADAPTER_STYLES,
-    );
     validateOptionalEnum(
       issues,
       'api.wrapperGrouping',
