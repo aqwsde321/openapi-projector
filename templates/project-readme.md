@@ -1,10 +1,12 @@
 # openapi-projector Workspace Guide
 
-이 `openapi/` 디렉터리는 `npx --yes openapi-projector init`으로 생성된 작업 공간입니다.
+이 `openapi/` 디렉터리는 `openapi-projector init` 계열 명령으로 생성된 작업 공간입니다.
 
 사람은 이 문서의 상단 요약만 보면 됩니다. 실제 OpenAPI 반영 작업은 보통 AI coding agent에게 맡기고, AI가 필요한 경우 아래의 접힌 상세 지침을 읽도록 합니다.
 
 명령 예시는 npm 패키지를 바로 실행하는 `npx --yes openapi-projector` 기준입니다. 전역 설치했다면 `openapi-projector`로 바꿔 실행해도 됩니다.
+
+소스 checkout으로 `node <openapi-projector 저장소 루트>/bin/openapi-tool.mjs init`을 실행해 이 문서를 만들었다면, 이후 명령도 같은 `node <openapi-projector 저장소 루트>/bin/openapi-tool.mjs` 방식으로 실행하세요.
 
 ## 사람용 요약
 
@@ -29,17 +31,19 @@
 이 프론트엔드 프로젝트에 openapi-projector를 적용해줘.
 
 1. 먼저 openapi/README.md를 읽어.
-2. openapi/config/project.jsonc의 sourceUrl이 Swagger UI 페이지가 아니라 OpenAPI JSON URL인지 확인해.
+2. openapi/README.md 상단의 명령 실행 방식을 따르고, 소스 checkout으로 init된 경우 npx 대신 같은 node 경로 명령을 사용해.
+   아래 npx 명령은 실행 방식에 맞게 치환해.
+3. openapi/config/project.jsonc의 sourceUrl이 Swagger UI 페이지가 아니라 OpenAPI JSON URL인지 확인해.
    sourceUrl이 비어 있거나 잘못되어 있으면 나에게 올바른 OpenAPI JSON URL을 물어봐.
-3. npx --yes openapi-projector doctor --check-url을 실행해.
-4. npx --yes openapi-projector refresh를 실행하고 openapi/review/changes/summary.md를 확인해.
-5. npx --yes openapi-projector rules를 실행해.
-6. openapi/review/project-rules/analysis.md와 analysis.json을 읽고,
+4. npx --yes openapi-projector doctor --check-url을 실행해.
+5. npx --yes openapi-projector refresh를 실행하고 openapi/review/changes/summary.md를 확인해.
+6. npx --yes openapi-projector rules를 실행해.
+7. openapi/review/project-rules/analysis.md와 analysis.json을 읽고,
    실제 프로젝트의 API client, import 경로, request 호출 방식을 확인해.
-7. rules가 만든 openapi/config/project-rules.jsonc 초안이 프로젝트 컨벤션과 맞는지 확인해.
+8. rules가 만든 openapi/config/project-rules.jsonc 초안이 프로젝트 컨벤션과 맞는지 확인해.
    맞지 않는 부분이 있으면 수정하고, 맞다고 판단되면 review.rulesReviewed를 true로 바꿔.
-8. npx --yes openapi-projector project를 실행해.
-9. openapi/project/summary.md를 읽고 생성된 endpoint와 skipped endpoint를 요약해.
+9. npx --yes openapi-projector project를 실행해.
+10. openapi/project/summary.md를 읽고 생성된 endpoint와 skipped endpoint를 요약해.
 
 아직 실제 앱 코드에는 반영하지 말고, 내가 어떤 endpoint를 적용할지 아래 형식으로 물어봐.
 

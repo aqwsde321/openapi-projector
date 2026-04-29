@@ -661,7 +661,9 @@ test(
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-cwd-'));
 
     try {
-      await runInWorkspace(workspace, () => runCli(['init']));
+      const { output } = await captureConsoleLog(() =>
+        runInWorkspace(workspace, () => runCli(['init'])),
+      );
 
       const localConfigSource = await fs.readFile(
         path.join(workspace, '.openapi-projector.local.jsonc'),
@@ -696,6 +698,16 @@ test(
       assert.match(projectReadmeSource, /rg "fetchAPI\|apiClient\|request\|axios\|ky\|httpClient" src/);
       assert.match(projectReadmeSource, /openapi\/config\/project-rules\.jsonc/);
       assert.match(projectReadmeSource, /npx --yes openapi-projector prepare/);
+      assert.match(projectReadmeSource, /소스 checkout으로 `node <openapi-projector 저장소 루트>\/bin\/openapi-tool\.mjs init`/);
+      assert.match(projectReadmeSource, /같은 `node <openapi-projector 저장소 루트>\/bin\/openapi-tool\.mjs` 방식/);
+      assert.match(projectReadmeSource, /default `sourceUrl` is `http:\/\/localhost:8080\/v3\/api-docs`/i);
+      assert.match(projectReadmeSource, /`prepare`는 아래 명령을 순서대로 대신 실행하는 단축 명령/);
+      assert.match(projectReadmeSource, /`refresh`: OpenAPI JSON을 내려받고 review 문서를 만듭니다/);
+      assert.match(projectReadmeSource, /`rules`: 현재 프론트엔드 프로젝트의 API 호출 방식을 분석하고 `openapi\/config\/project-rules\.jsonc` 초안을 만듭니다/);
+      assert.match(projectReadmeSource, /`project`: 검토된 규칙으로 DTO\/API 후보 코드를 만듭니다/);
+      assert.match(projectReadmeSource, /`review\.rulesReviewed`가 `true`일 때만 실행/);
+      assert.match(projectReadmeSource, /`rules`가 자동으로 만든 `openapi\/config\/project-rules\.jsonc` 초안/);
+      assert.match(output, /confirm sourceUrl in openapi\/config\/project\.jsonc \(default: http:\/\/localhost:8080\/v3\/api-docs\), then run doctor --check-url/);
       assert.match(gitignoreSource, /\.openapi-projector\.local\.jsonc/);
 
       const openapiGitignoreSource = await fs.readFile(
@@ -708,6 +720,18 @@ test(
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
     }
+  },
+);
+
+test(
+  'cli help explains default sourceUrl and source-url override',
+  { concurrency: false },
+  async () => {
+    const { output } = await captureConsoleLog(() => runCli(['help']));
+
+    assert.match(output, /npx --yes openapi-projector init/);
+    assert.match(output, /npx --yes openapi-projector init --source-url <openapi-json-url>/);
+    assert.match(output, /default sourceUrl: http:\/\/localhost:8080\/v3\/api-docs/);
   },
 );
 

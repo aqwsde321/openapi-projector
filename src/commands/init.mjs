@@ -55,7 +55,9 @@ const initCommand = {
     if (localConfigResult.gitignoreUpdated) {
       console.log(`- root gitignore updated: ${localConfigResult.gitignorePath}`);
     }
-    console.log('- next: confirm sourceUrl in openapi/config/project.jsonc, then run doctor');
+    console.log(
+      '- next: confirm sourceUrl in openapi/config/project.jsonc (default: http://localhost:8080/v3/api-docs), then run doctor --check-url',
+    );
   },
 };
 
