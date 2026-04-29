@@ -66,21 +66,21 @@ pnpm test
 
 ```bash
 cd /tmp/smoke-project
-node /path/to/openapi-projector/bin/openapi-tool.mjs init
+node <openapi-projector 저장소 루트>/bin/openapi-tool.mjs init
 # openapi/config/project.jsonc 의 sourceUrl 을 실제 OpenAPI JSON URL로 설정
-node /path/to/openapi-projector/bin/openapi-tool.mjs doctor
-node /path/to/openapi-projector/bin/openapi-tool.mjs refresh
-node /path/to/openapi-projector/bin/openapi-tool.mjs rules
+node <openapi-projector 저장소 루트>/bin/openapi-tool.mjs doctor
+node <openapi-projector 저장소 루트>/bin/openapi-tool.mjs refresh
+node <openapi-projector 저장소 루트>/bin/openapi-tool.mjs rules
 # openapi/review/project-rules/analysis.md 와 실제 API client 를 확인
 # openapi/config/project-rules.jsonc 의 review.rulesReviewed 를 true 로 설정
-node /path/to/openapi-projector/bin/openapi-tool.mjs doctor
-node /path/to/openapi-projector/bin/openapi-tool.mjs project
+node <openapi-projector 저장소 루트>/bin/openapi-tool.mjs doctor
+node <openapi-projector 저장소 루트>/bin/openapi-tool.mjs project
 ```
 
 기존 bootstrap 초기화가 필요할 때만 아래처럼 실행합니다.
 
 ```bash
-node /path/to/openapi-projector/bin/openapi-tool.mjs init --force
+node <openapi-projector 저장소 루트>/bin/openapi-tool.mjs init --force
 ```
 
 ### 3. config discovery

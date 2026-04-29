@@ -130,7 +130,7 @@ const doctorCommand = {
 
     if (!rootDir) {
       fail('Target project root is not configured.');
-      lines.push('  Fix: run from the frontend project root or pass --project-root /path/to/service-app.');
+      lines.push('  Fix: run from the frontend project root or pass --project-root <frontend-project-root>.');
       console.log(lines.join('\n'));
       return { ok };
     }

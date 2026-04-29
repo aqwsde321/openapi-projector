@@ -20,11 +20,11 @@ const helpCommand = {
     console.log('  node ./bin/openapi-tool.mjs <command>');
     console.log('  openapi-projector <command>');
     console.log('  openapi-tool <command>');
-    console.log('  node ./bin/openapi-tool.mjs --project-root /path/to/service-app <command>');
+    console.log('  node ./bin/openapi-tool.mjs --project-root <frontend-project-root> <command>');
     console.log('  pnpm run openapi:<command>');
     console.log('');
     console.log('First-time setup:');
-    console.log('  1. cd /path/to/frontend-project');
+    console.log('  1. cd <frontend-project-root>');
     console.log('  2. openapi-projector init');
     console.log('     or openapi-projector init --source-url https://example.com/v3/api-docs');
     console.log('  3. read openapi/README.md or ask an AI coding agent to continue from it');
