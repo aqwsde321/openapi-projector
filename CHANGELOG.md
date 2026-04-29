@@ -17,6 +17,7 @@
 - `oasdiff` off 모드가 기준 파일을 갱신하지 않도록 수정했습니다.
 - `init --source-url` 적용 여부를 CLI 출력에서 실제 설정값으로 확인할 수 있게 수정했습니다.
 - 우선순위가 높은 기존 OpenAPI config가 있을 때 `init`이 사용되지 않는 하위 config를 만들지 않도록 수정했습니다.
+- 우선순위가 낮은 기존 OpenAPI config는 `init` 대상 config 생성을 막지 않도록 수정했습니다.
 
 ## 0.1.4 - 2026-04-29
 

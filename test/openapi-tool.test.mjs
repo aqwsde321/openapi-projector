@@ -1094,6 +1094,35 @@ test(
 );
 
 test(
+  'cli init allows creating target config when only lower-priority config exists',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-lower-config-'));
+    const sourceUrl = 'https://new.example.com/v3/api-docs';
+
+    try {
+      await writeJsonFile(path.join(workspace, 'config/project.jsonc'), {
+        sourceUrl: 'https://old.example.com/v3/api-docs',
+        sourcePath: 'openapi/_internal/source/openapi.json',
+      });
+
+      const { output } = await captureConsoleLog(() =>
+        runInWorkspace(workspace, () => runCli(['init', '--source-url', sourceUrl])),
+      );
+
+      const projectConfig = await readJson(
+        path.join(workspace, 'openapi/config/project.jsonc'),
+      );
+
+      assert.equal(projectConfig.sourceUrl, sourceUrl);
+      assert.match(output, /sourceUrl: https:\/\/new\.example\.com\/v3\/api-docs/);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
   'cli help explains default sourceUrl and source-url override',
   { concurrency: false },
   async () => {

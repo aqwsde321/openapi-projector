@@ -27,6 +27,7 @@ const PROJECT_CONFIG_CANDIDATES = [
   'openapi/config/project.jsonc',
   'config/project.jsonc',
 ];
+const PROJECT_CONFIG_TARGET_CANDIDATE = 'openapi/config/project.jsonc';
 
 function isNonBlankString(value) {
   return typeof value === 'string' && value.trim();
@@ -608,11 +609,12 @@ async function loadProjectConfig(rootDir) {
 }
 
 async function findExistingProjectConfig(rootDir) {
-  for (const candidate of PROJECT_CONFIG_CANDIDATES) {
+  for (const [candidateIndex, candidate] of PROJECT_CONFIG_CANDIDATES.entries()) {
     const resolved = path.resolve(rootDir, candidate);
     if (await pathExists(resolved)) {
       return {
         candidate,
+        candidateIndex,
         projectConfigPath: resolved,
       };
     }
@@ -623,7 +625,10 @@ async function findExistingProjectConfig(rootDir) {
 
 async function initProject(rootDir, options = {}) {
   const { force = false, projectConfigOverrides = {} } = options;
-  const projectConfigTargetPath = path.resolve(rootDir, 'openapi/config/project.jsonc');
+  const projectConfigTargetPath = path.resolve(rootDir, PROJECT_CONFIG_TARGET_CANDIDATE);
+  const projectConfigTargetIndex = PROJECT_CONFIG_CANDIDATES.indexOf(
+    PROJECT_CONFIG_TARGET_CANDIDATE,
+  );
   const projectRulesTemplatePath = path.join(TOOL_ROOT_DIR, 'templates', 'project-rules.jsonc');
   const projectConfigTemplatePath = path.join(TOOL_ROOT_DIR, 'templates', 'project.jsonc');
   const projectReadmeTemplatePath = path.join(TOOL_ROOT_DIR, 'templates', 'project-readme.md');
@@ -631,9 +636,11 @@ async function initProject(rootDir, options = {}) {
   const projectReadmePath = path.resolve(rootDir, 'openapi/README.md');
   const openapiGitignorePath = path.resolve(rootDir, 'openapi/.gitignore');
   const existingProjectConfig = await findExistingProjectConfig(rootDir);
-  const projectConfigExisted = existingProjectConfig?.projectConfigPath === projectConfigTargetPath;
+  const projectConfigExisted = await pathExists(projectConfigTargetPath);
+  const hasHigherPriorityProjectConfig =
+    existingProjectConfig && existingProjectConfig.candidateIndex < projectConfigTargetIndex;
 
-  if (existingProjectConfig && !projectConfigExisted) {
+  if (hasHigherPriorityProjectConfig) {
     throw new Error(
       [
         `Project config already exists: ${existingProjectConfig.projectConfigPath}`,
@@ -643,7 +650,7 @@ async function initProject(rootDir, options = {}) {
     );
   }
 
-  if (existingProjectConfig && !force) {
+  if (projectConfigExisted && !force) {
     throw new Error(
       `Project config already exists: ${projectConfigTargetPath}\nRe-run with --force to reinitialize bootstrap files.`,
     );
