@@ -409,9 +409,10 @@ test(
         projectConfigSource,
         /"projectRulesAnalysisJsonPath": "openapi\/review\/project-rules\/analysis\.json"/,
       );
-      assert.match(projectReadmeSource, /# openapi-projector Usage Guide/);
-      assert.match(projectReadmeSource, /project-specific usage guide/);
-      assert.match(projectReadmeSource, /## For Humans: What You Need To Know/);
+      assert.match(projectReadmeSource, /# openapi-projector Workspace Guide/);
+      assert.match(projectReadmeSource, /## 사람용 요약/);
+      assert.match(projectReadmeSource, /<details>/);
+      assert.match(projectReadmeSource, /<summary>AI Agents: Detailed Workflow<\/summary>/);
       assert.match(projectReadmeSource, /## For AI Agents: Detailed Workflow/);
       assert.match(projectReadmeSource, /openapi\/review\/changes\/summary\.md/);
       assert.match(projectReadmeSource, /openapi\/review\/project-rules\/analysis\.json/);
@@ -500,9 +501,10 @@ test(
       assert.match(projectRulesSource, /"rulesReviewed": false/);
       assert.match(projectRulesSource, /"fetchApiImportPath": "@\/shared\/api"/);
       assert.match(projectRulesSource, /"fetchApiImportKind": "named"/);
-      assert.match(projectReadmeSource, /# openapi-projector Usage Guide/);
-      assert.match(projectReadmeSource, /project-specific usage guide/);
-      assert.match(projectReadmeSource, /## For Humans: What You Need To Know/);
+      assert.match(projectReadmeSource, /# openapi-projector Workspace Guide/);
+      assert.match(projectReadmeSource, /## 사람용 요약/);
+      assert.match(projectReadmeSource, /<details>/);
+      assert.match(projectReadmeSource, /<summary>AI Agents: Detailed Workflow<\/summary>/);
       assert.match(projectReadmeSource, /## For AI Agents: Detailed Workflow/);
       assert.equal(
         openapiGitignoreSource,
