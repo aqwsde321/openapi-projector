@@ -1012,7 +1012,8 @@ test(
       assert.match(projectReadmeSource, /`review\.rulesReviewed`가 `true`일 때만 실행/);
       assert.match(projectReadmeSource, /`rules`가 자동으로 만든 `openapi\/config\/project-rules\.jsonc` 초안/);
       assert.match(projectReadmeSource, /API wrapper까지 필요하면 위 프롬프트 그대로 쓰면 됩니다/);
-      assert.match(output, /confirm sourceUrl in openapi\/config\/project\.jsonc \(default: http:\/\/localhost:8080\/v3\/api-docs\), then run doctor --check-url/);
+      assert.match(output, /sourceUrl: http:\/\/localhost:8080\/v3\/api-docs/);
+      assert.match(output, /next: run doctor --check-url/);
       assert.match(gitignoreSource, /\.openapi-projector\.local\.jsonc/);
 
       const openapiGitignoreSource = await fs.readFile(
@@ -1022,6 +1023,70 @@ test(
       assert.match(openapiGitignoreSource, /_internal\//);
       assert.match(openapiGitignoreSource, /review\//);
       assert.match(openapiGitignoreSource, /project\//);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli init applies --source-url override to project config and output',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-source-url-'));
+    const sourceUrl = 'https://api.example.com/v3/api-docs';
+
+    try {
+      const { output } = await captureConsoleLog(() =>
+        runInWorkspace(workspace, () => runCli(['init', '--source-url', sourceUrl])),
+      );
+
+      const projectConfigSource = await fs.readFile(
+        path.join(workspace, 'openapi/config/project.jsonc'),
+        'utf8',
+      );
+      const projectConfig = await readJson(
+        path.join(workspace, 'openapi/config/project.jsonc'),
+      );
+
+      assert.equal(projectConfig.sourceUrl, sourceUrl);
+      assert.match(projectConfigSource, /"sourceUrl": "https:\/\/api\.example\.com\/v3\/api-docs"/);
+      assert.doesNotMatch(projectConfigSource, /"sourceUrl": "http:\/\/localhost:8080\/v3\/api-docs"/);
+      assert.match(output, /sourceUrl: https:\/\/api\.example\.com\/v3\/api-docs/);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli init refuses to create lower-priority config when root config already exists',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-root-config-'));
+
+    try {
+      await writeJsonFile(path.join(workspace, 'openapi.config.jsonc'), {
+        sourceUrl: 'https://old.example.com/v3/api-docs',
+        sourcePath: 'openapi/_internal/source/openapi.json',
+      });
+
+      await assert.rejects(
+        () => runInWorkspace(workspace, () =>
+          runCli(['init', '--source-url', 'https://new.example.com/v3/api-docs']),
+        ),
+        /Project config already exists: .*openapi\.config\.jsonc\nThis config has priority over .*openapi\/config\/project\.jsonc/,
+      );
+      await assert.rejects(
+        () => runInWorkspace(workspace, () =>
+          runCli(['init', '--force', '--source-url', 'https://new.example.com/v3/api-docs']),
+        ),
+        /Project config already exists: .*openapi\.config\.jsonc\nThis config has priority over .*openapi\/config\/project\.jsonc/,
+      );
+      await assert.rejects(
+        () => fs.access(path.join(workspace, 'openapi/config/project.jsonc')),
+        /ENOENT/,
+      );
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
     }

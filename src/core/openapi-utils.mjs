@@ -607,6 +607,20 @@ async function loadProjectConfig(rootDir) {
   };
 }
 
+async function findExistingProjectConfig(rootDir) {
+  for (const candidate of PROJECT_CONFIG_CANDIDATES) {
+    const resolved = path.resolve(rootDir, candidate);
+    if (await pathExists(resolved)) {
+      return {
+        candidate,
+        projectConfigPath: resolved,
+      };
+    }
+  }
+
+  return null;
+}
+
 async function initProject(rootDir, options = {}) {
   const { force = false, projectConfigOverrides = {} } = options;
   const projectConfigTargetPath = path.resolve(rootDir, 'openapi/config/project.jsonc');
@@ -616,9 +630,20 @@ async function initProject(rootDir, options = {}) {
   const projectRulesPath = path.resolve(rootDir, 'openapi/config/project-rules.jsonc');
   const projectReadmePath = path.resolve(rootDir, 'openapi/README.md');
   const openapiGitignorePath = path.resolve(rootDir, 'openapi/.gitignore');
-  const projectConfigExisted = await pathExists(projectConfigTargetPath);
+  const existingProjectConfig = await findExistingProjectConfig(rootDir);
+  const projectConfigExisted = existingProjectConfig?.projectConfigPath === projectConfigTargetPath;
 
-  if (projectConfigExisted && !force) {
+  if (existingProjectConfig && !projectConfigExisted) {
+    throw new Error(
+      [
+        `Project config already exists: ${existingProjectConfig.projectConfigPath}`,
+        `This config has priority over ${projectConfigTargetPath}.`,
+        'Edit or remove the existing config before running init.',
+      ].join('\n'),
+    );
+  }
+
+  if (existingProjectConfig && !force) {
     throw new Error(
       `Project config already exists: ${projectConfigTargetPath}\nRe-run with --force to reinitialize bootstrap files.`,
     );

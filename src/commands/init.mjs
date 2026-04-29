@@ -1,4 +1,4 @@
-import { initProject, initToolLocalConfig } from '../core/openapi-utils.mjs';
+import { initProject, initToolLocalConfig, loadProjectConfig } from '../core/openapi-utils.mjs';
 
 function parseInitArgs(argv) {
   let sourceUrl = null;
@@ -55,9 +55,10 @@ const initCommand = {
     if (localConfigResult.gitignoreUpdated) {
       console.log(`- root gitignore updated: ${localConfigResult.gitignorePath}`);
     }
-    console.log(
-      '- next: confirm sourceUrl in openapi/config/project.jsonc (default: http://localhost:8080/v3/api-docs), then run doctor --check-url',
-    );
+    const { projectConfig } = await loadProjectConfig(rootDir);
+    const configuredSourceUrl = projectConfig.sourceUrl || '(not configured)';
+    console.log(`- sourceUrl: ${configuredSourceUrl}`);
+    console.log('- next: run doctor --check-url');
   },
 };
 
