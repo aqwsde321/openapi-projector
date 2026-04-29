@@ -55,11 +55,7 @@ const initCommand = {
     if (localConfigResult.gitignoreUpdated) {
       console.log(`- root gitignore updated: ${localConfigResult.gitignorePath}`);
     }
-    if (projectConfigOverrides.sourceUrl) {
-      console.log('- next: run doctor, then prepare');
-    } else {
-      console.log('- next: set sourceUrl in openapi/config/project.jsonc, then run doctor');
-    }
+    console.log('- next: confirm sourceUrl in openapi/config/project.jsonc, then run doctor');
   },
 };
 

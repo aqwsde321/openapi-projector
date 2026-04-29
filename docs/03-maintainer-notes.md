@@ -43,7 +43,36 @@
 
 ## 개발 시 확인할 것
 
-### 1. 현재 repo 검증
+### 1. 소스에서 직접 실행하기
+
+npm 배포 버전이 아니라 현재 저장소 코드를 직접 테스트하려면 아래처럼 실행합니다.
+
+```bash
+git clone https://github.com/aqwsde321/openapi-projector.git
+cd openapi-projector
+pnpm install
+node ./bin/openapi-tool.mjs help
+```
+
+프론트엔드 프로젝트에 현재 checkout 코드를 바로 적용해 보려면, 프론트엔드 프로젝트 루트에서 저장소의 CLI 파일을 직접 실행합니다.
+
+```bash
+cd <프론트엔드 프로젝트 루트>
+node <openapi-projector 저장소 루트>/bin/openapi-tool.mjs init
+node <openapi-projector 저장소 루트>/bin/openapi-tool.mjs prepare
+```
+
+개발 중 전역 명령처럼 반복해서 쓰고 싶을 때만 link를 사용합니다.
+
+```bash
+cd <openapi-projector 저장소 루트>
+pnpm link --global
+
+cd <프론트엔드 프로젝트 루트>
+openapi-projector init
+```
+
+### 2. 현재 repo 검증
 
 도구 저장소 루트는 기본 대상 프로젝트가 아닙니다. repo 자체 검증은 아래를 기본으로 합니다.
 
@@ -60,7 +89,7 @@ npm pack --dry-run
 - 명시적 성공 응답이 없는 endpoint skip
 - path parameter URL encoding
 
-### 2. npm 배포
+### 3. npm 배포
 
 배포는 GitHub Actions의 npm Trusted Publishing을 기준으로 자동화합니다. npm 패키지 설정에서 Trusted Publisher를 아래 값으로 등록해야 합니다.
 
@@ -82,7 +111,7 @@ git push origin main --tags
 
 `.github/workflows/publish.yml`은 태그의 `v`를 제외한 값과 `package.json`의 `version`이 같을 때만 `pnpm test`, `npm pack --dry-run`, `npm publish`를 실행합니다.
 
-### 3. bootstrap 시나리오
+### 4. bootstrap 시나리오
 
 새 빈 프론트엔드 프로젝트 디렉터리에서 `init`이 로컬 설정과 `openapi/`를 만들고, `sourceUrl` 설정 후 `refresh -> rules`가 review gate 앞까지 정상 진행해야 합니다. `project-rules.jsonc` 검토 전에는 `doctor`가 unreviewed rules를 FAIL로 보고하는 것이 기대 동작입니다.
 
@@ -107,7 +136,7 @@ node <openapi-projector 저장소 루트>/bin/openapi-tool.mjs project
 node <openapi-projector 저장소 루트>/bin/openapi-tool.mjs init --force
 ```
 
-### 4. config discovery
+### 5. config discovery
 
 현재는 아래 순서를 지원합니다.
 

@@ -1,7 +1,8 @@
 {
   // OpenAPI 원본 URL 입니다.
-  // 실제 백엔드 Swagger/OpenAPI 주소로 바꿔야 download / refresh 가 동작합니다.
-  "sourceUrl": "https://example.com/v3/api-docs",
+  // 기본값은 로컬 Spring Boot 백엔드의 OpenAPI JSON URL 입니다.
+  // 실제 백엔드 주소가 다르면 해당 OpenAPI JSON URL로 바꿔야 download / refresh 가 동작합니다.
+  "sourceUrl": "http://localhost:8080/v3/api-docs",
 
   // 다운로드한 원본 OpenAPI JSON 저장 위치입니다.
   "sourcePath": "openapi/_internal/source/openapi.json",

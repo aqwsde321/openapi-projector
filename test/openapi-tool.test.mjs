@@ -37,7 +37,7 @@ async function setProjectSourceUrl(workspace, sourceUrl) {
   await fs.writeFile(
     projectConfigPath,
     source.replace(
-      '"sourceUrl": "https://example.com/v3/api-docs"',
+      '"sourceUrl": "http://localhost:8080/v3/api-docs"',
       `"sourceUrl": ${JSON.stringify(sourceUrl)}`,
     ),
     'utf8',
@@ -679,7 +679,7 @@ test(
 
       assert.match(localConfigSource, /"projectRoot": "\."/);
       assert.doesNotMatch(localConfigSource, /"sourceUrl"/);
-      assert.match(projectConfigSource, /"sourceUrl": "https:\/\/example\.com\/v3\/api-docs"/);
+      assert.match(projectConfigSource, /"sourceUrl": "http:\/\/localhost:8080\/v3\/api-docs"/);
       assert.match(
         projectConfigSource,
         /"projectRulesAnalysisJsonPath": "openapi\/review\/project-rules\/analysis\.json"/,
@@ -772,7 +772,7 @@ test(
       const projectReadmeSource = await fs.readFile(projectReadmePath, 'utf8');
       const openapiGitignoreSource = await fs.readFile(openapiGitignorePath, 'utf8');
 
-      assert.match(projectConfigSource, /"sourceUrl": "https:\/\/example\.com\/v3\/api-docs"/);
+      assert.match(projectConfigSource, /"sourceUrl": "http:\/\/localhost:8080\/v3\/api-docs"/);
       assert.match(projectRulesSource, /"rulesReviewed": false/);
       assert.match(projectRulesSource, /"fetchApiImportPath": "@\/shared\/api"/);
       assert.match(projectRulesSource, /"fetchApiImportKind": "named"/);
@@ -1318,20 +1318,36 @@ test(
 );
 
 test(
-  'prepare requires sourceUrl after init',
+  'prepare uses default localhost sourceUrl after init',
   { concurrency: false },
   async () => {
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-missing-url-'));
+    const spec = await readFixtureJson('oas30.json');
+    const originalFetch = globalThis.fetch;
+    const requestedUrls = [];
 
     try {
+      globalThis.fetch = async (url) => {
+        requestedUrls.push(String(url));
+        return new Response(JSON.stringify(spec), {
+          status: 200,
+          headers: {
+            'content-type': 'application/json',
+          },
+        });
+      };
+
       await runInWorkspace(workspace, async () => {
         await runCli(['init']);
         await assert.rejects(
           () => runCli(['prepare']),
-          /sourceUrl is not configured\.\nSet sourceUrl in openapi\/config\/project\.jsonc before running prepare\./,
+          /Project rules have not been reviewed\./,
         );
       });
+
+      assert.deepEqual(requestedUrls, ['http://localhost:8080/v3/api-docs']);
     } finally {
+      globalThis.fetch = originalFetch;
       await fs.rm(workspace, { recursive: true, force: true });
     }
   },
