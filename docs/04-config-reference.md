@@ -112,7 +112,7 @@
 
 | 값 | 설명 |
 | --- | --- |
-| `tag` | 기본값. `<tag>/<endpoint>.dto.ts`, `<tag>/<endpoint>.api.ts`, `<tag>/index.ts` 형태로 생성 |
+| `tag` | 기본값. `<tag>/<endpoint>.dto.ts`, `<tag>/<endpoint>.api.ts` 형태로 생성 |
 | `flat` | 태그 폴더 없이 `<endpoint>.dto.ts`, `<endpoint>.api.ts`를 `projectGeneratedSrcDir` 바로 아래에 생성 |
 
 ## 4. Config Discovery

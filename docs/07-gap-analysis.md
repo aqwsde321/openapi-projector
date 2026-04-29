@@ -75,7 +75,7 @@
 
 이미 가능한 것:
 
-- `project`로 `schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API` 생성
+- `project`로 `schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API` 후보 생성
 - `manifest.json`, `summary.md` 생성
 
 근거:
@@ -142,13 +142,13 @@
 
 - 다른 구조의 프로젝트에선 규칙 추론 정확도가 제한될 수 있음
 
-### 3. 생성 결과 구조가 의도적으로 고정돼 있음
+### 3. 생성 결과 구조 옵션이 제한적임
 
-현재 후보 코드와 권장 반영 대상은 `schema.ts + <tag>/<endpoint>.dto.ts + <tag>/<endpoint>.api.ts` 구조를 고정으로 사용합니다.
+현재 후보 코드와 권장 반영 대상은 기본적으로 `schema.ts + <tag>/<endpoint>.dto.ts + <tag>/<endpoint>.api.ts` 구조를 사용합니다. 설정에 따라 태그 폴더 없이 flat 배치도 가능합니다.
 
 영향:
 
-- MVP 단계에서는 안정적이지만, 더 자유로운 배치 규칙을 원하면 확장 필요
+- MVP 단계에서는 안정적이지만, 태그/flat 외의 배치 규칙을 원하면 확장 필요
 
 ### 4. 검증 체계 확장 필요
 

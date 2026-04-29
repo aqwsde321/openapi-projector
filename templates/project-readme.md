@@ -178,6 +178,7 @@ How to interpret `summary.md`:
 
 `Contract Changed` items include a comparison table with field-level details when both the previous and current catalogs have comparison snapshots.
 Examples include query parameter additions, request body required changes, response schema field type changes, and response status/media-type changes.
+`Added`, `Contract Changed`, and `Doc Changed` entries also include DTO/API candidate links based on `project-rules.jsonc`; after `project` runs, those links open the generated files under `openapi/project/src/openapi-generated/...`.
 If the previous catalog was created by an older version without snapshots, the first run after upgrade can only report the affected endpoint; detailed comparison starts from the next refresh.
 
 Recommended AI behavior:
@@ -319,6 +320,8 @@ Then read:
 - `openapi/project/summary.md`
 - `openapi/project/src/openapi-generated/`
 
+Generated candidates include the review `schema.ts` plus endpoint-scoped `.dto.ts` and `.api.ts` files. `project` does not create barrel `index.ts` files.
+
 Start with the `Application Review` section in `summary.md`. It records the runtime wrapper import/call shape and each generated endpoint's request DTO, response DTO, params, body schema, media types, and generated files.
 
 Check generated API files for:
@@ -336,7 +339,7 @@ Check generated API files for:
 
 If generated code is wrong, edit `openapi/config/project-rules.jsonc` and run `openapi-projector project` again.
 
-If `project` rejects `project-rules.jsonc`, fix the reported field first. Common validation failures are invalid `api.fetchApiSymbol`, unsupported `api.adapterStyle`, unsupported `api.tagFileCase`, and `layout.schemaFileName` values that are paths instead of file names.
+If `project` rejects `project-rules.jsonc`, fix the reported field first. Common validation failures are invalid `api.fetchApiSymbol`, unsupported `api.adapterStyle`, unsupported `api.tagFileCase`, unsupported `api.wrapperGrouping`, and `layout.schemaFileName` values that are paths instead of file names.
 
 ### 7. Applying Code to the App
 

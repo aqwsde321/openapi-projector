@@ -16,7 +16,6 @@ import {
   renderNestedRequestDtoSource,
   resolveSchema,
 } from './render-dto.mjs';
-import { renderTagIndexSource } from './render-index.mjs';
 import {
   buildOperationSymbolBase,
   createUniqueName,
@@ -381,7 +380,6 @@ function renderTagFolderOutputs({
 
   return {
     endpointFiles,
-    indexSource: renderTagIndexSource(endpointFiles),
   };
 }
 

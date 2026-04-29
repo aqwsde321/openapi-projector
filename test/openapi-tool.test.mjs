@@ -444,6 +444,10 @@ test(
         path.join(historyDir, historyMarkdownFiles[0]),
         'utf8',
       );
+      const summarySource = await fs.readFile(
+        path.join(workspace, 'openapi/review/changes/summary.md'),
+        'utf8',
+      );
       const historyJson = await readJson(path.join(historyDir, historyJsonFiles[0]));
       const detailPaths = historyJson.contractChanged[0].details.map(
         (detail) => detail.path,
@@ -451,6 +455,10 @@ test(
 
       assert.equal(historyJson.contractChanged.length, 1);
       assert.equal(historyJson.contractChanged[0].detailsUnavailable, undefined);
+      assert.deepEqual(historyJson.contractChanged[0].projectFiles, {
+        dto: 'openapi/project/src/openapi-generated/Users/get-users-by-id.dto.ts',
+        api: 'openapi/project/src/openapi-generated/Users/get-users-by-id.api.ts',
+      });
       assert.ok(
         detailPaths.includes('operation.parameters["query.active"].schema.type'),
       );
@@ -470,6 +478,22 @@ test(
         next: '`File[]`',
       });
       assert.match(historySource, /Contract Changed: 1/);
+      assert.match(
+        summarySource,
+        /\[DTO\]\(<\.\.\/\.\.\/project\/src\/openapi-generated\/Users\/get-users-by-id\.dto\.ts>\)/,
+      );
+      assert.match(
+        summarySource,
+        /\[API\]\(<\.\.\/\.\.\/project\/src\/openapi-generated\/Users\/get-users-by-id\.api\.ts>\)/,
+      );
+      assert.match(
+        historySource,
+        /\[DTO\]\(<\.\.\/\.\.\/\.\.\/project\/src\/openapi-generated\/Users\/get-users-by-id\.dto\.ts>\)/,
+      );
+      assert.match(
+        historySource,
+        /\[API\]\(<\.\.\/\.\.\/\.\.\/project\/src\/openapi-generated\/Users\/get-users-by-id\.api\.ts>\)/,
+      );
       assert.match(
         historySource,
         /\| 구분 \| 항목 \| 이전 \| 변경 \|/,
@@ -1349,7 +1373,7 @@ test(
 );
 
 test(
-  'project creates schema, tag wrappers, and manifest for manual handoff',
+  'project creates tag wrapper candidates and manifest for manual handoff',
   { concurrency: false },
   async () => {
     const spec = await readFixtureJson('oas31.json');
@@ -1387,17 +1411,15 @@ test(
       const profilesDtoPath = path.join(generatedRoot, 'profiles/update-profile.dto.ts');
       const defaultApiPath = path.join(generatedRoot, 'default/get-health-status.api.ts');
       const profilesApiPath = path.join(generatedRoot, 'profiles/update-profile.api.ts');
-      const defaultIndexPath = path.join(generatedRoot, 'default/index.ts');
-      const profilesIndexPath = path.join(generatedRoot, 'profiles/index.ts');
       const manifestPath = path.join(workspace, 'openapi/project/manifest.json');
       await assertExists(path.join(generatedRoot, 'schema.ts'));
       await assertExists(defaultDtoPath);
       await assertExists(profilesDtoPath);
       await assertExists(defaultApiPath);
       await assertExists(profilesApiPath);
-      await assertExists(defaultIndexPath);
-      await assertExists(profilesIndexPath);
-      await assertExists(path.join(generatedRoot, 'index.ts'));
+      await assert.rejects(() => fs.access(path.join(generatedRoot, 'default/index.ts')), /ENOENT/);
+      await assert.rejects(() => fs.access(path.join(generatedRoot, 'profiles/index.ts')), /ENOENT/);
+      await assert.rejects(() => fs.access(path.join(generatedRoot, 'index.ts')), /ENOENT/);
       await assertExists(manifestPath);
 
       const defaultApiSource = await fs.readFile(defaultApiPath, 'utf8');
@@ -1594,14 +1616,13 @@ test(
           workspace,
           'openapi/project/src/openapi-generated/199 - [BOS]원문 노출 API',
         );
-        const rootIndexSource = await fs.readFile(
-          path.join(workspace, 'openapi/project/src/openapi-generated/index.ts'),
-          'utf8',
-        );
 
         await assertExists(path.join(tagDir, 'get-banner.dto.ts'));
         await assertExists(path.join(tagDir, 'get-banner.api.ts'));
-        assert.match(rootIndexSource, /export \* from "\.\/199 - \[BOS\]원문 노출 API";/);
+        await assert.rejects(
+          () => fs.access(path.join(workspace, 'openapi/project/src/openapi-generated/index.ts')),
+          /ENOENT/,
+        );
 
         await execFileAsync(process.execPath, [
           TSC_CLI,

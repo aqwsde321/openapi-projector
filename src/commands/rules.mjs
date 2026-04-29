@@ -20,6 +20,9 @@ const DEFAULT_API_RULES = {
 };
 const DEFAULT_LAYOUT_RULES = {
   schemaFileName: 'schema.ts',
+};
+const LEGACY_SCHEMA_LAYOUT_RULES = {
+  schemaFileName: 'schema.ts',
   apiDirName: 'apis',
 };
 const DEFAULT_REVIEW_RULES = {
@@ -38,7 +41,7 @@ const GENERATED_REVIEW_NOTES = new Set([
 ]);
 const SCAFFOLD_SIGNATURE_VERSION = 1;
 const DEFAULT_API_RULE_KEYS = new Set(Object.keys(DEFAULT_API_RULES));
-const DEFAULT_LAYOUT_RULE_KEYS = new Set(Object.keys(DEFAULT_LAYOUT_RULES));
+const DEFAULT_LAYOUT_RULE_KEYS = new Set(Object.keys(LEGACY_SCHEMA_LAYOUT_RULES));
 const DEFAULT_REVIEW_RULE_KEYS = new Set([
   ...Object.keys(DEFAULT_REVIEW_RULES),
   'scaffoldSignature',
@@ -189,8 +192,12 @@ function matchesScaffoldApiValues(api, expectedApi) {
 
 function matchesScaffoldLayoutValues(layout, expectedLayout) {
   return (
-    layout.schemaFileName === expectedLayout.schemaFileName &&
-    (layout.apiDirName == null || layout.apiDirName === expectedLayout.apiDirName)
+    (layout.schemaFileName == null ||
+      layout.schemaFileName === expectedLayout.schemaFileName ||
+      layout.schemaFileName === LEGACY_SCHEMA_LAYOUT_RULES.schemaFileName) &&
+    (layout.apiDirName == null ||
+      layout.apiDirName === expectedLayout.apiDirName ||
+      layout.apiDirName === LEGACY_SCHEMA_LAYOUT_RULES.apiDirName)
   );
 }
 
@@ -223,10 +230,23 @@ function buildScaffoldCandidates(previousAnalysis, rules) {
       layout: DEFAULT_LAYOUT_RULES,
       reviewNotes: DEFAULT_REVIEW_RULES.notes,
     }),
+    createScaffoldCandidate({
+      api: DEFAULT_API_RULES,
+      layout: LEGACY_SCHEMA_LAYOUT_RULES,
+      reviewNotes: DEFAULT_REVIEW_RULES.notes,
+    }),
   ];
 
   if (previousAnalysis) {
-    candidates.push(buildScaffoldDefaultsFromAnalysis(previousAnalysis));
+    const previousCandidate = buildScaffoldDefaultsFromAnalysis(previousAnalysis);
+    candidates.push(previousCandidate);
+    candidates.push(
+      createScaffoldCandidate({
+        api: previousCandidate.api,
+        layout: LEGACY_SCHEMA_LAYOUT_RULES,
+        reviewNotes: previousCandidate.reviewNotes,
+      }),
+    );
   }
 
   const currentRulesCandidate = buildCurrentRulesScaffoldCandidate(rules);
@@ -373,7 +393,6 @@ function renderAnalysisMarkdown({
     '- wrapper grouping default: `tag` (`flat` is also supported)',
     '- tag file case: `title`',
     '- schema file name: `schema.ts`',
-    '- api dir name: `apis`',
     '',
   ].join('\n');
 }
@@ -424,8 +443,7 @@ function buildRulesJsonc({
     "tagFileCase": "title"
   },
   "layout": {
-    "schemaFileName": "schema.ts",
-    "apiDirName": "apis"
+    "schemaFileName": "schema.ts"
   }
 }
 `;

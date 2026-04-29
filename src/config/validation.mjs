@@ -111,21 +111,6 @@ function validateOptionalFileName(issues, path, value) {
   }
 }
 
-function validateOptionalPathSegment(issues, path, value) {
-  if (value == null) {
-    return;
-  }
-
-  if (typeof value !== 'string' || !value.trim()) {
-    addIssue(issues, path, 'must be a non-empty string');
-    return;
-  }
-
-  if (value.includes('/') || value.includes('\\') || value === '.' || value === '..') {
-    addIssue(issues, path, 'must be a single path segment');
-  }
-}
-
 function isAbsolutePathLike(value) {
   return value.startsWith('/') || value.startsWith('\\') || /^[A-Za-z]:[\\/]/.test(value);
 }
@@ -234,7 +219,6 @@ function validateProjectRules(projectRules) {
     addIssue(issues, 'layout', 'must be an object');
   } else {
     validateOptionalFileName(issues, 'layout.schemaFileName', layout.schemaFileName);
-    validateOptionalPathSegment(issues, 'layout.apiDirName', layout.apiDirName);
   }
 
   if (!isPlainObject(review)) {

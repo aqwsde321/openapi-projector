@@ -1089,7 +1089,6 @@ test('rules refreshes untouched init template with analyzed helper defaults', as
     assert.match(rulesSource, /"fetchApiSymbol": "request"/);
     assert.match(rulesSource, /"fetchApiImportKind": "named"/);
     assert.match(rulesSource, /"adapterStyle": "request-object"/);
-    assert.match(rulesSource, /"apiDirName": "apis"/);
     assert.doesNotMatch(rulesSource, /project-rules template/);
   });
 });
@@ -1127,7 +1126,6 @@ test('rules refreshes legacy untouched scaffold without import kind or review ga
     assert.match(rulesSource, /"fetchApiSymbol": "request"/);
     assert.match(rulesSource, /"fetchApiImportKind": "named"/);
     assert.match(rulesSource, /"adapterStyle": "request-object"/);
-    assert.match(rulesSource, /"apiDirName": "apis"/);
     assert.doesNotMatch(rulesSource, /project-rules template/);
   });
 });

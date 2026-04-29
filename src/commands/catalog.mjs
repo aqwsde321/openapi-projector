@@ -2,13 +2,16 @@ import path from 'node:path';
 
 import {
   buildEndpointCatalog,
+  loadProjectRules,
   loadProjectConfig,
   readJson,
   renderEndpointCatalogMarkdown,
   writeJson,
   writeText,
 } from '../core/openapi-utils.mjs';
+import { collectProjectOperations } from '../openapi/collect-operations.mjs';
 import { loadSupportedOpenApiSpec } from '../openapi/load-spec.mjs';
+import { projectOperations } from '../projector/project-endpoints.mjs';
 
 const CATALOG_FORMAT_VERSION = 2;
 const MAX_CHANGE_DETAILS = 60;
@@ -32,10 +35,16 @@ const catalogCommand = {
     const spec = await loadSupportedOpenApiSpec(sourcePath);
     const previousCatalog = await readJsonIfExists(catalogJsonPath);
     const catalogEntries = buildEndpointCatalog(spec);
+    const projectCandidateFilesByOperation = await buildProjectCandidateFilesByOperation({
+      rootDir,
+      spec,
+      projectConfig,
+    });
     const changeSummary = buildChangeSummary(
       previousCatalog?.endpoints ?? null,
       catalogEntries,
       previousCatalog?.version ?? null,
+      projectCandidateFilesByOperation,
     );
 
     await writeJson(catalogJsonPath, {
@@ -44,14 +53,24 @@ const catalogCommand = {
     });
     await writeText(catalogMarkdownPath, renderEndpointCatalogMarkdown(catalogEntries));
     await writeJson(changesJsonPath, changeSummary);
-    await writeText(changesMarkdownPath, renderChangeMarkdown(changeSummary));
+    await writeText(
+      changesMarkdownPath,
+      renderChangeMarkdown(changeSummary, {
+        rootDir,
+        markdownDir: changesDir,
+      }),
+    );
 
     if (hasRecordedChanges(changeSummary)) {
       const historyFileName = buildHistoryFileName(changeSummary.generatedAt);
+      const historyMarkdownPath = path.join(historyDir, `${historyFileName}.md`);
       await writeJson(path.join(historyDir, `${historyFileName}.json`), changeSummary);
       await writeText(
-        path.join(historyDir, `${historyFileName}.md`),
-        renderChangeMarkdown(changeSummary),
+        historyMarkdownPath,
+        renderChangeMarkdown(changeSummary, {
+          rootDir,
+          markdownDir: historyDir,
+        }),
       );
     }
 
@@ -64,6 +83,74 @@ const catalogCommand = {
   },
 };
 
+async function buildProjectCandidateFilesByOperation({
+  rootDir,
+  spec,
+  projectConfig,
+}) {
+  const apiRules = await loadBestEffortProjectApiRules(rootDir, projectConfig);
+  const operations = collectProjectOperations(spec);
+  const projection = projectOperations(operations, apiRules);
+  const projectGeneratedSrcDir = path.resolve(
+    rootDir,
+    projectConfig.projectGeneratedSrcDir ?? 'openapi/project/src/openapi-generated',
+  );
+  const filesByOperation = new Map();
+
+  for (const endpoint of projection.flatEndpoints) {
+    addProjectCandidateFiles(filesByOperation, {
+      rootDir,
+      endpoint,
+      directoryPath: projectGeneratedSrcDir,
+    });
+  }
+
+  for (const tagDirectory of projection.tagDirectories) {
+    const directoryPath = path.join(projectGeneratedSrcDir, tagDirectory.tagDirectoryName);
+
+    for (const endpoint of tagDirectory.endpoints) {
+      addProjectCandidateFiles(filesByOperation, {
+        rootDir,
+        endpoint,
+        directoryPath,
+      });
+    }
+  }
+
+  return filesByOperation;
+}
+
+async function loadBestEffortProjectApiRules(rootDir, projectConfig) {
+  try {
+    const { projectRules } = await loadProjectRules(rootDir, projectConfig);
+    return projectRules.api ?? {};
+  } catch {
+    return {};
+  }
+}
+
+function addProjectCandidateFiles(filesByOperation, {
+  rootDir,
+  endpoint,
+  directoryPath,
+}) {
+  const dtoPath = path.join(directoryPath, `${endpoint.endpointFileBase}.dto.ts`);
+  const apiPath = path.join(directoryPath, `${endpoint.endpointFileBase}.api.ts`);
+
+  filesByOperation.set(buildOperationKey(endpoint.operation.method, endpoint.operation.path), {
+    dto: toProjectRelativePath(rootDir, dtoPath),
+    api: toProjectRelativePath(rootDir, apiPath),
+  });
+}
+
+function buildOperationKey(method, endpointPath) {
+  return `${String(method).toLowerCase()} ${endpointPath}`;
+}
+
+function toProjectRelativePath(rootDir, filePath) {
+  return path.relative(rootDir, filePath).replaceAll(path.sep, '/');
+}
+
 async function readJsonIfExists(filePath) {
   try {
     return await readJson(filePath);
@@ -75,7 +162,12 @@ async function readJsonIfExists(filePath) {
   }
 }
 
-function buildChangeSummary(previousEntries, nextEntries, previousVersion) {
+function buildChangeSummary(
+  previousEntries,
+  nextEntries,
+  previousVersion,
+  projectCandidateFilesByOperation = new Map(),
+) {
   const now = new Date().toISOString();
 
   if (
@@ -109,17 +201,19 @@ function buildChangeSummary(previousEntries, nextEntries, previousVersion) {
     const previous = previousMap.get(entry.id);
 
     if (!previous) {
-      added.push(toChangeItem(entry));
+      added.push(toChangeItem(entry, projectCandidateFilesByOperation));
       continue;
     }
 
     if (previous.contractFingerprint !== entry.contractFingerprint) {
-      contractChanged.push(toContractChangeItem(previous, entry));
+      contractChanged.push(
+        toContractChangeItem(previous, entry, projectCandidateFilesByOperation),
+      );
       continue;
     }
 
     if (previous.rawFingerprint !== entry.rawFingerprint) {
-      docChanged.push(toDocChangeItem(previous, entry));
+      docChanged.push(toDocChangeItem(previous, entry, projectCandidateFilesByOperation));
     }
   }
 
@@ -140,17 +234,26 @@ function buildChangeSummary(previousEntries, nextEntries, previousVersion) {
   };
 }
 
-function toChangeItem(entry) {
-  return {
+function toChangeItem(entry, projectCandidateFilesByOperation = new Map()) {
+  const item = {
     id: entry.id,
     method: entry.method,
     path: entry.path,
     summary: entry.summary,
   };
+  const projectFiles = projectCandidateFilesByOperation.get(
+    buildOperationKey(entry.method, entry.path),
+  );
+
+  return projectFiles ? { ...item, projectFiles } : item;
 }
 
-function toContractChangeItem(previousEntry, nextEntry) {
-  const baseItem = toChangeItem(nextEntry);
+function toContractChangeItem(
+  previousEntry,
+  nextEntry,
+  projectCandidateFilesByOperation = new Map(),
+) {
+  const baseItem = toChangeItem(nextEntry, projectCandidateFilesByOperation);
   const hasSnapshots = previousEntry?.contractSnapshot && nextEntry?.contractSnapshot;
 
   if (!hasSnapshots) {
@@ -188,11 +291,15 @@ function toContractChangeItem(previousEntry, nextEntry) {
   };
 }
 
-function toDocChangeItem(previousEntry, nextEntry) {
+function toDocChangeItem(
+  previousEntry,
+  nextEntry,
+  projectCandidateFilesByOperation = new Map(),
+) {
   const details = buildDocChangeDetails(previousEntry, nextEntry);
 
   return {
-    ...toChangeItem(nextEntry),
+    ...toChangeItem(nextEntry, projectCandidateFilesByOperation),
     detailCount: details.length,
     detailsTruncated: false,
     details,
@@ -238,7 +345,7 @@ function appendFieldChange(details, pathName, previousValue, nextValue) {
   });
 }
 
-function renderChangeMarkdown(changeSummary) {
+function renderChangeMarkdown(changeSummary, options = {}) {
   const lines = [
     '# Change Summary',
     '',
@@ -257,10 +364,10 @@ function renderChangeMarkdown(changeSummary) {
   lines.push(`- Doc Changed: ${changeSummary.docChanged.length}`);
   lines.push('');
 
-  appendSection(lines, 'Added', changeSummary.added);
-  appendSection(lines, 'Removed', changeSummary.removed);
-  appendSection(lines, 'Contract Changed', changeSummary.contractChanged);
-  appendSection(lines, 'Doc Changed', changeSummary.docChanged);
+  appendSection(lines, 'Added', changeSummary.added, options);
+  appendSection(lines, 'Removed', changeSummary.removed, options);
+  appendSection(lines, 'Contract Changed', changeSummary.contractChanged, options);
+  appendSection(lines, 'Doc Changed', changeSummary.docChanged, options);
 
   return lines.join('\n');
 }
@@ -287,7 +394,7 @@ function buildHistoryFileName(isoTimestamp) {
   return `${year}${month}${day}-${hours}${minutes}${seconds}-${millis}`;
 }
 
-function appendSection(lines, title, items) {
+function appendSection(lines, title, items, options = {}) {
   lines.push(`## ${title}`, '');
 
   if (items.length === 0) {
@@ -296,16 +403,21 @@ function appendSection(lines, title, items) {
   }
 
   for (const item of items) {
-    appendChangeItem(lines, item);
+    appendChangeItem(lines, item, options);
   }
 
   lines.push('');
 }
 
-function appendChangeItem(lines, item) {
+function appendChangeItem(lines, item, options = {}) {
   lines.push(
     `- \`${item.id}\` [${item.method.toUpperCase()}] \`${item.path}\`${item.summary ? ` - ${item.summary}` : ''}`,
   );
+
+  const projectFileLinks = formatProjectFileLinks(item, options);
+  if (projectFileLinks) {
+    lines.push(`  - 후보 파일: ${projectFileLinks}`);
+  }
 
   if (item.detailsUnavailable) {
     lines.push(
@@ -328,6 +440,46 @@ function appendChangeItem(lines, item) {
   if (item.detailsTruncated) {
     lines.push(`  - ... ${item.detailCount - (item.details?.length ?? 0)}개 변경 항목 생략`);
   }
+}
+
+function formatProjectFileLinks(item, options = {}) {
+  if (!item.projectFiles) {
+    return null;
+  }
+
+  const links = [];
+
+  if (item.projectFiles.dto) {
+    links.push(formatMarkdownLink('DTO', item.projectFiles.dto, options));
+  }
+
+  if (item.projectFiles.api) {
+    links.push(formatMarkdownLink('API', item.projectFiles.api, options));
+  }
+
+  return links.length > 0 ? links.join(' / ') : null;
+}
+
+function formatMarkdownLink(label, projectRelativePath, options = {}) {
+  return `[${label}](${formatMarkdownDestination(
+    resolveMarkdownTarget(projectRelativePath, options),
+  )})`;
+}
+
+function resolveMarkdownTarget(projectRelativePath, options = {}) {
+  const normalizedProjectPath = projectRelativePath.replaceAll(path.sep, '/');
+
+  if (!options.rootDir || !options.markdownDir) {
+    return normalizedProjectPath;
+  }
+
+  const absoluteTargetPath = path.resolve(options.rootDir, normalizedProjectPath);
+  const relativeTargetPath = path.relative(options.markdownDir, absoluteTargetPath);
+  return relativeTargetPath.replaceAll(path.sep, '/');
+}
+
+function formatMarkdownDestination(target) {
+  return `<${target.replaceAll('>', '%3E')}>`;
 }
 
 function appendComparisonTable(lines, rows) {

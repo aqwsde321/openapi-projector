@@ -56,7 +56,6 @@ const projectCommand = {
       schemaSourcePath: sourcePath,
       schemaContents,
       projectGeneratedSrcDir,
-      projectManifestPath,
       projectSummaryPath,
       projectRulesPath: toPosixPath(path.relative(rootDir, projectRulesPath)),
       generatedSchemaPath: toPosixPath(path.relative(rootDir, generatedSchemaPath)),

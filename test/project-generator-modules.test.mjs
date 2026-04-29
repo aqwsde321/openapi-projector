@@ -297,7 +297,6 @@ test('validateProjectRules reports unsupported and unsafe boundary values', () =
     },
     layout: {
       schemaFileName: '../schema.ts',
-      apiDirName: '../apis',
     },
   });
 
@@ -311,7 +310,6 @@ test('validateProjectRules reports unsupported and unsafe boundary values', () =
       'api.wrapperGrouping',
       'api.tagFileCase',
       'layout.schemaFileName',
-      'layout.apiDirName',
     ],
   );
 });
@@ -950,10 +948,6 @@ test('writeProjectOutputs handles all-skipped specs and custom schema file names
         kind: 'schema',
         generated: 'openapi/project/src/openapi-generated/contracts.ts',
       },
-      {
-        kind: 'index',
-        generated: 'openapi/project/src/openapi-generated/index.ts',
-      },
     ]);
     assert.deepEqual(manifest.skippedOperations, [
       {
@@ -963,12 +957,15 @@ test('writeProjectOutputs handles all-skipped specs and custom schema file names
       },
     ]);
 
-    const indexSource = await fs.readFile(path.join(generatedDir, 'index.ts'), 'utf8');
     const summarySource = await fs.readFile(summaryPath, 'utf8');
 
-    assert.equal(indexSource, "export * from './contracts';\n");
     assert.match(summarySource, /Generated endpoints: 0/);
     assert.match(summarySource, /`GET \/reports\/export`: response media type text\/csv/);
+    await assert.rejects(() => fs.access(path.join(generatedDir, 'index.ts')), /ENOENT/);
+    assert.equal(
+      await fs.readFile(path.join(generatedDir, 'contracts.ts'), 'utf8'),
+      'export type Contracts = never;\n',
+    );
     await assert.rejects(() => fs.access(path.join(generatedDir, 'Reports')), /ENOENT/);
   });
 });
@@ -1068,8 +1065,6 @@ test('writeProjectOutputs can generate flat endpoint files without tag folders',
       layoutRules: {},
     });
 
-    const indexSource = await fs.readFile(path.join(generatedDir, 'index.ts'), 'utf8');
-
     assert.equal(manifest.generatedEndpoints, 2);
     assert.deepEqual(
       manifest.files.map((file) => file.generated),
@@ -1079,20 +1074,13 @@ test('writeProjectOutputs can generate flat endpoint files without tag folders',
         'openapi/project/src/openapi-generated/get-user.api.ts',
         'openapi/project/src/openapi-generated/get-user2.dto.ts',
         'openapi/project/src/openapi-generated/get-user2.api.ts',
-        'openapi/project/src/openapi-generated/index.ts',
       ],
     );
     assert.equal(
-      indexSource,
-      [
-        "export * from './schema';",
-        "export * from './get-user.dto';",
-        "export * from './get-user.api';",
-        "export * from './get-user2.dto';",
-        "export * from './get-user2.api';",
-        '',
-      ].join('\n'),
+      await fs.readFile(path.join(generatedDir, 'schema.ts'), 'utf8'),
+      'export type Contracts = never;\n',
     );
+    await assert.rejects(() => fs.access(path.join(generatedDir, 'index.ts')), /ENOENT/);
     await assert.rejects(() => fs.access(path.join(generatedDir, 'Admins')), /ENOENT/);
     await assert.rejects(() => fs.access(path.join(generatedDir, 'Users')), /ENOENT/);
   });

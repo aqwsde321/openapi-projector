@@ -8,7 +8,6 @@ import {
   buildRuntimeWrapperReview,
 } from './application-review.mjs';
 import { renderTagFolderOutputs } from './render-api.mjs';
-import { renderFlatIndexSource, renderIndexSource } from './render-index.mjs';
 import { renderProjectSummary } from './render-summary.mjs';
 
 function toProjectRelativePath(rootDir, filePath) {
@@ -21,12 +20,11 @@ async function writeProjectOutputs({
   schemaSourcePath,
   schemaContents,
   projectGeneratedSrcDir,
-  projectManifestPath,
   projectSummaryPath,
   projectRulesPath,
   generatedSchemaPath,
-  apiRules,
-  layoutRules,
+  apiRules = {},
+  layoutRules = {},
 }) {
   const operations = collectProjectOperations(spec);
 
@@ -37,12 +35,7 @@ async function writeProjectOutputs({
   const projection = projectOperations(operations, apiRules);
 
   const schemaFileName = layoutRules.schemaFileName ?? 'schema.ts';
-  const schemaFileBase = path.basename(
-    schemaFileName,
-    path.extname(schemaFileName),
-  );
   const schemaOutputPath = path.join(projectGeneratedSrcDir, schemaFileName);
-  const indexOutputPath = path.join(projectGeneratedSrcDir, 'index.ts');
   const manifestFiles = [];
   const endpointReviews = [];
 
@@ -51,10 +44,6 @@ async function writeProjectOutputs({
     kind: 'schema',
     generated: toProjectRelativePath(rootDir, schemaOutputPath),
   });
-
-  const sortedTagFileNames = projection.tagDirectories.map(
-    (tagDirectory) => tagDirectory.tagDirectoryName,
-  );
 
   const renderOptions = {
     spec,
@@ -100,16 +89,10 @@ async function writeProjectOutputs({
         }),
       );
     }
-
-    await writeText(
-      indexOutputPath,
-      renderFlatIndexSource(renderedFlat.endpointFiles, schemaFileBase),
-    );
   } else {
     for (const tagDirectory of projection.tagDirectories) {
       const tagFileName = tagDirectory.tagDirectoryName;
       const tagDirectoryPath = path.join(projectGeneratedSrcDir, tagFileName);
-      const tagIndexPath = path.join(tagDirectoryPath, 'index.ts');
       const renderedTag = renderTagFolderOutputs({
         ...renderOptions,
         endpoints: tagDirectory.endpoints,
@@ -151,25 +134,8 @@ async function writeProjectOutputs({
           }),
         );
       }
-
-      await writeText(tagIndexPath, renderedTag.indexSource);
-      manifestFiles.push({
-        kind: 'index',
-        generated: toProjectRelativePath(rootDir, tagIndexPath),
-        summary: `tag=${tagFileName}`,
-      });
     }
-
-    await writeText(
-      indexOutputPath,
-      renderIndexSource(sortedTagFileNames, schemaFileBase),
-    );
   }
-
-  manifestFiles.push({
-    kind: 'index',
-    generated: toProjectRelativePath(rootDir, indexOutputPath),
-  });
 
   const manifest = {
     generatedAt: new Date().toISOString(),

@@ -164,11 +164,6 @@ const EXPECTED_MANIFEST = {
       summary: 'tag=default endpoint=get-health-status',
     },
     {
-      kind: 'index',
-      generated: 'openapi/project/src/openapi-generated/default/index.ts',
-      summary: 'tag=default',
-    },
-    {
       kind: 'dto',
       generated: 'openapi/project/src/openapi-generated/Profiles/update-profile.dto.ts',
       summary: 'tag=Profiles endpoint=update-profile',
@@ -178,24 +173,10 @@ const EXPECTED_MANIFEST = {
       generated: 'openapi/project/src/openapi-generated/Profiles/update-profile.api.ts',
       summary: 'tag=Profiles endpoint=update-profile',
     },
-    {
-      kind: 'index',
-      generated: 'openapi/project/src/openapi-generated/Profiles/index.ts',
-      summary: 'tag=Profiles',
-    },
-    {
-      kind: 'index',
-      generated: 'openapi/project/src/openapi-generated/index.ts',
-    },
   ],
 };
 
 const EXPECTED_GENERATED_FILES = {
-  'Profiles/index.ts': [
-    "export * from './update-profile.dto';",
-    "export * from './update-profile.api';",
-    '',
-  ].join('\n'),
   'Profiles/update-profile.api.ts': [
     "import { fetchAPI } from '../../test-support/fetch-api';",
     "import type { UpdateProfileRequestDto, UpdateProfileResponseDto } from './update-profile.dto';",
@@ -258,17 +239,6 @@ const EXPECTED_GENERATED_FILES = {
     '}',
     '',
   ].join('\n'),
-  'default/index.ts': [
-    "export * from './get-health-status.dto';",
-    "export * from './get-health-status.api';",
-    '',
-  ].join('\n'),
-  'index.ts': [
-    "export * from './schema';",
-    'export * from "./default";',
-    'export * from "./Profiles";',
-    '',
-  ].join('\n'),
   'schema.ts': 'export interface paths {}\n',
 };
 
@@ -288,11 +258,8 @@ const EXPECTED_SUMMARY = [
   '- [schema] `openapi/project/src/openapi-generated/schema.ts`',
   '- [dto] `openapi/project/src/openapi-generated/default/get-health-status.dto.ts` (tag=default endpoint=get-health-status)',
   '- [api] `openapi/project/src/openapi-generated/default/get-health-status.api.ts` (tag=default endpoint=get-health-status)',
-  '- [index] `openapi/project/src/openapi-generated/default/index.ts` (tag=default)',
   '- [dto] `openapi/project/src/openapi-generated/Profiles/update-profile.dto.ts` (tag=Profiles endpoint=update-profile)',
   '- [api] `openapi/project/src/openapi-generated/Profiles/update-profile.api.ts` (tag=Profiles endpoint=update-profile)',
-  '- [index] `openapi/project/src/openapi-generated/Profiles/index.ts` (tag=Profiles)',
-  '- [index] `openapi/project/src/openapi-generated/index.ts`',
   '',
   '## Application Review',
   '',
