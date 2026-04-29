@@ -689,6 +689,7 @@ test(
       assert.match(projectReadmeSource, /# openapi-projector Workspace Guide/);
       assert.match(projectReadmeSource, /## 사람용 요약/);
       assert.match(projectReadmeSource, /<details>/);
+      assert.doesNotMatch(projectReadmeSource, /<summary>AI에게 붙여넣을 프롬프트<\/summary>/);
       assert.match(projectReadmeSource, /<summary>AI Agents: Detailed Workflow<\/summary>/);
       assert.match(projectReadmeSource, /## For AI Agents: Detailed Workflow/);
       assert.match(projectReadmeSource, /openapi\/review\/changes\/summary\.md/);
@@ -705,8 +706,10 @@ test(
       assert.match(projectReadmeSource, /`refresh`: OpenAPI JSON을 내려받고 review 문서를 만듭니다/);
       assert.match(projectReadmeSource, /`rules`: 현재 프론트엔드 프로젝트의 API 호출 방식을 분석하고 `openapi\/config\/project-rules\.jsonc` 초안을 만듭니다/);
       assert.match(projectReadmeSource, /`project`: 검토된 규칙으로 DTO\/API 후보 코드를 만듭니다/);
+      assert.match(projectReadmeSource, /처음 실행하면 `rules` 검토 단계에서 멈추는 것이 정상입니다/);
       assert.match(projectReadmeSource, /`review\.rulesReviewed`가 `true`일 때만 실행/);
       assert.match(projectReadmeSource, /`rules`가 자동으로 만든 `openapi\/config\/project-rules\.jsonc` 초안/);
+      assert.match(projectReadmeSource, /API wrapper까지 필요하면 위 프롬프트 그대로 쓰면 됩니다/);
       assert.match(output, /confirm sourceUrl in openapi\/config\/project\.jsonc \(default: http:\/\/localhost:8080\/v3\/api-docs\), then run doctor --check-url/);
       assert.match(gitignoreSource, /\.openapi-projector\.local\.jsonc/);
 
@@ -803,6 +806,7 @@ test(
       assert.match(projectReadmeSource, /# openapi-projector Workspace Guide/);
       assert.match(projectReadmeSource, /## 사람용 요약/);
       assert.match(projectReadmeSource, /<details>/);
+      assert.doesNotMatch(projectReadmeSource, /<summary>AI에게 붙여넣을 프롬프트<\/summary>/);
       assert.match(projectReadmeSource, /<summary>AI Agents: Detailed Workflow<\/summary>/);
       assert.match(projectReadmeSource, /## For AI Agents: Detailed Workflow/);
       assert.equal(

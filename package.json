@@ -18,6 +18,7 @@
   },
   "files": [
     "bin",
+    "CHANGELOG.md",
     "config",
     "docs",
     "src",

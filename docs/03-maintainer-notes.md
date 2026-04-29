@@ -104,7 +104,7 @@ npm pack --dry-run
 배포 절차:
 
 ```bash
-# package.json version을 먼저 올리고 커밋
+# package.json version과 CHANGELOG.md를 먼저 갱신하고 커밋
 git tag v0.1.1
 git push origin main --tags
 ```
