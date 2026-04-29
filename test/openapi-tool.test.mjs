@@ -1408,9 +1408,9 @@ test(
 
       const generatedRoot = path.join(workspace, 'openapi/project/src/openapi-generated');
       const defaultDtoPath = path.join(generatedRoot, 'default/get-health-status.dto.ts');
-      const profilesDtoPath = path.join(generatedRoot, 'profiles/update-profile.dto.ts');
+      const profilesDtoPath = path.join(generatedRoot, 'Profiles/update-profile.dto.ts');
       const defaultApiPath = path.join(generatedRoot, 'default/get-health-status.api.ts');
-      const profilesApiPath = path.join(generatedRoot, 'profiles/update-profile.api.ts');
+      const profilesApiPath = path.join(generatedRoot, 'Profiles/update-profile.api.ts');
       const manifestPath = path.join(workspace, 'openapi/project/manifest.json');
       await assertExists(path.join(generatedRoot, 'schema.ts'));
       await assertExists(defaultDtoPath);
@@ -1418,7 +1418,7 @@ test(
       await assertExists(defaultApiPath);
       await assertExists(profilesApiPath);
       await assert.rejects(() => fs.access(path.join(generatedRoot, 'default/index.ts')), /ENOENT/);
-      await assert.rejects(() => fs.access(path.join(generatedRoot, 'profiles/index.ts')), /ENOENT/);
+      await assert.rejects(() => fs.access(path.join(generatedRoot, 'Profiles/index.ts')), /ENOENT/);
       await assert.rejects(() => fs.access(path.join(generatedRoot, 'index.ts')), /ENOENT/);
       await assertExists(manifestPath);
 
