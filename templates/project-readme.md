@@ -215,7 +215,7 @@ Primary files:
 `summary.md` and `summary.json` are overwritten on each run and always represent the latest comparison.
 When changes are detected, timestamped `.md` and `.json` snapshots are also appended under `openapi/review/changes/history/`.
 If `oasdiff` is installed and enabled, `summary.md` also includes a `Compatibility Check` section with links to `breaking.md` and `changelog.md`.
-If `oasdiff` is missing or the first baseline has just been created, `summary.json.externalDiff.oasdiff` records the skipped reason while the normal endpoint diff still works.
+In the default `auto` mode, if `oasdiff` is missing or the first baseline has just been created, `summary.json.externalDiff.oasdiff` records the skipped reason while the normal endpoint diff still works.
 
 How to interpret `summary.md`:
 

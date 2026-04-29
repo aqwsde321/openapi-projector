@@ -11,6 +11,11 @@
 - `catalog` 변경 요약에 선택적 `oasdiff` 호환성 리포트 병합을 추가했습니다.
 - `summary.json`의 `externalDiff.oasdiff`와 `summary.md`의 `Compatibility Check` 섹션을 추가했습니다.
 
+### Fixed
+
+- `oasdiff` required 모드에서 기준 파일이 없을 때 호환성 검사가 우회되지 않도록 수정했습니다.
+- `oasdiff` off 모드가 기준 파일을 갱신하지 않도록 수정했습니다.
+
 ## 0.1.4 - 2026-04-29
 
 ### Added

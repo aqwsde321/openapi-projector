@@ -224,7 +224,6 @@ async function buildOasdiffReport({ rootDir, sourcePath, projectConfig }) {
   const changelogMarkdownPath = path.join(outputsDir, 'changelog.md');
 
   if (config.mode === 'off') {
-    await copyFileEnsuringDir(sourcePath, baselineSourcePath);
     return {
       ...baseReport,
       status: 'off',
@@ -233,6 +232,12 @@ async function buildOasdiffReport({ rootDir, sourcePath, projectConfig }) {
   }
 
   if (!(await pathExists(baselineSourcePath))) {
+    if (config.mode === 'required') {
+      throw new Error(
+        `oasdiff compatibility check failed: baseline_missing\nBaseline source not found: ${baseReport.baselineSourcePath}`,
+      );
+    }
+
     await copyFileEnsuringDir(sourcePath, baselineSourcePath);
     return {
       ...baseReport,

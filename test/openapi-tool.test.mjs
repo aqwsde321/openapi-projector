@@ -715,8 +715,38 @@ test(
 
       assert.equal(summaryJson.externalDiff.oasdiff.status, 'off');
       assert.equal(summaryJson.externalDiff.oasdiff.reason, 'disabled');
-      await assertExists(
-        path.join(workspace, 'openapi/_internal/source/openapi.oasdiff-baseline.json'),
+      await assert.rejects(
+        () => fs.access(path.join(workspace, 'openapi/_internal/source/openapi.oasdiff-baseline.json')),
+        /ENOENT/,
+      );
+    });
+  },
+);
+
+test(
+  'catalog fails when required oasdiff baseline is missing',
+  { concurrency: false },
+  async () => {
+    await withWorkspace({
+      spec: createSimpleSpec(),
+      projectConfigOverrides: {
+        changeDetection: {
+          oasdiff: {
+            mode: 'required',
+            command: 'openapi-projector-missing-oasdiff-for-test',
+            baselineSourcePath: 'openapi/_internal/source/openapi.oasdiff-baseline.json',
+            outputsDir: 'openapi/review/changes/oasdiff',
+          },
+        },
+      },
+    }, async (workspace) => {
+      await assert.rejects(
+        () => runInWorkspace(workspace, () => catalogCommand.run()),
+        /oasdiff compatibility check failed: baseline_missing/,
+      );
+      await assert.rejects(
+        () => fs.access(path.join(workspace, 'openapi/_internal/source/openapi.oasdiff-baseline.json')),
+        /ENOENT/,
       );
     });
   },
@@ -852,6 +882,10 @@ test(
 
       const projectConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
       const projectConfig = await readJson(projectConfigPath);
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.oasdiff-baseline.json'),
+        createSimpleSpec(),
+      );
       await writeJsonFile(projectConfigPath, {
         ...projectConfig,
         changeDetection: {
@@ -864,7 +898,6 @@ test(
         },
       });
 
-      await runInWorkspace(workspace, () => catalogCommand.run());
       await writeJsonFile(
         path.join(workspace, 'openapi/_internal/source/openapi.json'),
         createSimpleSpec('Ping v2'),
