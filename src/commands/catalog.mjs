@@ -504,6 +504,7 @@ function buildComparisonRows(details, context = {}) {
   const comparisonContext = buildComparisonContext(context);
 
   appendParameterObjectRows(rows, details, consumedIndexes);
+  appendSchemaRequiredRows(rows, details, consumedIndexes, comparisonContext);
   appendSchemaPropertyObjectRows(rows, details, consumedIndexes, comparisonContext);
 
   details.forEach((detail, index) => {
@@ -543,32 +544,67 @@ function mergeSchemaUsageMaps(...usageMaps) {
 function buildSchemaUsageMap(snapshot) {
   const usageByName = new Map();
   const operation = snapshot?.operation;
+  const referencedSchemas = snapshot?.referencedSchemas ?? {};
 
   if (!operation) {
     return usageByName;
   }
 
-  addSchemaUsage(
+  addContentSchemaUsage(
     usageByName,
     'Request Body',
-    operation.requestBody,
-    snapshot.referencedSchemas,
+    operation.requestBody?.content,
+    referencedSchemas,
   );
+  addRequestBodyEncodingHeaderSchemaUsage(usageByName, operation.requestBody, referencedSchemas);
 
   for (const response of Object.values(operation.responses ?? {})) {
-    addSchemaUsage(usageByName, 'Response Body', response, snapshot.referencedSchemas);
+    addContentSchemaUsage(usageByName, 'Response Body', response?.content, referencedSchemas);
+    addHeaderSchemaUsage(usageByName, 'Response Header', response?.headers, referencedSchemas);
   }
 
   for (const parameter of operation.parameters ?? []) {
+    const usage = `${toTitleCase(parameter?.in)} Parameter`;
     addSchemaUsage(
       usageByName,
-      `${toTitleCase(parameter?.in)} Parameter`,
-      parameter,
-      snapshot.referencedSchemas,
+      usage,
+      parameter?.schema,
+      referencedSchemas,
     );
+    addContentSchemaUsage(usageByName, usage, parameter?.content, referencedSchemas);
   }
 
   return usageByName;
+}
+
+function addContentSchemaUsage(usageByName, usage, content = {}, referencedSchemas = {}) {
+  for (const mediaType of Object.values(content ?? {})) {
+    addSchemaUsage(usageByName, usage, mediaType?.schema, referencedSchemas);
+  }
+}
+
+function addHeaderSchemaUsage(usageByName, usage, headers = {}, referencedSchemas = {}) {
+  for (const header of Object.values(headers ?? {})) {
+    addSchemaUsage(usageByName, usage, header?.schema, referencedSchemas);
+    addContentSchemaUsage(usageByName, usage, header?.content, referencedSchemas);
+  }
+}
+
+function addRequestBodyEncodingHeaderSchemaUsage(
+  usageByName,
+  requestBody,
+  referencedSchemas = {},
+) {
+  for (const mediaType of Object.values(requestBody?.content ?? {})) {
+    for (const encoding of Object.values(mediaType?.encoding ?? {})) {
+      addHeaderSchemaUsage(
+        usageByName,
+        'Request Header',
+        encoding?.headers,
+        referencedSchemas,
+      );
+    }
+  }
 }
 
 function addSchemaUsage(usageByName, usage, value, referencedSchemas = {}) {
@@ -648,6 +684,42 @@ function appendParameterObjectRows(rows, details, consumedIndexes) {
 
     group.indexes.forEach((index) => consumedIndexes.add(index));
   }
+}
+
+function appendSchemaRequiredRows(rows, details, consumedIndexes, comparisonContext) {
+  details.forEach((detail, index) => {
+    const parsed = parseSchemaRequiredDetailPath(detail.path);
+
+    if (!parsed || detail.kind !== 'changed') {
+      return;
+    }
+
+    if (!Array.isArray(detail.previous) || !Array.isArray(detail.next)) {
+      return;
+    }
+
+    const previousRequired = new Set(detail.previous.map(String));
+    const nextRequired = new Set(detail.next.map(String));
+    const fieldNames = new Set([...previousRequired, ...nextRequired]);
+
+    for (const fieldName of [...fieldNames].sort((left, right) => left.localeCompare(right))) {
+      const wasRequired = previousRequired.has(fieldName);
+      const isRequired = nextRequired.has(fieldName);
+
+      if (wasRequired === isRequired) {
+        continue;
+      }
+
+      rows.push({
+        category: getSchemaFieldCategory(parsed.schemaName, comparisonContext),
+        target: formatInlineCode(`${parsed.schemaName}.${fieldName}.required`),
+        previous: wasRequired ? 'required' : 'optional',
+        next: isRequired ? 'required' : 'optional',
+      });
+    }
+
+    consumedIndexes.add(index);
+  });
 }
 
 function appendSchemaPropertyObjectRows(rows, details, consumedIndexes, comparisonContext) {
@@ -744,6 +816,18 @@ function parseSchemaPropertyDetailPath(detailPath) {
     schemaName: segments[1],
     propertyName: segments[3],
     fieldPath: segments.slice(4).join('.'),
+  };
+}
+
+function parseSchemaRequiredDetailPath(detailPath) {
+  const segments = parseFormattedPath(detailPath);
+
+  if (segments[0] !== 'referencedSchemas' || !segments[1] || segments[2] !== 'required') {
+    return null;
+  }
+
+  return {
+    schemaName: segments[1],
   };
 }
 
@@ -918,6 +1002,10 @@ function getSchemaUsageLabel(schemaName, comparisonContext) {
 
   if (parameterUsages.length > 1) {
     return 'Parameter';
+  }
+
+  if (usages.size === 1) {
+    return [...usages][0];
   }
 
   return 'Schema';

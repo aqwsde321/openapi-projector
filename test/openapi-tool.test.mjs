@@ -362,6 +362,13 @@ test(
             responses: {
               200: {
                 description: 'OK',
+                headers: {
+                  'X-Meta': {
+                    schema: {
+                      $ref: '#/components/schemas/ResponseHeader',
+                    },
+                  },
+                },
                 content: {
                   'application/json': {
                     schema: {
@@ -396,6 +403,14 @@ test(
               },
             },
           },
+          ResponseHeader: {
+            type: 'object',
+            properties: {
+              value: {
+                type: 'string',
+              },
+            },
+          },
         },
       },
     };
@@ -420,6 +435,7 @@ test(
           $ref: '#/components/schemas/File',
         },
       };
+      nextSpec.components.schemas.ResponseHeader.properties.value.type = 'integer';
 
       await writeJsonFile(
         path.join(workspace, 'openapi/_internal/source/openapi.json'),
@@ -465,18 +481,38 @@ test(
       assert.ok(
         detailPaths.includes('referencedSchemas.User.properties.email.type'),
       );
+      assert.ok(detailPaths.includes('referencedSchemas.User.required'));
+      assert.ok(
+        detailPaths.includes('referencedSchemas.ResponseHeader.properties.value.type'),
+      );
+      const comparisonRows = historyJson.contractChanged[0].comparisonRows;
       assert.deepEqual(historyJson.contractChanged[0].comparisonRows[0], {
         category: 'Query Parameter',
         target: '`active`',
         previous: '없음',
         next: '`boolean`, required',
       });
-      assert.deepEqual(historyJson.contractChanged[0].comparisonRows[1], {
+      assert.deepEqual(comparisonRows.find((row) => row.target === '`User.email.required`'), {
+        category: 'Response Body Field',
+        target: '`User.email.required`',
+        previous: 'optional',
+        next: 'required',
+      });
+      assert.deepEqual(comparisonRows.find((row) => row.target === '`User.attachments`'), {
         category: 'Response Body Field',
         target: '`User.attachments`',
         previous: '없음',
         next: '`File[]`',
       });
+      assert.deepEqual(
+        comparisonRows.find((row) => row.target === '`ResponseHeader.value.type`'),
+        {
+          category: 'Response Header Field',
+          target: '`ResponseHeader.value.type`',
+          previous: '`string`',
+          next: '`integer`',
+        },
+      );
       assert.match(historySource, /Contract Changed: 1/);
       assert.match(
         summarySource,
@@ -508,7 +544,15 @@ test(
       );
       assert.match(
         historySource,
+        /\| Response Body Field \| `User\.email\.required` \| optional \| required \|/,
+      );
+      assert.match(
+        historySource,
         /\| Response Body Field \| `User\.email\.type` \| `string` \| `integer` \|/,
+      );
+      assert.match(
+        historySource,
+        /\| Response Header Field \| `ResponseHeader\.value\.type` \| `string` \| `integer` \|/,
       );
     });
   },
