@@ -35,6 +35,19 @@ Swagger/OpenAPI 원본을 받아서 review 산출물을 만듭니다.
 
 이 단계의 목적은 “스펙을 확인하고 검토할 수 있는 review 결과물”을 만드는 것입니다.
 
+`openapi/review/changes/summary.md`는 최신 비교 결과입니다. 매번 덮어쓰이며, 사람이 가장 먼저 확인하는 파일입니다.
+변경이 감지되면 같은 내용이 `openapi/review/changes/history/` 아래에 timestamp가 붙은 `.md`와 `.json` 파일로도 누적됩니다.
+
+변경 구분은 endpoint 기준입니다.
+
+- `Added`: 새로 추가된 endpoint
+- `Removed`: OpenAPI 스펙에서 사라진 endpoint
+- `Contract Changed`: request, response, parameter, schema처럼 프론트 코드에 영향을 줄 수 있는 계약 변경
+- `Doc Changed`: summary, description, tag처럼 계약 외 문서성 변경
+
+`Contract Changed`는 이전 catalog와 현재 catalog 모두 비교용 snapshot을 가지고 있으면 필드 단위 상세 변경을 비교 표로 표시합니다. 예를 들어 query parameter 추가, request body required 변경, response schema field type 변경 같은 내용이 `summary.md`와 `history/*.md`에 남습니다.
+이전 catalog가 snapshot이 없는 구버전 산출물이라면 첫 refresh에서는 영향 endpoint만 표시되고, 그 다음 refresh부터 상세 변경 비교가 가능합니다.
+
 ### 2. `rules`
 
 현재 프로젝트 구조를 분석해서, 사람이 먼저 검토해야 하는 규칙 문서와 scaffold를 만듭니다.

@@ -2,99 +2,93 @@
 
 OpenAPI JSON을 프론트엔드 프로젝트 컨벤션에 맞는 DTO/API 후보 코드로 변환하는 review-first CLI입니다.
 
-`openapi-projector`는 OpenAPI 스펙을 앱 `src/`에 바로 생성하지 않습니다. 대상 프론트엔드 프로젝트 안에 `openapi/` 작업 공간을 만들고, 사람이나 AI coding agent가 필요한 endpoint만 실제 앱 코드로 옮기도록 돕습니다.
+앱 `src/`에 바로 생성하지 않고, 프론트엔드 프로젝트 안의 `openapi/` 작업 공간에 검토용 후보를 만든 뒤 필요한 코드만 실제 앱에 반영합니다.
 
-> 스펙은 자동으로, 프로젝트 컨벤션은 명시적으로, 실제 반영은 검토 후에.
+## 빠른 시작
 
-## 1. 도구 받기
+### 1. 도구 설치
+
+Node.js와 `pnpm`이 필요합니다. `pnpm` 명령이 없다면 먼저 설치하세요.
+
+```bash
+npm install -g pnpm@10.28.2
+```
 
 이 저장소를 clone 하거나 다운로드한 뒤 설치합니다.
 
 ```bash
 git clone <repository-url> openapi-projector
-cd /path/to/openapi-projector
+cd openapi-projector
 pnpm install
 pnpm link --global
 ```
 
-전역 링크를 쓰지 않으면 `node /path/to/openapi-projector/bin/openapi-tool.mjs <command>`로 실행해도 됩니다.
-
-## 2. 프론트엔드 프로젝트에 적용
+### 2. 프론트엔드 프로젝트에 적용
 
 프론트엔드 프로젝트 루트에서 한 번만 실행합니다.
 
 ```bash
-cd /path/to/frontend-project
+cd <프론트엔드 프로젝트 루트>
 openapi-projector init
 ```
 
-OpenAPI JSON URL을 이미 알고 있으면 init 단계에서 바로 넣을 수 있습니다.
+OpenAPI JSON URL을 알고 있으면 바로 넣을 수 있습니다.
 
 ```bash
 openapi-projector init --source-url https://example.com/v3/api-docs
 ```
 
-`init` 후에는 프론트엔드 프로젝트에 `openapi/README.md`, `openapi/config/project.jsonc`, `openapi/config/project-rules.jsonc`가 생성됩니다.
+### 3. AI에게 맡기기
 
-## 3. AI에게 붙여넣기
-
-이후 해당 프론트엔드 프로젝트에서 사용하는 AI coding agent에게 아래 프롬프트를 그대로 붙여넣습니다.
+프론트엔드 프로젝트에서 사용하는 AI coding agent에게 아래처럼 요청합니다.
 
 ```text
 이 프론트엔드 프로젝트에 openapi-projector를 적용해줘.
 
-먼저 openapi/README.md를 읽고 그 지침대로 진행해.
-openapi/config/project.jsonc의 sourceUrl이 Swagger UI 페이지가 아니라 OpenAPI JSON 요청 URL인지 확인해.
-sourceUrl이 비어 있거나 잘못되어 있으면 나에게 올바른 OpenAPI JSON URL을 물어봐.
+1. 먼저 openapi/README.md를 읽어.
+2. openapi/config/project.jsonc의 sourceUrl이 Swagger UI 페이지가 아니라 OpenAPI JSON URL인지 확인해.
+   sourceUrl이 비어 있거나 잘못되어 있으면 나에게 올바른 OpenAPI JSON URL을 물어봐.
+3. openapi-projector doctor --check-url을 실행해.
+4. openapi-projector refresh를 실행하고 openapi/review/changes/summary.md를 확인해.
+5. openapi-projector rules를 실행해.
+6. openapi/review/project-rules/analysis.md와 analysis.json을 읽고,
+   실제 프로젝트의 API client, import 경로, request 호출 방식을 확인해.
+7. openapi/config/project-rules.jsonc를 프로젝트 컨벤션에 맞게 수정하고,
+   규칙이 맞다고 판단되면 review.rulesReviewed를 true로 바꿔.
+8. openapi-projector project를 실행해.
+9. openapi/project/summary.md를 읽고 생성된 endpoint와 skipped endpoint를 요약해.
 
-openapi-projector doctor --check-url을 실행해서 설정과 URL 접근 가능 여부를 확인해.
-그 다음 openapi-projector refresh와 openapi-projector rules를 실행해.
+아직 실제 앱 코드에는 반영하지 말고, 내가 어떤 endpoint를 적용할지 아래 형식으로 물어봐.
 
-openapi/review/project-rules/analysis.md와 analysis.json을 읽고,
-실제 프로젝트의 API client, import 경로, request 호출 방식을 직접 확인한 뒤
-openapi/config/project-rules.jsonc를 이 프로젝트 컨벤션에 맞게 수정해.
+적용할 endpoint:
+- <METHOD> <PATH> 또는 operationId
 
-규칙이 맞다고 판단되면 openapi/config/project-rules.jsonc의 review.rulesReviewed를 true로 바꾸고,
-openapi-projector project를 실행해서 DTO/API 후보 코드를 생성해.
+반영 범위:
+- DTO만
+- DTO + API wrapper
 
-생성된 openapi/project 코드는 최종 앱 코드가 아니라 검토용 후보야.
-내가 요청한 endpoint나 기능에 필요한 DTO/API만 실제 앱 코드 위치로 옮기거나 맞게 수정해.
-openapi/review와 openapi/project는 재생성 가능한 산출물이므로 커밋하지 마.
-
-실제 앱 코드에 반영한 뒤, 이 프로젝트에서 사용 중이면 타입체크, 린트, 관련 테스트를 실행해줘.
-
-내가 필요한 endpoint/기능:
-- <여기에 필요한 endpoint나 기능을 적어줘>
+사용할 실제 앱 코드 위치:
+- <예: src/features/user/api>
 ```
 
-DTO만 필요하면 마지막 요청을 이렇게 바꿔서 붙여넣으면 됩니다.
+DTO만 필요하면 아래 문장을 추가하세요.
 
 ```text
-내가 필요한 endpoint/기능:
-- <여기에 필요한 endpoint나 기능을 적어줘>
-
 API wrapper는 반영하지 말고, 요청한 endpoint의 .dto.ts 후보만 실제 앱 코드 구조에 맞게 옮겨줘.
 ```
 
-## 생성 흐름
+## 알아둘 점
 
-```text
-OpenAPI JSON
-    ↓ refresh
-review docs / schema / change summary
-    ↓ rules
-project API client 분석 + rules 생성
-    ↓ project
-DTO/API 후보 코드 생성
-    ↓
-사람 또는 AI가 필요한 파일만 실제 src/로 반영
-```
+- `sourceUrl`은 Swagger UI 페이지가 아니라 OpenAPI JSON URL이어야 합니다.
+- `openapi-projector refresh` 후 최신 변경 요약은 `openapi/review/changes/summary.md`에서 확인합니다.
+- 변경 이력은 `openapi/review/changes/history/`에 `.md`와 `.json`으로 누적됩니다.
+- `Contract Changed` 항목에는 request/response/schema/parameter의 필드 단위 변경 내용이 비교 표로 표시됩니다.
+- `openapi/project/`는 최종 앱 코드가 아니라 검토용 후보입니다.
+- `openapi/review/`와 `openapi/project/`는 보통 커밋하지 않습니다.
+- 자세한 작업 지침은 init 후 생성되는 `openapi/README.md`에 들어 있습니다.
 
 ## 문서
 
 - 개념과 단계: [docs/01-concepts.md](docs/01-concepts.md)
 - 설정값: [docs/04-config-reference.md](docs/04-config-reference.md)
 - 도구 개발/유지보수: [docs/03-maintainer-notes.md](docs/03-maintainer-notes.md)
-- 제품 방향: [docs/05-product-plan.md](docs/05-product-plan.md)
-- 요구사항과 지원 범위: [docs/06-requirements-spec.md](docs/06-requirements-spec.md)
-- 갭 분석: [docs/07-gap-analysis.md](docs/07-gap-analysis.md)

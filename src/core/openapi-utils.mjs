@@ -416,11 +416,12 @@ function buildEndpointCatalog(spec) {
         pathItem,
         operation,
       );
+      const contractSnapshot = stripDocOnlyFields(resolvedSnapshot);
       const rawFingerprint = createHash('sha256')
         .update(stableStringify(resolvedSnapshot))
         .digest('hex');
       const contractFingerprint = createHash('sha256')
-        .update(stableStringify(stripDocOnlyFields(resolvedSnapshot)))
+        .update(stableStringify(contractSnapshot))
         .digest('hex');
 
       entries.push({
@@ -433,6 +434,7 @@ function buildEndpointCatalog(spec) {
         tags: Array.isArray(operation.tags) ? operation.tags : [],
         rawFingerprint,
         contractFingerprint,
+        contractSnapshot,
       });
     }
   }

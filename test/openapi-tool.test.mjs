@@ -335,6 +335,162 @@ test(
 );
 
 test(
+  'catalog records contract comparison tables in change history',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Change Detail API',
+        version: '1.0.0',
+      },
+      paths: {
+        '/users/{id}': {
+          get: {
+            tags: ['Users'],
+            summary: 'Get user',
+            parameters: [
+              {
+                name: 'id',
+                in: 'path',
+                required: true,
+                schema: {
+                  type: 'string',
+                },
+              },
+            ],
+            responses: {
+              200: {
+                description: 'OK',
+                content: {
+                  'application/json': {
+                    schema: {
+                      $ref: '#/components/schemas/User',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          User: {
+            type: 'object',
+            required: ['id'],
+            properties: {
+              id: {
+                type: 'string',
+              },
+              email: {
+                type: 'string',
+              },
+            },
+          },
+          File: {
+            type: 'object',
+            properties: {
+              id: {
+                type: 'string',
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const nextSpec = structuredClone(spec);
+      nextSpec.paths['/users/{id}'].get.parameters.push({
+        name: 'active',
+        in: 'query',
+        required: true,
+        schema: {
+          type: 'boolean',
+        },
+      });
+      nextSpec.components.schemas.User.required.push('email');
+      nextSpec.components.schemas.User.properties.email.type = 'integer';
+      nextSpec.components.schemas.User.properties.attachments = {
+        type: 'array',
+        items: {
+          $ref: '#/components/schemas/File',
+        },
+      };
+
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.json'),
+        nextSpec,
+      );
+
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const historyDir = path.join(workspace, 'openapi/review/changes/history');
+      const historyFiles = await fs.readdir(historyDir);
+      const historyMarkdownFiles = historyFiles.filter((fileName) =>
+        fileName.endsWith('.md'),
+      );
+      const historyJsonFiles = historyFiles.filter((fileName) =>
+        fileName.endsWith('.json'),
+      );
+
+      assert.equal(historyMarkdownFiles.length, 1);
+      assert.equal(historyJsonFiles.length, 1);
+
+      const historySource = await fs.readFile(
+        path.join(historyDir, historyMarkdownFiles[0]),
+        'utf8',
+      );
+      const historyJson = await readJson(path.join(historyDir, historyJsonFiles[0]));
+      const detailPaths = historyJson.contractChanged[0].details.map(
+        (detail) => detail.path,
+      );
+
+      assert.equal(historyJson.contractChanged.length, 1);
+      assert.equal(historyJson.contractChanged[0].detailsUnavailable, undefined);
+      assert.ok(
+        detailPaths.includes('operation.parameters["query.active"].schema.type'),
+      );
+      assert.ok(
+        detailPaths.includes('referencedSchemas.User.properties.email.type'),
+      );
+      assert.deepEqual(historyJson.contractChanged[0].comparisonRows[0], {
+        category: 'Query Parameter',
+        target: '`active`',
+        previous: '없음',
+        next: '`boolean`, required',
+      });
+      assert.deepEqual(historyJson.contractChanged[0].comparisonRows[1], {
+        category: 'Schema Property',
+        target: '`User.attachments`',
+        previous: '없음',
+        next: '`File[]`',
+      });
+      assert.match(historySource, /Contract Changed: 1/);
+      assert.match(
+        historySource,
+        /\| 구분 \| 항목 \| 이전 \| 변경 \|/,
+      );
+      assert.match(
+        historySource,
+        /\| Query Parameter \| `active` \| 없음 \| `boolean`, required \|/,
+      );
+      assert.match(
+        historySource,
+        /\| Schema Property \| `User\.attachments` \| 없음 \| `File\[\]` \|/,
+      );
+      assert.match(
+        historySource,
+        /\| Schema \| `referencedSchemas\.User\.properties\.email\.type` \| `string` \| `integer` \|/,
+      );
+    });
+  },
+);
+
+test(
   'cli init uses projector local config before legacy config',
   { concurrency: false },
   async () => {
