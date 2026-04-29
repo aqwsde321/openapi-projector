@@ -1123,6 +1123,44 @@ test(
 );
 
 test(
+  'cli init without force fails on target config when lower-priority config also exists',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(
+      path.join(os.tmpdir(), 'openapi-projector-mixed-config-no-force-'),
+    );
+    const targetConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
+    const lowerPriorityConfigPath = path.join(workspace, 'config/project.jsonc');
+
+    try {
+      await writeJsonFile(targetConfigPath, {
+        sourceUrl: 'https://target.example.com/v3/api-docs',
+        sourcePath: 'openapi/_internal/source/openapi.json',
+      });
+      await writeJsonFile(lowerPriorityConfigPath, {
+        sourceUrl: 'https://lower.example.com/v3/api-docs',
+        sourcePath: 'openapi/_internal/source/openapi.json',
+      });
+
+      await assert.rejects(
+        () => runInWorkspace(workspace, () =>
+          runCli(['init', '--source-url', 'https://new.example.com/v3/api-docs']),
+        ),
+        /Project config already exists: .*openapi\/config\/project\.jsonc\nRe-run with --force/,
+      );
+
+      const targetConfig = await readJson(targetConfigPath);
+      const lowerPriorityConfig = await readJson(lowerPriorityConfigPath);
+
+      assert.equal(targetConfig.sourceUrl, 'https://target.example.com/v3/api-docs');
+      assert.equal(lowerPriorityConfig.sourceUrl, 'https://lower.example.com/v3/api-docs');
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
   'cli init force keeps target config preferred when lower-priority config also exists',
   { concurrency: false },
   async () => {
