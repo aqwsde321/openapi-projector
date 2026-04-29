@@ -409,9 +409,10 @@ test(
         projectConfigSource,
         /"projectRulesAnalysisJsonPath": "openapi\/review\/project-rules\/analysis\.json"/,
       );
-      assert.match(projectReadmeSource, /# openapi-projector Usage Guide/);
-      assert.match(projectReadmeSource, /project-specific usage guide/);
-      assert.match(projectReadmeSource, /## For Humans: What You Need To Know/);
+      assert.match(projectReadmeSource, /# openapi-projector Workspace Guide/);
+      assert.match(projectReadmeSource, /## 사람용 요약/);
+      assert.match(projectReadmeSource, /<details>/);
+      assert.match(projectReadmeSource, /<summary>AI Agents: Detailed Workflow<\/summary>/);
       assert.match(projectReadmeSource, /## For AI Agents: Detailed Workflow/);
       assert.match(projectReadmeSource, /openapi\/review\/changes\/summary\.md/);
       assert.match(projectReadmeSource, /openapi\/review\/project-rules\/analysis\.json/);
@@ -500,9 +501,10 @@ test(
       assert.match(projectRulesSource, /"rulesReviewed": false/);
       assert.match(projectRulesSource, /"fetchApiImportPath": "@\/shared\/api"/);
       assert.match(projectRulesSource, /"fetchApiImportKind": "named"/);
-      assert.match(projectReadmeSource, /# openapi-projector Usage Guide/);
-      assert.match(projectReadmeSource, /project-specific usage guide/);
-      assert.match(projectReadmeSource, /## For Humans: What You Need To Know/);
+      assert.match(projectReadmeSource, /# openapi-projector Workspace Guide/);
+      assert.match(projectReadmeSource, /## 사람용 요약/);
+      assert.match(projectReadmeSource, /<details>/);
+      assert.match(projectReadmeSource, /<summary>AI Agents: Detailed Workflow<\/summary>/);
       assert.match(projectReadmeSource, /## For AI Agents: Detailed Workflow/);
       assert.equal(
         openapiGitignoreSource,
@@ -1113,6 +1115,52 @@ test(
         await assert.rejects(
           () => fs.access(path.join(workspace, 'openapi/project/manifest.json')),
           /ENOENT/,
+        );
+      },
+    );
+  },
+);
+
+test(
+  'project rejects reviewed rules without adapterStyle before cleaning generated output',
+  { concurrency: false },
+  async () => {
+    const spec = await readFixtureJson('oas30.json');
+
+    await withWorkspace(
+      {
+        spec,
+        rules: {
+          review: {
+            rulesReviewed: true,
+            notes: [],
+          },
+          api: {
+            fetchApiImportPath: '../../test-support/fetch-api',
+            fetchApiSymbol: 'fetchAPI',
+            fetchApiImportKind: 'named',
+            wrapperGrouping: 'tag',
+            tagFileCase: 'title',
+          },
+          layout: {
+            schemaFileName: 'schema.ts',
+          },
+        },
+        extraFiles: [
+          {
+            path: 'openapi/project/src/openapi-generated/keep.ts',
+            content: 'export const keep = true;\n',
+          },
+        ],
+      },
+      async (workspace) => {
+        await assert.rejects(
+          () => runInWorkspace(workspace, () => projectCommand.run()),
+          /api\.adapterStyle: is required when review\.rulesReviewed is true/,
+        );
+
+        await assertExists(
+          path.join(workspace, 'openapi/project/src/openapi-generated/keep.ts'),
         );
       },
     );
