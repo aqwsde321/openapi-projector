@@ -373,6 +373,11 @@ test(
                       $ref: '#/components/schemas/ResponseHeader',
                     },
                   },
+                  'X-Changed': {
+                    schema: {
+                      $ref: '#/components/schemas/ChangedHeader',
+                    },
+                  },
                 },
                 content: {
                   'application/json': {
@@ -416,6 +421,18 @@ test(
               },
             },
           },
+          ChangedHeader: {
+            type: 'object',
+            required: ['token'],
+            properties: {
+              token: {
+                type: 'string',
+              },
+              expiresAt: {
+                type: 'string',
+              },
+            },
+          },
         },
       },
     };
@@ -442,6 +459,7 @@ test(
       };
       delete nextSpec.components.schemas.ResponseHeader.required;
       nextSpec.components.schemas.ResponseHeader.properties.value.type = 'integer';
+      nextSpec.components.schemas.ChangedHeader.required.push('expiresAt');
 
       await writeJsonFile(
         path.join(workspace, 'openapi/_internal/source/openapi.json'),
@@ -491,6 +509,7 @@ test(
       assert.ok(
         detailPaths.includes('referencedSchemas.ResponseHeader.properties.value.type'),
       );
+      assert.ok(detailPaths.includes('referencedSchemas.ChangedHeader.required'));
       const comparisonRows = historyJson.contractChanged[0].comparisonRows;
       assert.deepEqual(historyJson.contractChanged[0].comparisonRows[0], {
         category: 'Query Parameter',
@@ -526,6 +545,15 @@ test(
           target: '`ResponseHeader.value.required`',
           previous: 'required',
           next: 'optional',
+        },
+      );
+      assert.deepEqual(
+        comparisonRows.find((row) => row.target === '`ChangedHeader.expiresAt.required`'),
+        {
+          category: 'Response Header Field',
+          target: '`ChangedHeader.expiresAt.required`',
+          previous: 'optional',
+          next: 'required',
         },
       );
       assert.match(historySource, /Contract Changed: 1/);
@@ -572,6 +600,10 @@ test(
       assert.match(
         historySource,
         /\| Response Header Field \| `ResponseHeader\.value\.required` \| required \| optional \|/,
+      );
+      assert.match(
+        historySource,
+        /\| Response Header Field \| `ChangedHeader\.expiresAt\.required` \| optional \| required \|/,
       );
     });
   },
