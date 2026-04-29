@@ -363,6 +363,11 @@ test(
               200: {
                 description: 'OK',
                 headers: {
+                  'X-User': {
+                    schema: {
+                      $ref: '#/components/schemas/User',
+                    },
+                  },
                   'X-Meta': {
                     schema: {
                       $ref: '#/components/schemas/ResponseHeader',
@@ -385,7 +390,6 @@ test(
         schemas: {
           User: {
             type: 'object',
-            required: ['id'],
             properties: {
               id: {
                 type: 'string',
@@ -405,6 +409,7 @@ test(
           },
           ResponseHeader: {
             type: 'object',
+            required: ['value'],
             properties: {
               value: {
                 type: 'string',
@@ -427,7 +432,7 @@ test(
           type: 'boolean',
         },
       });
-      nextSpec.components.schemas.User.required.push('email');
+      nextSpec.components.schemas.User.required = ['email'];
       nextSpec.components.schemas.User.properties.email.type = 'integer';
       nextSpec.components.schemas.User.properties.attachments = {
         type: 'array',
@@ -435,6 +440,7 @@ test(
           $ref: '#/components/schemas/File',
         },
       };
+      delete nextSpec.components.schemas.ResponseHeader.required;
       nextSpec.components.schemas.ResponseHeader.properties.value.type = 'integer';
 
       await writeJsonFile(
@@ -493,13 +499,13 @@ test(
         next: '`boolean`, required',
       });
       assert.deepEqual(comparisonRows.find((row) => row.target === '`User.email.required`'), {
-        category: 'Response Body Field',
+        category: 'Response Body/Header Field',
         target: '`User.email.required`',
         previous: 'optional',
         next: 'required',
       });
       assert.deepEqual(comparisonRows.find((row) => row.target === '`User.attachments`'), {
-        category: 'Response Body Field',
+        category: 'Response Body/Header Field',
         target: '`User.attachments`',
         previous: '없음',
         next: '`File[]`',
@@ -511,6 +517,15 @@ test(
           target: '`ResponseHeader.value.type`',
           previous: '`string`',
           next: '`integer`',
+        },
+      );
+      assert.deepEqual(
+        comparisonRows.find((row) => row.target === '`ResponseHeader.value.required`'),
+        {
+          category: 'Response Header Field',
+          target: '`ResponseHeader.value.required`',
+          previous: 'required',
+          next: 'optional',
         },
       );
       assert.match(historySource, /Contract Changed: 1/);
@@ -540,19 +555,23 @@ test(
       );
       assert.match(
         historySource,
-        /\| Response Body Field \| `User\.attachments` \| 없음 \| `File\[\]` \|/,
+        /\| Response Body\/Header Field \| `User\.attachments` \| 없음 \| `File\[\]` \|/,
       );
       assert.match(
         historySource,
-        /\| Response Body Field \| `User\.email\.required` \| optional \| required \|/,
+        /\| Response Body\/Header Field \| `User\.email\.required` \| optional \| required \|/,
       );
       assert.match(
         historySource,
-        /\| Response Body Field \| `User\.email\.type` \| `string` \| `integer` \|/,
+        /\| Response Body\/Header Field \| `User\.email\.type` \| `string` \| `integer` \|/,
       );
       assert.match(
         historySource,
         /\| Response Header Field \| `ResponseHeader\.value\.type` \| `string` \| `integer` \|/,
+      );
+      assert.match(
+        historySource,
+        /\| Response Header Field \| `ResponseHeader\.value\.required` \| required \| optional \|/,
       );
     });
   },

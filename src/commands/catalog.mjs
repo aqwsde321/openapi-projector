@@ -690,16 +690,19 @@ function appendSchemaRequiredRows(rows, details, consumedIndexes, comparisonCont
   details.forEach((detail, index) => {
     const parsed = parseSchemaRequiredDetailPath(detail.path);
 
-    if (!parsed || detail.kind !== 'changed') {
+    if (!parsed || !['added', 'changed', 'removed'].includes(detail.kind)) {
       return;
     }
 
-    if (!Array.isArray(detail.previous) || !Array.isArray(detail.next)) {
+    const previousValue = detail.kind === 'added' ? [] : detail.previous;
+    const nextValue = detail.kind === 'removed' ? [] : detail.next;
+
+    if (!Array.isArray(previousValue) || !Array.isArray(nextValue)) {
       return;
     }
 
-    const previousRequired = new Set(detail.previous.map(String));
-    const nextRequired = new Set(detail.next.map(String));
+    const previousRequired = new Set(previousValue.map(String));
+    const nextRequired = new Set(nextValue.map(String));
     const fieldNames = new Set([...previousRequired, ...nextRequired]);
 
     for (const fieldName of [...fieldNames].sort((left, right) => left.localeCompare(right))) {
@@ -982,26 +985,39 @@ function getSchemaUsageLabel(schemaName, comparisonContext) {
   const usages = comparisonContext?.schemaUsageByName?.get(schemaName) ?? new Set();
   const hasRequestBody = usages.has('Request Body');
   const hasResponseBody = usages.has('Response Body');
+  const hasRequestHeader = usages.has('Request Header');
+  const hasResponseHeader = usages.has('Response Header');
   const parameterUsages = [...usages].filter((usage) => usage.endsWith(' Parameter'));
+  const labels = [];
 
   if (hasRequestBody && hasResponseBody) {
-    return 'Request/Response Body';
+    labels.push('Request/Response Body');
+  } else if (hasRequestBody) {
+    labels.push('Request Body');
+  } else if (hasResponseBody) {
+    labels.push('Response Body');
   }
 
-  if (hasRequestBody) {
-    return 'Request Body';
-  }
-
-  if (hasResponseBody) {
-    return 'Response Body';
+  if (hasRequestHeader && hasResponseHeader) {
+    labels.push('Request/Response Header');
+  } else if (hasRequestHeader) {
+    labels.push('Request Header');
+  } else if (hasResponseHeader) {
+    labels.push('Response Header');
   }
 
   if (parameterUsages.length === 1) {
-    return parameterUsages[0];
+    labels.push(parameterUsages[0]);
+  } else if (parameterUsages.length > 1) {
+    labels.push('Parameter');
   }
 
-  if (parameterUsages.length > 1) {
-    return 'Parameter';
+  if (labels.length === 1) {
+    return labels[0];
+  }
+
+  if (labels.length > 1) {
+    return compactSchemaUsageLabels(labels).join(' + ');
   }
 
   if (usages.size === 1) {
@@ -1009,6 +1025,24 @@ function getSchemaUsageLabel(schemaName, comparisonContext) {
   }
 
   return 'Schema';
+}
+
+function compactSchemaUsageLabels(labels) {
+  if (labels.includes('Request Body') && labels.includes('Request Header')) {
+    return [
+      'Request Body/Header',
+      ...labels.filter((label) => label !== 'Request Body' && label !== 'Request Header'),
+    ];
+  }
+
+  if (labels.includes('Response Body') && labels.includes('Response Header')) {
+    return [
+      'Response Body/Header',
+      ...labels.filter((label) => label !== 'Response Body' && label !== 'Response Header'),
+    ];
+  }
+
+  return labels;
 }
 
 function formatSchemaPropertyTarget({ schemaName, propertyName, fieldPath }) {
