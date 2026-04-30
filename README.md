@@ -12,7 +12,7 @@ OpenAPI JSON을 프론트엔드 프로젝트 컨벤션에 맞는 DTO/API 후보 
 npx --yes openapi-projector init
 ```
 
-`init`은 기본 OpenAPI JSON URL을 보여주고, 터미널에서 실행 중이면 바꿀 URL을 입력할 수 있게 물어봅니다. Enter를 누르면 기본값 `http://localhost:8080/v3/api-docs`를 그대로 사용합니다. 입력한 URL이 실패하면 같은 서버의 대표 OpenAPI JSON 경로를 자동으로 확인하고, 그래도 실패하면 다시 입력하게 합니다.
+`init`은 기본 OpenAPI JSON URL을 보여주고, 터미널에서 실행 중이면 바꿀 URL을 입력할 수 있게 물어봅니다. Enter를 누르면 기본값 `http://localhost:8080/v3/api-docs`를 그대로 사용합니다. 입력한 URL이 실패하면 같은 서버의 대표 OpenAPI JSON 경로를 자동으로 확인하고, 그래도 실패하면 다시 입력하게 합니다. 백엔드가 아직 떠 있지 않거나 VPN/인증 때문에 CLI에서 접근할 수 없으면 `skip`을 입력해 마지막 URL을 그대로 저장할 수 있습니다.
 
 `init` 완료 로그에는 나중에 수정할 `openapi/config/project.jsonc` 경로와 `file://` 링크가 함께 표시됩니다. 이미 `init`을 실행했다면 그 파일의 `sourceUrl`을 수정하면 됩니다.
 

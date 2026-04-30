@@ -229,11 +229,18 @@ async function promptForSourceUrl({ defaultSourceUrl, fetchImpl, stdin, stdout }
   stdout.write('Press Enter to keep it, or paste a different OpenAPI JSON URL.\n');
 
   const readline = createInterface({ input: stdin, output: stdout, terminal: false });
+  let lastCheckedSourceUrl = defaultSourceUrl;
   try {
     while (true) {
       const answer = await readline.question(`OpenAPI JSON URL [${defaultSourceUrl}]: `);
       const trimmed = answer.trim();
+      if (trimmed.toLowerCase() === 'skip') {
+        stdout.write(`Skipping reachability check. Saving sourceUrl anyway: ${lastCheckedSourceUrl}\n`);
+        return lastCheckedSourceUrl;
+      }
+
       const sourceUrl = trimmed || defaultSourceUrl;
+      lastCheckedSourceUrl = sourceUrl;
       const result = await resolveReachableSourceUrl({
         fetchImpl,
         sourceUrl,
@@ -244,7 +251,7 @@ async function promptForSourceUrl({ defaultSourceUrl, fetchImpl, stdin, stdout }
         return result.sourceUrl;
       }
 
-      stdout.write('\nCould not find a reachable OpenAPI JSON URL. Paste another URL or press Ctrl+C to cancel.\n');
+      stdout.write('\nCould not find a reachable OpenAPI JSON URL. Paste another URL, type "skip" to save this URL anyway, or press Ctrl+C to cancel.\n');
     }
   } finally {
     readline.close();

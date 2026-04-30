@@ -16,6 +16,7 @@
 기본값은 `http://localhost:8080/v3/api-docs`입니다.
 
 처음 `init`을 실행할 때 기본 `sourceUrl`을 그대로 두었다면, 여기서 실제 OpenAPI JSON URL로 바꿉니다.
+대화형 `init`의 URL 확인이 VPN, 인증, 백엔드 미기동 때문에 계속 실패한다면 `skip`을 입력해 마지막 URL을 그대로 저장할 수 있습니다.
 
 `init` 완료 로그에는 나중에 수정할 `openapi/config/project.jsonc` 경로와 `file://` 링크가 함께 표시됩니다. 이미 `init`이 끝난 상태라면 아래 설정 파일의 `sourceUrl`만 수정하면 됩니다.
 

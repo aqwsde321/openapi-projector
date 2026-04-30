@@ -1276,6 +1276,46 @@ test(
 );
 
 test(
+  'cli init can save an unreachable prompted sourceUrl when the user types skip',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-prompt-skip-'));
+    const promptOutput = createWritableCapture();
+    const sourceUrl = 'https://private.example.com/openapi.json';
+    const fetchMock = createOpenApiFetchMock(() =>
+      createOpenApiFetchResponse({ status: 401, statusText: 'Unauthorized', body: 'auth required' }),
+    );
+
+    try {
+      await initCommand.run({
+        argv: [],
+        context: {
+          interactive: true,
+          fetch: fetchMock,
+          stdin: Readable.from(delayedLines([
+            `${sourceUrl}\n`,
+            'skip\n',
+          ])),
+          stdout: promptOutput.writable,
+          targetRoot: workspace,
+        },
+      });
+
+      const projectConfig = await readJson(
+        path.join(workspace, 'openapi/config/project.jsonc'),
+      );
+
+      assert.equal(projectConfig.sourceUrl, sourceUrl);
+      assert.match(promptOutput.output(), /x GET https:\/\/private\.example\.com\/openapi\.json - HTTP 401 Unauthorized/);
+      assert.match(promptOutput.output(), /type "skip" to save this URL anyway/);
+      assert.match(promptOutput.output(), /Skipping reachability check\. Saving sourceUrl anyway: https:\/\/private\.example\.com\/openapi\.json/);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
   'cli init colors sourceUrl checks in interactive terminals',
   { concurrency: false },
   async () => {
