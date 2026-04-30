@@ -10,6 +10,10 @@
 
 - `catalog` 변경 요약에 선택적 `oasdiff` 호환성 리포트 병합을 추가했습니다.
 - `summary.json`의 `externalDiff.oasdiff`와 `summary.md`의 `Compatibility Check` 섹션을 추가했습니다.
+- `init` 실행 시 터미널 환경에서 기본 `sourceUrl`을 보여주고 변경 값을 입력받는 프롬프트를 추가했습니다.
+- `init` 대화형 프롬프트에서 입력한 `sourceUrl`을 즉시 확인하고, 실패 시 대표 OpenAPI 경로 자동 탐색과 재입력을 지원하도록 추가했습니다.
+- `init` 완료 로그에 `sourceUrl`을 나중에 수정할 설정 파일 경로와 `file://` 링크를 표시하도록 추가했습니다.
+- AI에게 작업을 맡기기 전 사람이 `prepare`로 생성되는 검토 자료를 확인하는 README 안내를 추가했습니다.
 
 ### Fixed
 

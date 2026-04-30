@@ -27,8 +27,8 @@ const helpCommand = {
     console.log('First-time setup:');
     console.log('  1. cd <frontend-project-root>');
     console.log('  2. npx --yes openapi-projector init');
-    console.log('     or npx --yes openapi-projector init --source-url <openapi-json-url>');
-    console.log('     default sourceUrl: http://localhost:8080/v3/api-docs');
+    console.log('     interactive terminals can confirm, validate, or retry the default sourceUrl');
+    console.log('     CI/scripts can pass --source-url explicitly or use --no-input');
     console.log('  3. read openapi/README.md or ask an AI coding agent to continue from it');
     console.log('');
     console.log('Commands:');

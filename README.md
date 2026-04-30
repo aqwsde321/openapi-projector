@@ -12,15 +12,18 @@ OpenAPI JSON을 프론트엔드 프로젝트 컨벤션에 맞는 DTO/API 후보 
 npx --yes openapi-projector init
 ```
 
-기본 OpenAPI JSON URL은 `http://localhost:8080/v3/api-docs`입니다.
+`init`은 기본 OpenAPI JSON URL을 보여주고, 터미널에서 실행 중이면 바꿀 URL을 입력할 수 있게 물어봅니다. Enter를 누르면 기본값 `http://localhost:8080/v3/api-docs`를 그대로 사용합니다. 입력한 URL이 실패하면 같은 서버의 대표 OpenAPI JSON 경로를 자동으로 확인하고, 그래도 실패하면 다시 입력하게 합니다.
 
-백엔드 URL이 다르면 처음부터 지정할 수 있습니다.
+`init` 완료 로그에는 나중에 수정할 `openapi/config/project.jsonc` 경로와 `file://` 링크가 함께 표시됩니다. 이미 `init`을 실행했다면 그 파일의 `sourceUrl`을 수정하면 됩니다.
+
+<details>
+<summary>CI/스크립트에서 프롬프트 없이 실행하기</summary>
 
 ```bash
-npx --yes openapi-projector init --source-url <openapi-json-url>
+npx --yes openapi-projector init --source-url "http://localhost:8080/v3/api-docs"
 ```
 
-이미 `init`을 실행했다면 `openapi/config/project.jsonc`의 `sourceUrl`을 수정하면 됩니다.
+</details>
 
 생성되는 핵심 파일:
 
@@ -29,6 +32,30 @@ npx --yes openapi-projector init --source-url <openapi-json-url>
 | `openapi/README.md` | 사람용 요약과 AI agent용 상세 지침 |
 | `openapi/config/project.jsonc` | OpenAPI JSON URL과 산출물 경로 설정 |
 | `openapi/config/project-rules.jsonc` | 프로젝트 API client/import/call style 규칙 |
+
+AI에게 맡기기 전에 사람이 검토 자료를 먼저 만들고 싶다면 아래 명령을 실행할 수 있습니다.
+
+```bash
+npx --yes openapi-projector prepare
+```
+
+`prepare`는 아래 명령을 순서대로 대신 실행하는 단축 명령입니다.
+
+1. `refresh`: OpenAPI JSON을 내려받고 review 문서를 만듭니다.
+2. `rules`: 현재 프론트엔드 프로젝트의 API 호출 방식을 분석하고 `openapi/config/project-rules.jsonc` 초안을 만듭니다.
+3. `project`: 검토된 규칙으로 DTO/API 후보 코드를 만듭니다.
+
+첫 실행에서는 `rules` 검토 단계에서 멈추는 것이 정상입니다. 이때 `openapi/review/changes/summary.md`, `openapi/review/project-rules/analysis.md`, `openapi/config/project-rules.jsonc`를 확인합니다.
+
+**중요:** 규칙이 실제 프로젝트와 맞다고 확인한 뒤에만 `openapi/config/project-rules.jsonc`의 `review.rulesReviewed`를 `true`로 바꾸고 다시 `prepare`를 실행합니다.
+
+```jsonc
+{
+  "review": {
+    "rulesReviewed": true
+  }
+}
+```
 
 ## AI에게 붙여넣기
 

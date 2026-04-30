@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { Readable, Writable } from 'node:stream';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -11,6 +12,7 @@ import { runCli } from '../src/cli.mjs';
 import { catalogCommand } from '../src/commands/catalog.mjs';
 import { doctorCommand } from '../src/commands/doctor.mjs';
 import { generateCommand } from '../src/commands/generate.mjs';
+import { initCommand } from '../src/commands/init.mjs';
 import { projectCommand } from '../src/commands/project.mjs';
 import { rulesCommand } from '../src/commands/rules.mjs';
 import { createTypeRenderer, readJson } from '../src/core/openapi-utils.mjs';
@@ -156,6 +158,44 @@ async function captureConsoleLog(callback) {
   }
 }
 
+function createWritableCapture({ forceColor = false, isTTY = false } = {}) {
+  let output = '';
+  const writable = new Writable({
+    write(chunk, _encoding, callback) {
+      output += chunk.toString();
+      callback();
+    },
+  });
+
+  if (isTTY) {
+    Object.defineProperty(writable, 'isTTY', {
+      configurable: true,
+      value: true,
+    });
+  }
+
+  if (forceColor) {
+    Object.defineProperty(writable, 'forceColor', {
+      configurable: true,
+      value: true,
+    });
+  }
+
+  return {
+    output: () => output,
+    writable,
+  };
+}
+
+async function* delayedLines(lines) {
+  for (const line of lines) {
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+    yield line;
+  }
+}
+
 async function assertExists(filePath) {
   await fs.access(filePath);
 }
@@ -192,6 +232,31 @@ function createSimpleSpec(summary = 'Ping') {
       },
     },
   };
+}
+
+function createOpenApiFetchResponse({
+  body = createSimpleSpec(),
+  status = 200,
+  statusText = 'OK',
+} = {}) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    statusText,
+    async text() {
+      return typeof body === 'string' ? body : JSON.stringify(body);
+    },
+  };
+}
+
+function createOpenApiFetchMock(handler = () => createOpenApiFetchResponse()) {
+  const calls = [];
+  const fetchMock = async (url, options = {}) => {
+    calls.push({ url: String(url), options });
+    return handler(String(url), options);
+  };
+  fetchMock.calls = calls;
+  return fetchMock;
 }
 
 async function withToolLocalConfigs(configs, callback) {
@@ -1001,6 +1066,15 @@ test(
       assert.match(projectReadmeSource, /rg "fetchAPI\|apiClient\|request\|axios\|ky\|httpClient" src/);
       assert.match(projectReadmeSource, /openapi\/config\/project-rules\.jsonc/);
       assert.match(projectReadmeSource, /npx --yes openapi-projector prepare/);
+      assert.match(projectReadmeSource, /### 2\. init이 만든 작업 공간 확인/);
+      assert.match(projectReadmeSource, /처음 `init`을 실행할 때 기본 `sourceUrl`을 그대로 두었다면/);
+      assert.match(projectReadmeSource, /`init` 완료 로그에는 나중에 수정할 `openapi\/config\/project\.jsonc` 경로/);
+      assert.doesNotMatch(projectReadmeSource, /<summary>CI\/스크립트에서 프롬프트 없이 실행하기<\/summary>/);
+      assert.doesNotMatch(projectReadmeSource, /npx --yes openapi-projector init --source-url/);
+      assert.match(projectReadmeSource, /AI에게 붙여넣기 전에 사람이 검토 자료를 만들어두고 싶다면/);
+      assert.match(projectReadmeSource, /`prepare` 실행 후 사람이 먼저 볼 파일/);
+      assert.match(projectReadmeSource, /\*\*중요:\*\* 규칙이 실제 프로젝트와 맞다고 확인한 뒤에만/);
+      assert.match(projectReadmeSource, /사람이 npx --yes openapi-projector prepare를 미리 실행했다면/);
       assert.match(projectReadmeSource, /소스 checkout으로 `node <openapi-projector 저장소 루트>\/bin\/openapi-tool\.mjs init`/);
       assert.match(projectReadmeSource, /같은 `node <openapi-projector 저장소 루트>\/bin\/openapi-tool\.mjs` 방식/);
       assert.match(projectReadmeSource, /default `sourceUrl` is `http:\/\/localhost:8080\/v3\/api-docs`/i);
@@ -1012,7 +1086,11 @@ test(
       assert.match(projectReadmeSource, /`review\.rulesReviewed`가 `true`일 때만 실행/);
       assert.match(projectReadmeSource, /`rules`가 자동으로 만든 `openapi\/config\/project-rules\.jsonc` 초안/);
       assert.match(projectReadmeSource, /API wrapper까지 필요하면 위 프롬프트 그대로 쓰면 됩니다/);
+      assert.match(output, /--- sourceUrl config ---/);
       assert.match(output, /sourceUrl: http:\/\/localhost:8080\/v3\/api-docs/);
+      assert.match(output, /edit sourceUrl later: .*openapi[\\/]config[\\/]project\.jsonc \(field: sourceUrl\)/);
+      assert.match(output, /open: file:.*openapi\/config\/project\.jsonc/);
+      assert.match(output, /------------------------/);
       assert.match(output, /next: run doctor --check-url/);
       assert.match(gitignoreSource, /\.openapi-projector\.local\.jsonc/);
 
@@ -1023,6 +1101,200 @@ test(
       assert.match(openapiGitignoreSource, /_internal\//);
       assert.match(openapiGitignoreSource, /review\//);
       assert.match(openapiGitignoreSource, /project\//);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli init keeps default sourceUrl when interactive prompt is blank',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-prompt-default-'));
+    const promptOutput = createWritableCapture();
+    const fetchMock = createOpenApiFetchMock();
+
+    try {
+      const { output } = await captureConsoleLog(() =>
+        initCommand.run({
+          argv: [],
+          context: {
+            interactive: true,
+            fetch: fetchMock,
+            stdin: Readable.from(['\n']),
+            stdout: promptOutput.writable,
+            targetRoot: workspace,
+          },
+        }),
+      );
+
+      const projectConfig = await readJson(
+        path.join(workspace, 'openapi/config/project.jsonc'),
+      );
+
+      assert.equal(projectConfig.sourceUrl, 'http://localhost:8080/v3/api-docs');
+      assert.match(promptOutput.output(), /OpenAPI JSON URL \[http:\/\/localhost:8080\/v3\/api-docs\]:/);
+      assert.match(promptOutput.output(), /Checking OpenAPI JSON URL/);
+      assert.match(promptOutput.output(), /✓ GET http:\/\/localhost:8080\/v3\/api-docs - OpenAPI 3\.0\.3/);
+      assert.deepEqual(fetchMock.calls.map((call) => call.url), [
+        'http://localhost:8080/v3/api-docs',
+      ]);
+      assert.match(output, /--- sourceUrl config ---/);
+      assert.match(output, /sourceUrl: http:\/\/localhost:8080\/v3\/api-docs/);
+      assert.match(output, /edit sourceUrl later: .*openapi[\\/]config[\\/]project\.jsonc \(field: sourceUrl\)/);
+      assert.match(output, /open: file:.*openapi\/config\/project\.jsonc/);
+      assert.match(output, /------------------------/);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli init prompts for sourceUrl in interactive terminals',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-prompt-'));
+    const sourceUrl = 'https://prompt.example.com/v3/api-docs';
+    const promptOutput = createWritableCapture();
+    const fetchMock = createOpenApiFetchMock();
+
+    try {
+      await initCommand.run({
+        argv: [],
+        context: {
+          interactive: true,
+          fetch: fetchMock,
+          stdin: Readable.from([`${sourceUrl}\n`]),
+          stdout: promptOutput.writable,
+          targetRoot: workspace,
+        },
+      });
+
+      const projectConfig = await readJson(
+        path.join(workspace, 'openapi/config/project.jsonc'),
+      );
+
+      assert.equal(projectConfig.sourceUrl, sourceUrl);
+      assert.match(promptOutput.output(), /Default sourceUrl: http:\/\/localhost:8080\/v3\/api-docs/);
+      assert.match(promptOutput.output(), /OpenAPI JSON URL \[http:\/\/localhost:8080\/v3\/api-docs\]:/);
+      assert.match(promptOutput.output(), /✓ GET https:\/\/prompt\.example\.com\/v3\/api-docs - OpenAPI 3\.0\.3/);
+      assert.deepEqual(fetchMock.calls.map((call) => call.url), [sourceUrl]);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli init discovers a common OpenAPI path when prompted sourceUrl fails',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-prompt-discover-'));
+    const promptOutput = createWritableCapture();
+    const fetchMock = createOpenApiFetchMock((url) => {
+      if (url === 'http://localhost:8080/api-docs') {
+        return createOpenApiFetchResponse();
+      }
+
+      return createOpenApiFetchResponse({ status: 404, statusText: 'Not Found', body: 'not found' });
+    });
+
+    try {
+      await initCommand.run({
+        argv: [],
+        context: {
+          interactive: true,
+          fetch: fetchMock,
+          stdin: Readable.from(['http://localhost:8080/v3/api-docs\n']),
+          stdout: promptOutput.writable,
+          targetRoot: workspace,
+        },
+      });
+
+      const projectConfig = await readJson(
+        path.join(workspace, 'openapi/config/project.jsonc'),
+      );
+
+      assert.equal(projectConfig.sourceUrl, 'http://localhost:8080/api-docs');
+      assert.deepEqual(fetchMock.calls.map((call) => call.url), [
+        'http://localhost:8080/v3/api-docs',
+        'http://localhost:8080/api-docs',
+      ]);
+      assert.match(promptOutput.output(), /x GET http:\/\/localhost:8080\/v3\/api-docs - HTTP 404 Not Found/);
+      assert.match(promptOutput.output(), /Trying common OpenAPI paths from http:\/\/localhost:8080/);
+      assert.match(promptOutput.output(), /✓ GET http:\/\/localhost:8080\/api-docs - OpenAPI 3\.0\.3/);
+      assert.match(promptOutput.output(), /Using discovered sourceUrl: http:\/\/localhost:8080\/api-docs/);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli init asks again when prompted sourceUrl checks fail',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-prompt-retry-'));
+    const promptOutput = createWritableCapture();
+    const fetchMock = createOpenApiFetchMock((url) => {
+      if (url === 'https://good.example.com/openapi.json') {
+        return createOpenApiFetchResponse();
+      }
+
+      return createOpenApiFetchResponse({ status: 404, statusText: 'Not Found', body: 'not found' });
+    });
+
+    try {
+      await initCommand.run({
+        argv: [],
+        context: {
+          interactive: true,
+          fetch: fetchMock,
+          stdin: Readable.from(delayedLines([
+            'https://bad.example.com/openapi.json\n',
+            'https://good.example.com/openapi.json\n',
+          ])),
+          stdout: promptOutput.writable,
+          targetRoot: workspace,
+        },
+      });
+
+      const projectConfig = await readJson(
+        path.join(workspace, 'openapi/config/project.jsonc'),
+      );
+
+      assert.equal(projectConfig.sourceUrl, 'https://good.example.com/openapi.json');
+      assert.match(promptOutput.output(), /Could not find a reachable OpenAPI JSON URL/);
+      assert.match(promptOutput.output(), /x GET https:\/\/bad\.example\.com\/openapi\.json - HTTP 404 Not Found/);
+      assert.match(promptOutput.output(), /✓ GET https:\/\/good\.example\.com\/openapi\.json - OpenAPI 3\.0\.3/);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli init colors sourceUrl checks in interactive terminals',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-prompt-color-'));
+    const promptOutput = createWritableCapture({ forceColor: true, isTTY: true });
+
+    try {
+      await initCommand.run({
+        argv: [],
+        context: {
+          interactive: true,
+          fetch: createOpenApiFetchMock(),
+          stdin: Readable.from(['https://color.example.com/openapi.json\n']),
+          stdout: promptOutput.writable,
+          targetRoot: workspace,
+        },
+      });
+
+      assert.match(promptOutput.output(), /\x1b\[32m✓\x1b\[0m GET https:\/\/color\.example\.com\/openapi\.json - OpenAPI 3\.0\.3/);
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
     }
@@ -1053,6 +1325,7 @@ test(
       assert.match(projectConfigSource, /"sourceUrl": "https:\/\/api\.example\.com\/v3\/api-docs"/);
       assert.doesNotMatch(projectConfigSource, /"sourceUrl": "http:\/\/localhost:8080\/v3\/api-docs"/);
       assert.match(output, /sourceUrl: https:\/\/api\.example\.com\/v3\/api-docs/);
+      assert.match(output, /edit sourceUrl later: .*openapi[\\/]config[\\/]project\.jsonc \(field: sourceUrl\)/);
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
     }
@@ -1230,14 +1503,15 @@ test(
 );
 
 test(
-  'cli help explains default sourceUrl and source-url override',
+  'cli help keeps first-time setup focused on a single init command',
   { concurrency: false },
   async () => {
     const { output } = await captureConsoleLog(() => runCli(['help']));
 
     assert.match(output, /npx --yes openapi-projector init/);
-    assert.match(output, /npx --yes openapi-projector init --source-url <openapi-json-url>/);
-    assert.match(output, /default sourceUrl: http:\/\/localhost:8080\/v3\/api-docs/);
+    assert.match(output, /interactive terminals can confirm, validate, or retry the default sourceUrl/);
+    assert.match(output, /CI\/scripts can pass --source-url explicitly or use --no-input/);
+    assert.doesNotMatch(output, /npx --yes openapi-projector init --source-url/);
   },
 );
 
