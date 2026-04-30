@@ -1131,16 +1131,24 @@ test(
     );
     const targetConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
     const lowerPriorityConfigPath = path.join(workspace, 'config/project.jsonc');
+    const targetConfigBefore = {
+      sourceUrl: 'https://target.example.com/v3/api-docs',
+      sourcePath: 'openapi/_internal/source/openapi.json',
+      outputs: {
+        reviewDir: 'custom/review',
+      },
+    };
+    const lowerPriorityConfigBefore = {
+      sourceUrl: 'https://lower.example.com/v3/api-docs',
+      sourcePath: 'custom/lower/openapi.json',
+      outputs: {
+        reviewDir: 'lower/review',
+      },
+    };
 
     try {
-      await writeJsonFile(targetConfigPath, {
-        sourceUrl: 'https://target.example.com/v3/api-docs',
-        sourcePath: 'openapi/_internal/source/openapi.json',
-      });
-      await writeJsonFile(lowerPriorityConfigPath, {
-        sourceUrl: 'https://lower.example.com/v3/api-docs',
-        sourcePath: 'openapi/_internal/source/openapi.json',
-      });
+      await writeJsonFile(targetConfigPath, targetConfigBefore);
+      await writeJsonFile(lowerPriorityConfigPath, lowerPriorityConfigBefore);
 
       await assert.rejects(
         () => runInWorkspace(workspace, () =>
@@ -1152,8 +1160,8 @@ test(
       const targetConfig = await readJson(targetConfigPath);
       const lowerPriorityConfig = await readJson(lowerPriorityConfigPath);
 
-      assert.equal(targetConfig.sourceUrl, 'https://target.example.com/v3/api-docs');
-      assert.equal(lowerPriorityConfig.sourceUrl, 'https://lower.example.com/v3/api-docs');
+      assert.deepEqual(targetConfig, targetConfigBefore);
+      assert.deepEqual(lowerPriorityConfig, lowerPriorityConfigBefore);
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
     }
