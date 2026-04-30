@@ -1131,6 +1131,24 @@ test(
     );
     const targetConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
     const lowerPriorityConfigPath = path.join(workspace, 'config/project.jsonc');
+    const targetConfigSourceBefore = `{
+  // target config should remain byte-for-byte on init failure
+  "sourceUrl": "https://target.example.com/v3/api-docs",
+  "sourcePath": "openapi/_internal/source/openapi.json",
+  "outputs": {
+    "reviewDir": "custom/review",
+  },
+}
+`;
+    const lowerPriorityConfigSourceBefore = `{
+  // lower-priority config should also remain untouched
+  "sourceUrl": "https://lower.example.com/v3/api-docs",
+  "sourcePath": "custom/lower/openapi.json",
+  "outputs": {
+    "reviewDir": "lower/review",
+  },
+}
+`;
     const targetConfigBefore = {
       sourceUrl: 'https://target.example.com/v3/api-docs',
       sourcePath: 'openapi/_internal/source/openapi.json',
@@ -1147,8 +1165,10 @@ test(
     };
 
     try {
-      await writeJsonFile(targetConfigPath, targetConfigBefore);
-      await writeJsonFile(lowerPriorityConfigPath, lowerPriorityConfigBefore);
+      await fs.mkdir(path.dirname(targetConfigPath), { recursive: true });
+      await fs.mkdir(path.dirname(lowerPriorityConfigPath), { recursive: true });
+      await fs.writeFile(targetConfigPath, targetConfigSourceBefore, 'utf8');
+      await fs.writeFile(lowerPriorityConfigPath, lowerPriorityConfigSourceBefore, 'utf8');
 
       await assert.rejects(
         () => runInWorkspace(workspace, () =>
@@ -1159,9 +1179,13 @@ test(
 
       const targetConfig = await readJson(targetConfigPath);
       const lowerPriorityConfig = await readJson(lowerPriorityConfigPath);
+      const targetConfigSource = await fs.readFile(targetConfigPath, 'utf8');
+      const lowerPriorityConfigSource = await fs.readFile(lowerPriorityConfigPath, 'utf8');
 
       assert.deepEqual(targetConfig, targetConfigBefore);
       assert.deepEqual(lowerPriorityConfig, lowerPriorityConfigBefore);
+      assert.equal(targetConfigSource, targetConfigSourceBefore);
+      assert.equal(lowerPriorityConfigSource, lowerPriorityConfigSourceBefore);
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
     }
