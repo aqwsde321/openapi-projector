@@ -898,13 +898,15 @@ test(
       assert.doesNotMatch(projectReadmeSource, /openapi-projector@<version>/);
       assert.doesNotMatch(projectReadmeSource, /전역 설치 사용/);
       assert.doesNotMatch(projectReadmeSource, /명령 실행 방식/);
-      assert.match(projectReadmeSource, /## 사람용 요약/);
+      assert.match(projectReadmeSource, /## 빠른 시작/);
       assert.match(projectReadmeSource, /<details>/);
       assert.doesNotMatch(projectReadmeSource, /<summary>AI에게 붙여넣을 프롬프트<\/summary>/);
       assert.match(projectReadmeSource, /<summary>AI Agents: Detailed Workflow<\/summary>/);
       assert.match(projectReadmeSource, /## For AI Agents: Detailed Workflow/);
       assert.doesNotMatch(projectReadmeSource, /### 2\. 선택 설치: oasdiff/);
-      assert.match(projectReadmeSource, /### 2\. prepare로 변경 비교와 후보 생성 준비/);
+      assert.match(projectReadmeSource, /### Step 2\. AI에게 맡기거나 직접 진행/);
+      assert.match(projectReadmeSource, /#### Option A\. AI에게 맡기기/);
+      assert.match(projectReadmeSource, /#### Option B\. 직접 진행하기/);
       assert.doesNotMatch(projectReadmeSource, /oasdiff/);
       assert.doesNotMatch(projectReadmeSource, /Compatibility Check/);
       assert.doesNotMatch(projectReadmeSource, /brew install oasdiff/);
@@ -917,19 +919,20 @@ test(
       assert.match(projectReadmeSource, /rg "fetchAPI\|apiClient\|request\|axios\|ky\|httpClient" src/);
       assert.match(projectReadmeSource, /openapi\/config\/project-rules\.jsonc/);
       assert.match(projectReadmeSource, /npx --yes openapi-projector prepare/);
-      assert.match(projectReadmeSource, /### 3\. Swagger 변경 비교만 확인/);
-      assert.match(projectReadmeSource, /DTO\/API 후보 생성이 필요하지 않고 Swagger 변경점만 확인할 때만 `refresh`를 단독으로 실행합니다/);
-      assert.match(projectReadmeSource, /### 4\. init이 만든 작업 공간 확인/);
-      assert.match(projectReadmeSource, /처음 `init`을 실행할 때 기본 `sourceUrl`을 그대로 두었다면/);
-      assert.match(projectReadmeSource, /`init` 완료 로그에는 나중에 수정할 `openapi\/config\/project\.jsonc` 경로/);
+      assert.match(projectReadmeSource, /## Swagger 변경 비교/);
+      assert.match(projectReadmeSource, /DTO\/API 후보 생성이 필요하지 않고 Swagger 변경점만 확인할 때는 `refresh`를 단독으로 실행합니다/);
+      assert.match(projectReadmeSource, /## 생성되는 파일/);
+      assert.doesNotMatch(projectReadmeSource, /### 6\. Git 관리/);
+      assert.match(projectReadmeSource, /기본값은 `http:\/\/localhost:8080\/v3\/api-docs`입니다/);
+      assert.match(projectReadmeSource, /대화형 `init`에서 URL 검증이 VPN, 인증, 백엔드 미기동 때문에 실패했다면/);
       assert.doesNotMatch(projectReadmeSource, /<summary>CI\/스크립트에서 프롬프트 없이 실행하기<\/summary>/);
       assert.doesNotMatch(projectReadmeSource, /npx --yes openapi-projector init --source-url/);
       assert.match(
         projectReadmeSource,
-        /변경 비교와 후보 생성 준비는 프론트엔드 프로젝트 루트에서 `prepare`로 시작합니다/,
+        /이 문서는 `init` 이후 생성된 작업 안내서입니다/,
       );
-      assert.match(projectReadmeSource, /`prepare` 실행 후 사람이 먼저 볼 파일/);
-      assert.match(projectReadmeSource, /\*\*중요:\*\* 규칙이 실제 프로젝트와 맞다고 확인한 뒤에만/);
+      assert.match(projectReadmeSource, /먼저 볼 파일/);
+      assert.match(projectReadmeSource, /실제 프로젝트 규칙과 맞으면/);
       assert.match(projectReadmeSource, /아래 명령은 프론트엔드 프로젝트 루트에서 실행해/);
       assert.match(projectReadmeSource, /사람이 npx --yes openapi-projector prepare를 미리 실행했다면/);
       assert.match(projectReadmeSource, /default `sourceUrl` is `http:\/\/localhost:8080\/v3\/api-docs`/i);
@@ -937,13 +940,13 @@ test(
       assert.match(projectReadmeSource, /`prepare`: runs `refresh -> rules -> project`/);
       assert.match(projectReadmeSource, /Command-by-command fallback/);
       assert.doesNotMatch(projectReadmeSource, /prefer the step-by-step flow over `prepare`/i);
-      assert.match(projectReadmeSource, /`prepare`는 아래 명령을 순서대로 대신 실행하는 단축 명령/);
-      assert.match(projectReadmeSource, /`refresh`: OpenAPI JSON을 내려받고 이전 Swagger와 비교한 review 문서를 만듭니다/);
-      assert.match(projectReadmeSource, /`rules`: 현재 프론트엔드 프로젝트의 API 호출 방식을 분석하고 `openapi\/config\/project-rules\.jsonc` 초안을 만듭니다/);
-      assert.match(projectReadmeSource, /`project`: 검토된 규칙으로 DTO\/API 후보 코드를 만듭니다/);
+      assert.match(projectReadmeSource, /`prepare`는 아래 흐름을 한 번에 실행합니다/);
+      assert.match(projectReadmeSource, /`refresh`: Swagger\/OpenAPI를 내려받고 이전 버전과 비교해 `openapi\/changes\.md`를 만듭니다/);
+      assert.match(projectReadmeSource, /`rules`: 현재 프론트엔드 프로젝트의 API 호출 규칙을 분석해 `openapi\/config\/project-rules\.jsonc`를 만듭니다/);
+      assert.match(projectReadmeSource, /`project`: 검토된 규칙으로 DTO\/API 후보를 생성합니다/);
       assert.match(projectReadmeSource, /처음 실행하면 `rules` 검토 단계에서 멈추는 것이 정상입니다/);
-      assert.match(projectReadmeSource, /`review\.rulesReviewed`가 `true`일 때만 실행/);
-      assert.match(projectReadmeSource, /`rules`가 자동으로 만든 `openapi\/config\/project-rules\.jsonc` 초안/);
+      assert.match(projectReadmeSource, /`review\.rulesReviewed`를 `true`로 바꿉니다/);
+      assert.match(projectReadmeSource, /`openapi\/review\/project-rules\/analysis\.md`와/);
       assert.match(projectReadmeSource, /prepare가 rules 검토 단계에서 멈췄다면/);
       assert.match(projectReadmeSource, /API wrapper까지 필요하면 위 프롬프트 그대로 쓰면 됩니다/);
       assert.match(output, /--- sourceUrl config ---/);
@@ -1662,7 +1665,7 @@ test(
       assert.match(projectRulesSource, /"fetchApiImportPath": "@\/shared\/api"/);
       assert.match(projectRulesSource, /"fetchApiImportKind": "named"/);
       assert.match(projectReadmeSource, /# openapi-projector Workspace Guide/);
-      assert.match(projectReadmeSource, /## 사람용 요약/);
+      assert.match(projectReadmeSource, /## 빠른 시작/);
       assert.match(projectReadmeSource, /<details>/);
       assert.doesNotMatch(projectReadmeSource, /<summary>AI에게 붙여넣을 프롬프트<\/summary>/);
       assert.match(projectReadmeSource, /<summary>AI Agents: Detailed Workflow<\/summary>/);
@@ -1709,8 +1712,10 @@ test(
       assert.equal(afterProjectConfig, beforeProjectConfig);
       assert.equal(afterProjectRules, beforeProjectRules);
       assert.match(projectReadmeSource, /# openapi-projector Workspace Guide/);
-      assert.match(projectReadmeSource, /prepare로 변경 비교와 후보 생성 준비/);
-      assert.match(projectReadmeSource, /Swagger 변경 비교만 확인/);
+      assert.match(projectReadmeSource, /Option A\. AI에게 맡기기/);
+      assert.match(projectReadmeSource, /Option B\. 직접 진행하기/);
+      assert.match(projectReadmeSource, /Swagger 변경 비교/);
+      assert.doesNotMatch(projectReadmeSource, /### 6\. Git 관리/);
       assert.doesNotMatch(projectReadmeSource, /npx --yes openapi-projector@latest upgrade-docs/);
       assert.doesNotMatch(projectReadmeSource, /# stale guide/);
       assert.match(output, /^✓ Updated openapi generated docs in /m);

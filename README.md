@@ -1,19 +1,15 @@
 # openapi-projector
 
-`openapi-projector`는 Swagger/OpenAPI를 이전 스냅샷과 비교해 프론트엔드가 확인해야 할 변경점을 정리하고, 필요한 endpoint의 TypeScript DTO/API 후보 코드를 프로젝트 컨벤션에 맞게 생성하는 review-first CLI입니다.
+`openapi-projector`는 Swagger/OpenAPI 변경을 먼저 검토하고, 필요한 endpoint만 TypeScript DTO/API 후보 코드로 뽑아보는 review-first CLI입니다.
 
-핵심은 두 가지입니다.
-
-- Swagger 변경 비교: endpoint 추가/삭제, request/response/parameter 계약 변경, 문서성 변경을 `openapi/changes.md`에 정리합니다.
-- TypeScript DTO/API 후보 생성: 기존 API client, import 경로, request call style을 분석해 endpoint별 `.dto.ts`, `.api.ts` 후보를 만듭니다.
-
-생성 결과는 앱 `src/`에 바로 쓰지 않고 프론트엔드 프로젝트 안의 `openapi/` 작업 공간에 먼저 쌓입니다. 변경 내용을 확인한 뒤 필요한 endpoint 코드만 실제 앱에 반영하는 흐름입니다.
+생성 결과는 앱 `src/`에 바로 쓰지 않고 프론트엔드 프로젝트 안의 `openapi/` 작업 공간에 먼저 쌓입니다.
 
 ## 왜 쓰나요
 
-- Swagger가 바뀌었을 때 어느 endpoint의 무엇이 바뀌었는지 먼저 확인할 수 있습니다.
-- DTO/API 생성 전에 현재 프로젝트의 API 호출 규칙을 검토할 수 있습니다.
-- 변경된 endpoint 단위로 후보 코드를 골라 실제 앱 구조에 맞게 옮길 수 있습니다.
+- Swagger가 바뀌었을 때 어느 endpoint의 무엇이 바뀌었는지 `openapi/changes.md`에서 먼저 확인합니다.
+- endpoint 추가/삭제, request/response/parameter 계약 변경, 문서성 변경을 구분해서 봅니다.
+- 기존 API client, import 경로, request call style을 분석한 뒤 endpoint별 `.dto.ts`, `.api.ts` 후보를 만듭니다.
+- 필요한 endpoint 코드만 골라 실제 앱 구조에 맞게 옮길 수 있습니다.
 - `openapi/review/`와 `openapi/project/`는 재생성 가능한 검토 산출물이라 앱 코드와 분리됩니다.
 
 ## 빠른 시작
@@ -200,20 +196,6 @@ npx --yes openapi-projector@latest upgrade-docs
 ```
 
 `npx --yes openapi-projector <command>`는 npm 캐시나 태그 상태에 따라 기대한 최신 배포본이 아닐 수 있으므로, 새 기능을 확인할 때는 `@latest`를 권장합니다.
-
-## AI와 함께 쓰기
-
-AI coding agent에게는 루트 README 전체보다, `init` 후 생성되는 `openapi/README.md`를 먼저 읽게 하는 편이 안전합니다.
-
-빠르게 맡기려면 빠른 시작의 **Option A. AI에게 맡기기** 프롬프트를 그대로 사용합니다. 더 자세한 작업 지침은 생성된 `openapi/README.md`의 `AI Agents: Detailed Workflow`에 들어 있습니다.
-
-## 알아둘 점
-
-- `sourceUrl`은 Swagger UI 페이지가 아니라 OpenAPI JSON URL이어야 합니다.
-- `Contract Changed` 항목에는 request body, response body, parameter 중심의 필드 단위 변경 내용이 표시됩니다.
-- `openapi/project/`는 최종 앱 코드가 아니라 검토용 후보입니다.
-- `openapi/changes.md`, `openapi/changes.json`, `openapi/review/`, `openapi/project/`는 보통 커밋하지 않습니다.
-- npm 배포 버전이 아니라 현재 저장소 코드를 직접 실행하려면 [도구 개발/유지보수](docs/03-maintainer-notes.md)를 참고하세요.
 
 ## 문서
 
