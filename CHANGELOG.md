@@ -4,16 +4,18 @@
 
 형식은 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)를 느슨하게 따르고, 버전은 `package.json`의 `version` 및 Git 태그와 맞춥니다.
 
-## Unreleased
+## 0.2.2 - 2026-05-02
 
 ### Added
 
 - 기존 `openapi/README.md` 안내 문서만 최신 템플릿으로 갱신하는 `upgrade-docs` 명령을 추가했습니다.
 - 최신 Swagger/OpenAPI 변경 비교 진입점으로 `openapi/changes.md`와 `openapi/changes.json`을 생성하도록 추가했습니다.
+- CLI 성공/실패/경고 로그에 상태 표시를 추가하고, `prepare`가 실행하는 단계를 명령별로 더 명확히 표시하도록 개선했습니다.
 
 ### Changed
 
 - 루트 README는 Swagger/OpenAPI 변경 비교를 주요 기능으로 먼저 설명하고, 생성되는 프로젝트 README도 변경 비교 문서를 DTO/API 후보 반영보다 먼저 확인하도록 정리했습니다.
+- 생성되는 `openapi/README.md`를 `init` 이후 바로 볼 수 있는 빠른 시작 흐름으로 재구성했습니다.
 
 ### Removed
 
