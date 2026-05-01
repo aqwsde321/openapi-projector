@@ -16,6 +16,7 @@ import {
   resolveGeneratedSchemaPath,
   toFileUrl,
 } from '../openapi/load-spec.mjs';
+import { formatSuccess } from '../cli-format.mjs';
 
 function resolveRequestBody(spec, requestBody) {
   if (!requestBody) {
@@ -150,10 +151,10 @@ const generateCommand = {
       schemaSource.endsWith('\n') ? schemaSource : `${schemaSource}\n`,
     );
 
-    console.log(`Generated ${endpoints.length} review doc(s) into ${docsDir}`);
-    console.log(`Generated schema types into ${generatedSchemaPath}`);
+    console.log(formatSuccess(`Generated ${endpoints.length} review doc(s) into ${docsDir}`));
+    console.log(formatSuccess(`Generated schema types into ${generatedSchemaPath}`));
     if (legacyEndpointsDir) {
-      console.log(`Cleared legacy endpoint helper directory: ${legacyEndpointsDir}`);
+      console.log(formatSuccess(`Cleared legacy endpoint helper directory: ${legacyEndpointsDir}`));
     }
   },
 };

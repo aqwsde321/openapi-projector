@@ -9,6 +9,7 @@ import {
   analyzeProject,
 } from '../project-analyzer/index.mjs';
 import { pathExists } from '../project-analyzer/scan-files.mjs';
+import { formatSuccess } from '../cli-format.mjs';
 
 const DEFAULT_API_RULES = {
   fetchApiImportPath: '@/shared/api',
@@ -546,16 +547,16 @@ const rulesCommand = {
       }
     }
 
-    console.log(`Updated project rules analysis: ${analysisPath}`);
-    console.log(`Updated project rules analysis JSON: ${analysisJsonPath}`);
+    console.log(formatSuccess(`Updated project rules analysis: ${analysisPath}`));
+    console.log(formatSuccess(`Updated project rules analysis JSON: ${analysisJsonPath}`));
     if (scaffoldCreated) {
-      console.log(`Created project rules scaffold: ${rulesPath}`);
+      console.log(formatSuccess(`Created project rules scaffold: ${rulesPath}`));
     } else if (scaffoldRefreshed) {
-      console.log(`Refreshed project rules scaffold: ${rulesPath}`);
+      console.log(formatSuccess(`Refreshed project rules scaffold: ${rulesPath}`));
     } else if (rulesMigrated) {
-      console.log(`Migrated project rules defaults: ${rulesPath}`);
+      console.log(formatSuccess(`Migrated project rules defaults: ${rulesPath}`));
     } else {
-      console.log(`Preserved existing project rules: ${rulesPath}`);
+      console.log(formatSuccess(`Preserved existing project rules: ${rulesPath}`));
     }
   },
 };

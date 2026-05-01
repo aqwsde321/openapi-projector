@@ -4,6 +4,7 @@ import {
   loadProjectConfig,
   writeText,
 } from '../core/openapi-utils.mjs';
+import { formatSuccess } from '../cli-format.mjs';
 
 const downloadCommand = {
   name: 'download',
@@ -30,7 +31,7 @@ const downloadCommand = {
     const body = await response.text();
     await writeText(outputPath, body.endsWith('\n') ? body : `${body}\n`);
 
-    console.log(`Downloaded OpenAPI spec to ${outputPath}`);
+    console.log(formatSuccess(`Downloaded OpenAPI spec to ${outputPath}`));
   },
 };
 

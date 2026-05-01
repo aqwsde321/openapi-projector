@@ -11,6 +11,7 @@ import {
   validateProjectRules,
 } from '../config/validation.mjs';
 import { loadSupportedOpenApiSpec } from '../openapi/load-spec.mjs';
+import { failureMark, successMark, warningMark } from '../cli-format.mjs';
 
 async function pathExists(targetPath) {
   try {
@@ -59,13 +60,13 @@ const doctorCommand = {
     const lines = [];
     let ok = true;
 
-    const pass = (message) => lines.push(`[PASS] ${message}`);
-    const warn = (message) => lines.push(`[WARN] ${message}`);
+    const pass = (message) => lines.push(`${successMark()} [PASS] ${message}`);
+    const warn = (message) => lines.push(`${warningMark()} [WARN] ${message}`);
     const fail = (message) => {
       ok = false;
-      lines.push(`[FAIL] ${message}`);
+      lines.push(`${failureMark()} [FAIL] ${message}`);
     };
-    const skip = (message) => lines.push(`[SKIP] ${message}`);
+    const skip = (message) => lines.push(`- [SKIP] ${message}`);
     const checkExistingProjectRules = async () => {
       const rulesPath = path.join(rootDir, 'openapi/config/project-rules.jsonc');
       if (!(await pathExists(rulesPath))) {

@@ -1,4 +1,5 @@
 import { upgradeProjectDocs } from '../core/openapi-utils.mjs';
+import { formatSuccess } from '../cli-format.mjs';
 
 const upgradeDocsCommand = {
   name: 'upgrade-docs',
@@ -12,7 +13,7 @@ const upgradeDocsCommand = {
         ? ' (created)'
         : '';
 
-    console.log(`Updated openapi generated docs in ${rootDir}`);
+    console.log(formatSuccess(`Updated openapi generated docs in ${rootDir}`));
     console.log(`- project guide: ${result.projectReadmePath}${projectReadmeStatus}`);
     if (result.projectConfigPath) {
       console.log(`- kept project config: ${result.projectConfigPath}`);

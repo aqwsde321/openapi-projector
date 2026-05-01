@@ -13,6 +13,7 @@ import {
 } from '../openapi/load-spec.mjs';
 import { assertProjectRulesReviewed } from '../config/validation.mjs';
 import { renderProjectSummary, writeProjectOutputs } from '../openapi/project-generator.mjs';
+import { formatSuccess } from '../cli-format.mjs';
 
 function toPosixPath(value) {
   return value.replaceAll(path.sep, '/');
@@ -65,7 +66,7 @@ const projectCommand = {
 
     await writeJson(projectManifestPath, manifest);
 
-    console.log(`Generated project candidate files into ${projectGeneratedSrcDir}`);
+    console.log(formatSuccess(`Generated project candidate files into ${projectGeneratedSrcDir}`));
     console.log(`- manifest: ${projectManifestPath}`);
     console.log(`- summary: ${projectSummaryPath}`);
     console.log(renderProjectSummary(manifest));

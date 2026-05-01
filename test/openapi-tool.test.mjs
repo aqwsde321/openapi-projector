@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 import { runCli } from '../src/cli.mjs';
+import { formatFailure, formatSuccess } from '../src/cli-format.mjs';
 import { catalogCommand } from '../src/commands/catalog.mjs';
 import { doctorCommand } from '../src/commands/doctor.mjs';
 import { generateCommand } from '../src/commands/generate.mjs';
@@ -364,6 +365,15 @@ test('type renderer preserves OpenAPI 3.1 nullable union types', () => {
     }),
     '(string | null)[]',
   );
+});
+
+test('cli status formatter uses colored marks when color is enabled', () => {
+  const colorStream = { forceColor: true };
+
+  assert.equal(formatSuccess('done', colorStream), '\x1b[32m✓\x1b[0m done');
+  assert.equal(formatFailure('failed', colorStream), '\x1b[31mx\x1b[0m failed');
+  assert.equal(formatSuccess('done', {}), '✓ done');
+  assert.equal(formatFailure('failed', {}), 'x failed');
 });
 
 test(
@@ -790,278 +800,17 @@ test(
         path.join(workspace, 'openapi/changes.md'),
         'utf8',
       );
+      const topLevelChangesJson = await readJson(
+        path.join(workspace, 'openapi/changes.json'),
+      );
 
       assert.match(
         topLevelChangesSource,
         /\| Query Parameter \| `abbb` \| 없음 \| `integer`, format=`int32`, required \|/,
       );
       assert.doesNotMatch(topLevelChangesSource, /operation\.parameters` \| `\[\]`/);
-    });
-  },
-);
-
-test(
-  'catalog skips oasdiff on first run and creates an oasdiff baseline',
-  { concurrency: false },
-  async () => {
-    await withWorkspace({
-      spec: createSimpleSpec(),
-      projectConfigOverrides: {
-        changeDetection: {
-          oasdiff: {
-            mode: 'auto',
-            command: 'openapi-projector-missing-oasdiff-for-test',
-            baselineSourcePath: 'openapi/_internal/source/openapi.oasdiff-baseline.json',
-            outputsDir: 'openapi/review/changes/oasdiff',
-          },
-        },
-      },
-    }, async (workspace) => {
-      await runInWorkspace(workspace, () => catalogCommand.run());
-
-      const summaryJson = await readJson(
-        path.join(workspace, 'openapi/changes.json'),
-      );
-      const summarySource = await fs.readFile(
-        path.join(workspace, 'openapi/changes.md'),
-        'utf8',
-      );
-
-      assert.deepEqual(summaryJson.externalDiff.oasdiff, {
-        mode: 'auto',
-        command: 'openapi-projector-missing-oasdiff-for-test',
-        baselineSourcePath: 'openapi/_internal/source/openapi.oasdiff-baseline.json',
-        outputsDir: 'openapi/review/changes/oasdiff',
-        status: 'skipped',
-        reason: 'baseline_missing',
-      });
-      await assertExists(
-        path.join(workspace, 'openapi/_internal/source/openapi.oasdiff-baseline.json'),
-      );
-      assert.match(summarySource, /## Compatibility Check/);
-      assert.match(summarySource, /- oasdiff: `skipped`/);
-      assert.match(summarySource, /- Reason: `baseline_missing`/);
-    });
-  },
-);
-
-test(
-  'catalog records oasdiff off status without probing the command',
-  { concurrency: false },
-  async () => {
-    await withWorkspace({
-      spec: createSimpleSpec(),
-      projectConfigOverrides: {
-        changeDetection: {
-          oasdiff: {
-            mode: 'off',
-            command: 'openapi-projector-command-that-should-not-run',
-            baselineSourcePath: 'openapi/_internal/source/openapi.oasdiff-baseline.json',
-            outputsDir: 'openapi/review/changes/oasdiff',
-          },
-        },
-      },
-    }, async (workspace) => {
-      await runInWorkspace(workspace, () => catalogCommand.run());
-
-      const summaryJson = await readJson(
-        path.join(workspace, 'openapi/changes.json'),
-      );
-
-      assert.equal(summaryJson.externalDiff.oasdiff.status, 'off');
-      assert.equal(summaryJson.externalDiff.oasdiff.reason, 'disabled');
-      await assert.rejects(
-        () => fs.access(path.join(workspace, 'openapi/_internal/source/openapi.oasdiff-baseline.json')),
-        /ENOENT/,
-      );
-    });
-  },
-);
-
-test(
-  'catalog fails when required oasdiff baseline is missing',
-  { concurrency: false },
-  async () => {
-    await withWorkspace({
-      spec: createSimpleSpec(),
-      projectConfigOverrides: {
-        changeDetection: {
-          oasdiff: {
-            mode: 'required',
-            command: 'openapi-projector-missing-oasdiff-for-test',
-            baselineSourcePath: 'openapi/_internal/source/openapi.oasdiff-baseline.json',
-            outputsDir: 'openapi/review/changes/oasdiff',
-          },
-        },
-      },
-    }, async (workspace) => {
-      await assert.rejects(
-        () => runInWorkspace(workspace, () => catalogCommand.run()),
-        /oasdiff compatibility check failed: baseline_missing/,
-      );
-      await assert.rejects(
-        () => fs.access(path.join(workspace, 'openapi/_internal/source/openapi.oasdiff-baseline.json')),
-        /ENOENT/,
-      );
-    });
-  },
-);
-
-test(
-  'catalog continues when optional oasdiff command is missing after baseline exists',
-  { concurrency: false },
-  async () => {
-    await withWorkspace({
-      spec: createSimpleSpec(),
-      projectConfigOverrides: {
-        changeDetection: {
-          oasdiff: {
-            mode: 'auto',
-            command: 'openapi-projector-missing-oasdiff-for-test',
-            baselineSourcePath: 'openapi/_internal/source/openapi.oasdiff-baseline.json',
-            outputsDir: 'openapi/review/changes/oasdiff',
-          },
-        },
-      },
-    }, async (workspace) => {
-      await runInWorkspace(workspace, () => catalogCommand.run());
-      await writeJsonFile(
-        path.join(workspace, 'openapi/_internal/source/openapi.json'),
-        createSimpleSpec('Ping v2'),
-      );
-      await runInWorkspace(workspace, () => catalogCommand.run());
-
-      const summaryJson = await readJson(
-        path.join(workspace, 'openapi/changes.json'),
-      );
-
-      assert.equal(summaryJson.externalDiff.oasdiff.status, 'skipped');
-      assert.equal(summaryJson.externalDiff.oasdiff.reason, 'command_not_found');
-      assert.match(
-        summaryJson.externalDiff.oasdiff.errorMessage,
-        /openapi-projector-missing-oasdiff-for-test/,
-      );
-    });
-  },
-);
-
-test(
-  'catalog writes oasdiff markdown artifacts when optional command succeeds',
-  { concurrency: false },
-  async () => {
-    await withWorkspace({ spec: createSimpleSpec() }, async (workspace) => {
-      const fakeOasdiffPath = path.join(workspace, 'fake-oasdiff.mjs');
-      await fs.writeFile(
-        fakeOasdiffPath,
-        [
-          '#!/usr/bin/env node',
-          'const command = process.argv[2];',
-          'process.stdout.write(`# ${command}\\n\\nFake oasdiff report\\n`);',
-          '',
-        ].join('\n'),
-        'utf8',
-      );
-      await fs.chmod(fakeOasdiffPath, 0o755);
-
-      const projectConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
-      const projectConfig = await readJson(projectConfigPath);
-      await writeJsonFile(projectConfigPath, {
-        ...projectConfig,
-        changeDetection: {
-          oasdiff: {
-            mode: 'auto',
-            command: fakeOasdiffPath,
-            baselineSourcePath: 'openapi/_internal/source/openapi.oasdiff-baseline.json',
-            outputsDir: 'openapi/review/changes/oasdiff',
-          },
-        },
-      });
-
-      await runInWorkspace(workspace, () => catalogCommand.run());
-      await writeJsonFile(
-        path.join(workspace, 'openapi/_internal/source/openapi.json'),
-        createSimpleSpec('Ping v2'),
-      );
-      await runInWorkspace(workspace, () => catalogCommand.run());
-
-      const summaryJson = await readJson(
-        path.join(workspace, 'openapi/changes.json'),
-      );
-      const summarySource = await fs.readFile(
-        path.join(workspace, 'openapi/changes.md'),
-        'utf8',
-      );
-      const breakingSource = await fs.readFile(
-        path.join(workspace, 'openapi/review/changes/oasdiff/breaking.md'),
-        'utf8',
-      );
-      const changelogSource = await fs.readFile(
-        path.join(workspace, 'openapi/review/changes/oasdiff/changelog.md'),
-        'utf8',
-      );
-
-      assert.equal(summaryJson.externalDiff.oasdiff.status, 'ok');
-      assert.equal(
-        summaryJson.externalDiff.oasdiff.breakingMarkdownPath,
-        'openapi/review/changes/oasdiff/breaking.md',
-      );
-      assert.equal(
-        summaryJson.externalDiff.oasdiff.changelogMarkdownPath,
-        'openapi/review/changes/oasdiff/changelog.md',
-      );
-      assert.match(summarySource, /\[breaking\]\(<review\/changes\/oasdiff\/breaking\.md>\)/);
-      assert.match(summarySource, /\[changelog\]\(<review\/changes\/oasdiff\/changelog\.md>\)/);
-      assert.match(breakingSource, /# breaking/);
-      assert.match(changelogSource, /# changelog/);
-    });
-  },
-);
-
-test(
-  'catalog fails when required oasdiff command fails after baseline exists',
-  { concurrency: false },
-  async () => {
-    await withWorkspace({ spec: createSimpleSpec() }, async (workspace) => {
-      const fakeOasdiffPath = path.join(workspace, 'failing-oasdiff.mjs');
-      await fs.writeFile(
-        fakeOasdiffPath,
-        [
-          '#!/usr/bin/env node',
-          'process.stderr.write("fake oasdiff failure\\n");',
-          'process.exit(2);',
-          '',
-        ].join('\n'),
-        'utf8',
-      );
-      await fs.chmod(fakeOasdiffPath, 0o755);
-
-      const projectConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
-      const projectConfig = await readJson(projectConfigPath);
-      await writeJsonFile(
-        path.join(workspace, 'openapi/_internal/source/openapi.oasdiff-baseline.json'),
-        createSimpleSpec(),
-      );
-      await writeJsonFile(projectConfigPath, {
-        ...projectConfig,
-        changeDetection: {
-          oasdiff: {
-            mode: 'required',
-            command: fakeOasdiffPath,
-            baselineSourcePath: 'openapi/_internal/source/openapi.oasdiff-baseline.json',
-            outputsDir: 'openapi/review/changes/oasdiff',
-          },
-        },
-      });
-
-      await writeJsonFile(
-        path.join(workspace, 'openapi/_internal/source/openapi.json'),
-        createSimpleSpec('Ping v2'),
-      );
-
-      await assert.rejects(
-        () => runInWorkspace(workspace, () => catalogCommand.run()),
-        /oasdiff compatibility check failed: execution_failed/,
-      );
+      assert.doesNotMatch(topLevelChangesSource, /Compatibility Check/);
+      assert.equal(topLevelChangesJson.externalDiff, undefined);
     });
   },
 );
@@ -1154,7 +903,11 @@ test(
       assert.doesNotMatch(projectReadmeSource, /<summary>AI에게 붙여넣을 프롬프트<\/summary>/);
       assert.match(projectReadmeSource, /<summary>AI Agents: Detailed Workflow<\/summary>/);
       assert.match(projectReadmeSource, /## For AI Agents: Detailed Workflow/);
-      assert.match(projectReadmeSource, /### 2\. Swagger\/OpenAPI 변경 비교 먼저 확인/);
+      assert.doesNotMatch(projectReadmeSource, /### 2\. 선택 설치: oasdiff/);
+      assert.match(projectReadmeSource, /### 2\. prepare로 변경 비교와 후보 생성 준비/);
+      assert.doesNotMatch(projectReadmeSource, /oasdiff/);
+      assert.doesNotMatch(projectReadmeSource, /Compatibility Check/);
+      assert.doesNotMatch(projectReadmeSource, /brew install oasdiff/);
       assert.match(projectReadmeSource, /openapi\/changes\.md/);
       assert.match(projectReadmeSource, /openapi\/changes\.json/);
       assert.match(projectReadmeSource, /openapi\/review\/changes\/history\//);
@@ -1164,17 +917,26 @@ test(
       assert.match(projectReadmeSource, /rg "fetchAPI\|apiClient\|request\|axios\|ky\|httpClient" src/);
       assert.match(projectReadmeSource, /openapi\/config\/project-rules\.jsonc/);
       assert.match(projectReadmeSource, /npx --yes openapi-projector prepare/);
-      assert.match(projectReadmeSource, /### 3\. init이 만든 작업 공간 확인/);
+      assert.match(projectReadmeSource, /### 3\. Swagger 변경 비교만 확인/);
+      assert.match(projectReadmeSource, /DTO\/API 후보 생성이 필요하지 않고 Swagger 변경점만 확인할 때만 `refresh`를 단독으로 실행합니다/);
+      assert.match(projectReadmeSource, /### 4\. init이 만든 작업 공간 확인/);
       assert.match(projectReadmeSource, /처음 `init`을 실행할 때 기본 `sourceUrl`을 그대로 두었다면/);
       assert.match(projectReadmeSource, /`init` 완료 로그에는 나중에 수정할 `openapi\/config\/project\.jsonc` 경로/);
       assert.doesNotMatch(projectReadmeSource, /<summary>CI\/스크립트에서 프롬프트 없이 실행하기<\/summary>/);
       assert.doesNotMatch(projectReadmeSource, /npx --yes openapi-projector init --source-url/);
-      assert.match(projectReadmeSource, /AI에게 붙여넣기 전에 사람이 검토 자료를 만들어두고 싶다면/);
+      assert.match(
+        projectReadmeSource,
+        /변경 비교와 후보 생성 준비는 프론트엔드 프로젝트 루트에서 `prepare`로 시작합니다/,
+      );
       assert.match(projectReadmeSource, /`prepare` 실행 후 사람이 먼저 볼 파일/);
       assert.match(projectReadmeSource, /\*\*중요:\*\* 규칙이 실제 프로젝트와 맞다고 확인한 뒤에만/);
       assert.match(projectReadmeSource, /아래 명령은 프론트엔드 프로젝트 루트에서 실행해/);
-      assert.match(projectReadmeSource, /사람이 npx --yes openapi-projector refresh 또는 prepare를 미리 실행했다면/);
+      assert.match(projectReadmeSource, /사람이 npx --yes openapi-projector prepare를 미리 실행했다면/);
       assert.match(projectReadmeSource, /default `sourceUrl` is `http:\/\/localhost:8080\/v3\/api-docs`/i);
+      assert.match(projectReadmeSource, /### 2\. Recommended Prepare Flow/);
+      assert.match(projectReadmeSource, /`prepare`: runs `refresh -> rules -> project`/);
+      assert.match(projectReadmeSource, /Command-by-command fallback/);
+      assert.doesNotMatch(projectReadmeSource, /prefer the step-by-step flow over `prepare`/i);
       assert.match(projectReadmeSource, /`prepare`는 아래 명령을 순서대로 대신 실행하는 단축 명령/);
       assert.match(projectReadmeSource, /`refresh`: OpenAPI JSON을 내려받고 이전 Swagger와 비교한 review 문서를 만듭니다/);
       assert.match(projectReadmeSource, /`rules`: 현재 프론트엔드 프로젝트의 API 호출 방식을 분석하고 `openapi\/config\/project-rules\.jsonc` 초안을 만듭니다/);
@@ -1182,6 +944,7 @@ test(
       assert.match(projectReadmeSource, /처음 실행하면 `rules` 검토 단계에서 멈추는 것이 정상입니다/);
       assert.match(projectReadmeSource, /`review\.rulesReviewed`가 `true`일 때만 실행/);
       assert.match(projectReadmeSource, /`rules`가 자동으로 만든 `openapi\/config\/project-rules\.jsonc` 초안/);
+      assert.match(projectReadmeSource, /prepare가 rules 검토 단계에서 멈췄다면/);
       assert.match(projectReadmeSource, /API wrapper까지 필요하면 위 프롬프트 그대로 쓰면 됩니다/);
       assert.match(output, /--- sourceUrl config ---/);
       assert.match(output, /sourceUrl: http:\/\/localhost:8080\/v3\/api-docs/);
@@ -1946,9 +1709,11 @@ test(
       assert.equal(afterProjectConfig, beforeProjectConfig);
       assert.equal(afterProjectRules, beforeProjectRules);
       assert.match(projectReadmeSource, /# openapi-projector Workspace Guide/);
-      assert.match(projectReadmeSource, /Swagger\/OpenAPI 변경 비교 먼저 확인/);
+      assert.match(projectReadmeSource, /prepare로 변경 비교와 후보 생성 준비/);
+      assert.match(projectReadmeSource, /Swagger 변경 비교만 확인/);
       assert.doesNotMatch(projectReadmeSource, /npx --yes openapi-projector@latest upgrade-docs/);
       assert.doesNotMatch(projectReadmeSource, /# stale guide/);
+      assert.match(output, /^✓ Updated openapi generated docs in /m);
       assert.match(output, /project guide: .*openapi\/README\.md \(overwritten\)/);
       assert.match(output, /kept project config: .*openapi\/config\/project\.jsonc/);
       assert.match(output, /kept project rules, review history, and generated candidates unchanged/);
@@ -1976,6 +1741,42 @@ test(
 
       const projectReadmeSource = await fs.readFile(projectReadmePath, 'utf8');
       assert.equal(projectReadmeSource, '# unrelated guide\n');
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli executable prefixes refresh failures with failure mark',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-cli-failure-'));
+
+    try {
+      await writeJsonFile(path.join(workspace, 'openapi/config/project.jsonc'), {
+        sourceUrl: 'data:application/json,not-json',
+        sourcePath: 'openapi/_internal/source/openapi.json',
+      });
+
+      await assert.rejects(
+        () =>
+          execFileAsync(process.execPath, [
+            path.join(REPO_ROOT, 'bin/openapi-tool.mjs'),
+            '--project-root',
+            workspace,
+            'refresh',
+          ]),
+        (error) => {
+          assert.equal(error.code, 1);
+          assert.match(error.stdout, /^✓ Downloaded OpenAPI spec to /m);
+          assert.match(
+            error.stderr,
+            /^x Only OpenAPI 3\.0\/3\.1 JSON is supported in MVP v2\./,
+          );
+          return true;
+        },
+      );
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
     }
@@ -2446,7 +2247,14 @@ test(
               rulesReviewed: true,
             },
           });
-          await runCli(['prepare']);
+          const { output } = await captureConsoleLog(() => runCli(['prepare']));
+
+          assert.match(output, /^✓ prepare: running in /m);
+          assert.match(output, /^✓ init: skipped because project config already exists/m);
+          assert.match(output, /^✓ refresh: Swagger\/OpenAPI를 내려받고 이전 버전과 비교해 openapi\/changes\.md를 만듭니다\./m);
+          assert.match(output, /^✓ rules: 현재 프론트엔드 프로젝트의 API 호출 규칙을 분석해 openapi\/config\/project-rules\.jsonc를 만듭니다\./m);
+          assert.match(output, /^✓ project: 검토된 규칙으로 DTO\/API 후보를 생성합니다\./m);
+          assert.match(output, /^✓ prepare complete: openapi\/project\/summary\.md를 확인하세요\./m);
 
           await assertExists(path.join(workspace, 'openapi/config/project.jsonc'));
           await assertExists(path.join(workspace, 'openapi/review/generated/schema.ts'));

@@ -29,17 +29,5 @@
   "projectRulesPath": "openapi/config/project-rules.jsonc",
 
   // project 후보 코드 출력 폴더입니다.
-  "projectGeneratedSrcDir": "openapi/project/src/openapi-generated",
-
-  // 선택적 oasdiff 호환성 리포트 설정입니다.
-  // mode: auto 는 oasdiff 가 설치되어 있으면 실행하고, 없으면 기존 변경 요약만 생성합니다.
-  // mode: off 는 실행하지 않고, required 는 oasdiff 실패 시 catalog 를 실패시킵니다.
-  "changeDetection": {
-    "oasdiff": {
-      "mode": "auto",
-      "command": "oasdiff",
-      "baselineSourcePath": "openapi/_internal/source/openapi.oasdiff-baseline.json",
-      "outputsDir": "openapi/review/changes/oasdiff"
-    }
-  }
+  "projectGeneratedSrcDir": "openapi/project/src/openapi-generated"
 }

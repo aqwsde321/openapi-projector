@@ -22,63 +22,9 @@
 }
 ```
 
-### 2. Swagger/OpenAPI 변경 비교 먼저 확인
+### 2. prepare로 변경 비교와 후보 생성 준비
 
-Swagger 변경점만 확인할 때는 DTO/API 후보 생성까지 갈 필요가 없습니다. 프론트엔드 프로젝트 루트에서 `refresh`를 실행하고 비교 문서를 먼저 봅니다.
-
-```bash
-npx --yes openapi-projector refresh
-```
-
-`refresh`는 OpenAPI JSON을 내려받아 이전 endpoint catalog와 비교합니다. 최신 비교 결과는 매번 아래 파일에 덮어써집니다.
-
-비교 문서 위치:
-
-```text
-openapi/
-  changes.md                  # 사람이 먼저 여는 최신 Swagger 변경 비교
-  changes.json                # 최신 변경 비교 JSON
-  review/
-    changes/                  # Swagger 이전/현재 비교 결과
-      history/                # 변경 감지 시점별 누적 스냅샷
-        <timestamp>.md
-        <timestamp>.json
-      oasdiff/                # 선택적 oasdiff 호환성 리포트
-    catalog/
-      endpoints.json          # 다음 refresh 비교 기준
-      endpoints.md            # 전체 endpoint 목록
-```
-
-| 파일 | 볼 내용 |
-| --- | --- |
-| `openapi/changes.md` | 사람이 먼저 여는 최신 Swagger/OpenAPI 변경 비교 |
-| `openapi/changes.json` | AI와 자동화가 읽기 쉬운 최신 변경 비교 |
-| `openapi/review/changes/history/` | 변경이 감지된 refresh 시점별 `.md`, `.json` 스냅샷 |
-
-`openapi/changes.md`에서 먼저 볼 구분:
-
-| 구분 | 의미 |
-| --- | --- |
-| `Added` | 새 endpoint가 추가됨 |
-| `Removed` | 기존 endpoint가 삭제됨 |
-| `Contract Changed` | request body, response body, path/query/header parameter 계약이 바뀜 |
-| `Doc Changed` | summary, description, tag 같은 문서성 정보가 바뀜 |
-
-### 3. init이 만든 작업 공간 확인
-
-`init` 직후 사람이 먼저 확인할 핵심 파일은 아래와 같습니다.
-
-| 파일 | 역할 |
-| --- | --- |
-| `.openapi-projector.local.jsonc` | 이 프론트엔드 프로젝트 루트를 가리키는 로컬 설정입니다. 보통 커밋하지 않습니다. |
-| `openapi/README.md` | 지금 읽고 있는 작업 안내서입니다. 사람용 요약과 AI agent용 상세 지침을 포함합니다. |
-| `openapi/config/project.jsonc` | OpenAPI JSON URL과 산출물 경로 설정입니다. `sourceUrl`을 먼저 확인합니다. |
-| `openapi/config/project-rules.jsonc` | API client/import/call style 규칙 초안입니다. `rules` 실행 후 실제 프로젝트와 맞는지 검토합니다. |
-| `openapi/.gitignore` | 재생성 산출물인 `changes.md`, `changes.json`, `_internal/`, `review/`, `project/`를 기본적으로 제외합니다. |
-
-### 4. 사람이 먼저 prepare 실행하기 (선택)
-
-AI에게 붙여넣기 전에 사람이 검토 자료를 만들어두고 싶다면 프론트엔드 프로젝트 루트에서 아래 명령을 실행합니다.
+변경 비교와 후보 생성 준비는 프론트엔드 프로젝트 루트에서 `prepare`로 시작합니다.
 
 ```bash
 npx --yes openapi-projector prepare
@@ -90,6 +36,7 @@ npx --yes openapi-projector prepare
 2. `rules`: 현재 프론트엔드 프로젝트의 API 호출 방식을 분석하고 `openapi/config/project-rules.jsonc` 초안을 만듭니다.
 3. `project`: 검토된 규칙으로 DTO/API 후보 코드를 만듭니다.
 
+`prepare` 실행 후에도 가장 먼저 보는 파일은 `openapi/changes.md`입니다.
 처음 실행하면 `rules` 검토 단계에서 멈추는 것이 정상입니다. `project`는 `openapi/config/project-rules.jsonc`의 `review.rulesReviewed`가 `true`일 때만 실행됩니다.
 
 **중요:** 규칙이 실제 프로젝트와 맞다고 확인한 뒤에만 `openapi/config/project-rules.jsonc`의 `review.rulesReviewed`를 `true`로 바꾸고 다시 `prepare`를 실행합니다.
@@ -124,6 +71,59 @@ npx --yes openapi-projector prepare
 
 생성된 `openapi/project/` 코드는 최종 앱 코드가 아니라 검토용 후보입니다. 필요한 DTO/API만 실제 앱 코드 위치로 복사하거나 프로젝트 컨벤션에 맞게 수정합니다.
 
+### 3. Swagger 변경 비교만 확인
+
+DTO/API 후보 생성이 필요하지 않고 Swagger 변경점만 확인할 때만 `refresh`를 단독으로 실행합니다.
+
+```bash
+npx --yes openapi-projector refresh
+```
+
+`refresh`는 OpenAPI JSON을 내려받아 이전 endpoint catalog와 비교합니다. 최신 비교 결과는 매번 아래 파일에 덮어써집니다.
+
+비교 문서 위치:
+
+```text
+openapi/
+  changes.md                  # 사람이 먼저 여는 최신 Swagger 변경 비교
+  changes.json                # 최신 변경 비교 JSON
+  review/
+    changes/                  # Swagger 이전/현재 비교 결과
+      history/                # 변경 감지 시점별 누적 스냅샷
+        <timestamp>.md
+        <timestamp>.json
+    catalog/
+      endpoints.json          # 다음 refresh 비교 기준
+      endpoints.md            # 전체 endpoint 목록
+```
+
+| 파일 | 볼 내용 |
+| --- | --- |
+| `openapi/changes.md` | 사람이 먼저 여는 최신 Swagger/OpenAPI 변경 비교 |
+| `openapi/changes.json` | AI와 자동화가 읽기 쉬운 최신 변경 비교 |
+| `openapi/review/changes/history/` | 변경이 감지된 refresh 시점별 `.md`, `.json` 스냅샷 |
+
+`openapi/changes.md`에서 먼저 볼 구분:
+
+| 구분 | 의미 |
+| --- | --- |
+| `Added` | 새 endpoint가 추가됨 |
+| `Removed` | 기존 endpoint가 삭제됨 |
+| `Contract Changed` | request body, response body, path/query/header parameter 계약이 바뀜 |
+| `Doc Changed` | summary, description, tag 같은 문서성 정보가 바뀜 |
+
+### 4. init이 만든 작업 공간 확인
+
+`init` 직후 사람이 먼저 확인할 핵심 파일은 아래와 같습니다.
+
+| 파일 | 역할 |
+| --- | --- |
+| `.openapi-projector.local.jsonc` | 이 프론트엔드 프로젝트 루트를 가리키는 로컬 설정입니다. 보통 커밋하지 않습니다. |
+| `openapi/README.md` | 지금 읽고 있는 작업 안내서입니다. 사람용 요약과 AI agent용 상세 지침을 포함합니다. |
+| `openapi/config/project.jsonc` | OpenAPI JSON URL과 산출물 경로 설정입니다. `sourceUrl`을 먼저 확인합니다. |
+| `openapi/config/project-rules.jsonc` | API client/import/call style 규칙 초안입니다. `rules` 실행 후 실제 프로젝트와 맞는지 검토합니다. |
+| `openapi/.gitignore` | 재생성 산출물인 `changes.md`, `changes.json`, `_internal/`, `review/`, `project/`를 기본적으로 제외합니다. |
+
 ### 5. AI에게 작업 맡기기
 
 프론트엔드 프로젝트에서 사용하는 AI coding agent에게 아래 프롬프트를 그대로 복사해서 붙여넣으세요.
@@ -133,20 +133,19 @@ npx --yes openapi-projector prepare
 
 1. 먼저 openapi/README.md를 읽어.
 2. 아래 명령은 프론트엔드 프로젝트 루트에서 실행해.
-3. 사람이 npx --yes openapi-projector refresh 또는 prepare를 미리 실행했다면 openapi/changes.md를 가장 먼저 확인해.
+3. 사람이 npx --yes openapi-projector prepare를 미리 실행했다면 openapi/changes.md를 가장 먼저 확인해.
    최신 여부가 불확실하면 아래 명령을 다시 실행해.
 4. openapi/config/project.jsonc의 sourceUrl이 Swagger UI 페이지가 아니라 OpenAPI JSON URL인지 확인해.
    sourceUrl이 비어 있거나 잘못되어 있으면 나에게 올바른 OpenAPI JSON URL을 물어봐.
 5. npx --yes openapi-projector doctor --check-url을 실행해.
-6. npx --yes openapi-projector refresh를 실행하고 openapi/changes.md를 확인해.
+6. npx --yes openapi-projector prepare를 실행하고 openapi/changes.md를 확인해.
    Added, Removed, Contract Changed, Doc Changed를 endpoint별로 먼저 요약해서 나에게 알려줘.
-7. npx --yes openapi-projector rules를 실행해.
-8. openapi/review/project-rules/analysis.md와 analysis.json을 읽고,
+7. prepare가 rules 검토 단계에서 멈췄다면 openapi/review/project-rules/analysis.md와 analysis.json을 읽고,
    실제 프로젝트의 API client, import 경로, request 호출 방식을 확인해.
-9. rules가 만든 openapi/config/project-rules.jsonc 초안이 프로젝트 컨벤션과 맞는지 확인해.
+8. rules가 만든 openapi/config/project-rules.jsonc 초안이 프로젝트 컨벤션과 맞는지 확인해.
    맞지 않는 부분이 있으면 수정하고, 맞다고 판단되면 review.rulesReviewed를 true로 바꿔.
-10. npx --yes openapi-projector project를 실행해.
-11. openapi/project/summary.md를 읽고 생성된 endpoint와 skipped endpoint를 요약해.
+9. review.rulesReviewed를 true로 바꾼 뒤 npx --yes openapi-projector prepare를 다시 실행해.
+10. openapi/project/summary.md를 읽고 생성된 endpoint와 skipped endpoint를 요약해.
 
 아직 실제 앱 코드에는 반영하지 말고, Swagger 변경 비교 요약과 DTO/API 후보 요약을 나눈 뒤 내가 어떤 endpoint를 적용할지 아래 형식으로 물어봐.
 
@@ -235,13 +234,28 @@ Rules:
 
 If this workspace has already been initialized, update `openapi/config/project.jsonc` instead of re-running `init`.
 
-### 2. Recommended Step-by-Step Flow
+### 2. Recommended Prepare Flow
 
 Run commands from the frontend project root.
 
 ```bash
 npx --yes openapi-projector doctor
 npx --yes openapi-projector doctor --check-url
+npx --yes openapi-projector prepare
+```
+
+Command roles:
+
+- `doctor`: validates local config, project config, source URL, and rules readiness.
+- `doctor --check-url`: also verifies that the OpenAPI JSON URL is reachable.
+- `prepare`: runs `refresh -> rules -> project`, but only continues to `project` after `openapi/config/project-rules.jsonc` has `"review": { "rulesReviewed": true }`.
+- `refresh`, `rules`, and `project`: lower-level commands used by `prepare`. Run them separately only when you need to isolate a step.
+
+After `prepare`, read and summarize `openapi/changes.md` before touching app code. If `prepare` stops at the rules review gate, inspect `openapi/review/project-rules/analysis.md`, `openapi/review/project-rules/analysis.json`, and the real frontend API client. Edit `openapi/config/project-rules.jsonc` only when needed, set `review.rulesReviewed` to `true` after confirmation, then run `prepare` again.
+
+Command-by-command fallback:
+
+```bash
 npx --yes openapi-projector refresh
 # Read and summarize openapi/changes.md before touching app code
 npx --yes openapi-projector rules
@@ -252,24 +266,6 @@ npx --yes openapi-projector rules
 npx --yes openapi-projector project
 ```
 
-Command roles:
-
-- `doctor`: validates local config, project config, source URL, and rules readiness.
-- `doctor --check-url`: also verifies that the OpenAPI JSON URL is reachable.
-- `refresh`: downloads OpenAPI JSON, compares it with the previous endpoint catalog, and generates review artifacts.
-- `rules`: scans the frontend project and creates/updates project rule hints.
-- `project`: generates candidate DTO/API files from the confirmed rules.
-
-Shortcut:
-
-```bash
-npx --yes openapi-projector prepare
-```
-
-`prepare` runs `refresh -> rules`, then continues to `project` only after the rules are reviewed. Use the step-by-step flow when adapting this tool to a real project for the first time.
-
-For first-time adoption, prefer the step-by-step flow over `prepare`. `rules` needs human or AI review before the generated candidates are trusted. By default, `prepare` stops after `rules` until `openapi/config/project-rules.jsonc` has `"review": { "rulesReviewed": true }`. The standalone `project` command uses the same review gate.
-
 ### 3. Repeated Runs: Review OpenAPI Changes
 
 After every `refresh` or `prepare`, read the change summary before touching app code.
@@ -279,16 +275,12 @@ Primary files:
 - `openapi/changes.md`
 - `openapi/changes.json`
 - `openapi/review/changes/history/`
-- `openapi/review/changes/oasdiff/` when optional `oasdiff` compatibility reports are available
 
 `openapi/changes.md` and `openapi/changes.json` are overwritten on each run and always represent the latest comparison.
 When changes are detected, timestamped `.md` and `.json` snapshots are also appended under `openapi/review/changes/history/`.
-If `oasdiff` is installed and enabled, `openapi/changes.md` also includes a `Compatibility Check` section with links to `breaking.md` and `changelog.md`.
-In the default `auto` mode, if `oasdiff` is missing or the first baseline has just been created, `openapi/changes.json.externalDiff.oasdiff` records the skipped reason while the normal endpoint diff still works.
 
 How to interpret `openapi/changes.md`:
 
-- `Compatibility Check`: optional `oasdiff` status and report links.
 - `Baseline`: first run or no usable previous catalog. Treat this as the initial snapshot.
 - `Added`: new endpoints.
 - `Removed`: endpoints that disappeared from the OpenAPI spec.

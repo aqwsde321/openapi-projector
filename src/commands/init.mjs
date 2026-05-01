@@ -2,6 +2,7 @@ import { createInterface } from 'node:readline/promises';
 import { pathToFileURL } from 'node:url';
 
 import { initProject, initToolLocalConfig, loadProjectConfig } from '../core/openapi-utils.mjs';
+import { formatSuccess } from '../cli-format.mjs';
 
 const DEFAULT_SOURCE_URL = 'http://localhost:8080/v3/api-docs';
 const SOURCE_URL_CHECK_TIMEOUT_MS = 5000;
@@ -438,7 +439,7 @@ const initCommand = {
     const result = await initProject(rootDir, { force, projectConfigOverrides });
     const localConfigResult = await initToolLocalConfig(rootDir);
 
-    console.log(`Initialized openapi workflow in ${rootDir}`);
+    console.log(formatSuccess(`Initialized openapi workflow in ${rootDir}`));
     console.log(`- local config: ${localConfigResult.toolLocalConfigPath}`);
     const projectConfigStatus = result.projectConfigOverwritten
       ? ' (overwritten)'

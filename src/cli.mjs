@@ -1,5 +1,6 @@
 import path from 'node:path';
 
+import { formatFailure } from './cli-format.mjs';
 import { loadToolLocalConfig } from './core/openapi-utils.mjs';
 import { helpCommand } from './commands/help.mjs';
 import { initCommand } from './commands/init.mjs';
@@ -28,7 +29,7 @@ const commandMap = new Map([
 ]);
 
 function printUnknownCommand(commandName) {
-  console.error(`Unknown command: ${commandName}`);
+  console.error(formatFailure(`Unknown command: ${commandName}`, process.stderr));
   console.error('');
   helpCommand.run();
 }

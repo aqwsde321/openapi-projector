@@ -4,6 +4,7 @@ import { rulesCommand } from './rules.mjs';
 import { projectCommand } from './project.mjs';
 import { loadProjectConfig, loadProjectRules } from '../core/openapi-utils.mjs';
 import { assertProjectRulesReviewed } from '../config/validation.mjs';
+import { formatSuccess, formatWarning } from '../cli-format.mjs';
 
 async function hasProjectConfig(rootDir) {
   try {
@@ -21,18 +22,23 @@ function isConfiguredSourceUrl(sourceUrl) {
   return typeof sourceUrl === 'string' && sourceUrl.trim() && !sourceUrl.includes('example.com');
 }
 
+function logPrepareStep(command, description) {
+  console.log('');
+  console.log(formatSuccess(`${command}: ${description}`));
+}
+
 const prepareCommand = {
   name: 'prepare',
   async run(options = {}) {
     const context = Array.isArray(options) ? {} : (options.context ?? {});
     const rootDir = context.targetRoot ?? process.cwd();
 
-    console.log('Preparing OpenAPI project candidate output...');
+    console.log(formatSuccess(`prepare: running in ${rootDir}`));
 
     if (await hasProjectConfig(rootDir)) {
-      console.log('- init: skipped because project config already exists');
+      console.log(formatSuccess('init: skipped because project config already exists'));
     } else {
-      console.log('- init: creating project config');
+      logPrepareStep('init', '작업 공간과 기본 설정을 생성합니다.');
       await initCommand.run(options);
     }
 
@@ -46,19 +52,33 @@ const prepareCommand = {
       );
     }
 
-    console.log('- refresh: downloading OpenAPI and generating review artifacts');
+    logPrepareStep(
+      'refresh',
+      'Swagger/OpenAPI를 내려받고 이전 버전과 비교해 openapi/changes.md를 만듭니다.',
+    );
     await refreshCommand.run(options);
 
-    console.log('- rules: analyzing target project conventions');
+    logPrepareStep(
+      'rules',
+      '현재 프론트엔드 프로젝트의 API 호출 규칙을 분석해 openapi/config/project-rules.jsonc를 만듭니다.',
+    );
     await rulesCommand.run(options);
 
     const { projectRules } = await loadProjectRules(rootDir, projectConfig);
-    assertProjectRulesReviewed(projectRules);
+    try {
+      assertProjectRulesReviewed(projectRules);
+    } catch (error) {
+      console.log('');
+      console.log(formatWarning('project: review.rulesReviewed가 true가 아니어서 DTO/API 후보 생성을 건너뜁니다.'));
+      console.log('- update: openapi/config/project-rules.jsonc -> review.rulesReviewed=true');
+      throw error;
+    }
 
-    console.log('- project: generating DTO/API candidate files');
+    logPrepareStep('project', '검토된 규칙으로 DTO/API 후보를 생성합니다.');
     await projectCommand.run(options);
 
-    console.log('Prepare complete. Review openapi/project/summary.md next.');
+    console.log('');
+    console.log(formatSuccess('prepare complete: openapi/project/summary.md를 확인하세요.'));
   },
 };
 
