@@ -28,19 +28,20 @@
 
 Swagger/OpenAPI 원본을 받아서 review 산출물을 만듭니다.
 
-- `openapi/review/catalog`
 - `openapi/review/changes`
+- `openapi/review/catalog`
 - `openapi/review/docs`
 - `openapi/review/generated/schema.ts`
 
 이 단계의 목적은 “스펙을 확인하고 검토할 수 있는 review 결과물”을 만드는 것입니다.
 
-`openapi/review/changes/summary.md`는 최신 비교 결과입니다. 매번 덮어쓰이며, 사람이 가장 먼저 확인하는 파일입니다.
+`openapi/changes.md`는 최신 비교 결과입니다. 매번 덮어쓰이며, 사람이 가장 먼저 확인하는 파일입니다.
+같은 내용은 `openapi/changes.json`에도 저장됩니다.
 변경이 감지되면 같은 내용이 `openapi/review/changes/history/` 아래에 timestamp가 붙은 `.md`와 `.json` 파일로도 누적됩니다.
 
 `oasdiff` CLI가 설치되어 있으면 `Compatibility Check` 섹션에 별도 호환성 리포트 링크도 표시됩니다.
 기본 `auto` 모드에서 설치되어 있지 않거나 첫 실행이라 기준 파일이 없으면 기존 endpoint 변경 요약은 그대로 생성되고,
-`summary.json`의 `externalDiff.oasdiff`에 skipped 이유가 기록됩니다.
+`openapi/changes.json`의 `externalDiff.oasdiff`에 skipped 이유가 기록됩니다.
 
 변경 구분은 endpoint 기준입니다.
 
@@ -51,7 +52,7 @@ Swagger/OpenAPI 원본을 받아서 review 산출물을 만듭니다.
 
 `Added`, `Contract Changed`, `Doc Changed` 항목은 `project-rules.jsonc` 기준으로 생성될 DTO/API 후보 파일 링크도 함께 표시합니다. 링크 대상은 `project` 실행 후 생기는 `openapi/project/src/openapi-generated/...` 아래 파일입니다.
 
-`Contract Changed`는 이전 catalog와 현재 catalog 모두 비교용 snapshot을 가지고 있으면 필드 단위 상세 변경을 비교 표로 표시합니다. 예를 들어 query parameter 추가, request body required 변경, response body field type 변경 같은 내용이 `summary.md`와 `history/*.md`에 남습니다.
+`Contract Changed`는 이전 catalog와 현재 catalog 모두 비교용 snapshot을 가지고 있으면 필드 단위 상세 변경을 비교 표로 표시합니다. 예를 들어 query parameter 추가, request body required 변경, response body field type 변경 같은 내용이 `openapi/changes.md`와 `history/*.md`에 남습니다.
 이전 catalog가 snapshot이 없는 구버전 산출물이라면 첫 refresh에서는 영향 endpoint만 표시되고, 그 다음 refresh부터 상세 변경 비교가 가능합니다.
 
 ### 2. `rules`

@@ -217,6 +217,8 @@ async function pathExists(filePath) {
 function renderOpenapiGitignore() {
   return [
     '# openapi-projector generated artifacts',
+    'changes.md',
+    'changes.json',
     '_internal/',
     'review/',
     'project/',
@@ -699,6 +701,32 @@ async function initProject(rootDir, options = {}) {
   };
 }
 
+async function upgradeProjectDocs(rootDir) {
+  const projectReadmeTemplatePath = path.join(TOOL_ROOT_DIR, 'templates', 'project-readme.md');
+  const projectReadmePath = path.resolve(rootDir, 'openapi/README.md');
+  const existingProjectConfig = await findExistingProjectConfig(rootDir);
+
+  if (!existingProjectConfig) {
+    throw new Error(
+      [
+        'OpenAPI workspace not found.',
+        'Run npx --yes openapi-projector init before upgrading generated docs.',
+      ].join('\n'),
+    );
+  }
+
+  const projectReadmeExisted = await pathExists(projectReadmePath);
+  const projectReadmeTemplate = await fs.readFile(projectReadmeTemplatePath, 'utf8');
+  await writeText(projectReadmePath, projectReadmeTemplate);
+
+  return {
+    projectReadmePath,
+    projectReadmeCreated: !projectReadmeExisted,
+    projectReadmeOverwritten: projectReadmeExisted,
+    projectConfigPath: existingProjectConfig?.projectConfigPath ?? null,
+  };
+}
+
 function renderToolLocalConfig() {
   return `{
   // 이 파일은 실행한 프론트엔드 프로젝트 루트 기준 로컬 설정입니다.
@@ -1122,6 +1150,7 @@ export {
   toCamelCase,
   toKebabCase,
   toPascalCase,
+  upgradeProjectDocs,
   writeJson,
   writeText,
 };

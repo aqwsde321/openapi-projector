@@ -238,11 +238,21 @@ function createOpenApiFetchResponse({
   body = createSimpleSpec(),
   status = 200,
   statusText = 'OK',
+  headers = { 'content-type': 'application/json' },
 } = {}) {
+  const normalizedHeaders = new Map(
+    Object.entries(headers).map(([name, value]) => [name.toLowerCase(), value]),
+  );
+
   return {
     ok: status >= 200 && status < 300,
     status,
     statusText,
+    headers: {
+      get(name) {
+        return normalizedHeaders.get(String(name).toLowerCase()) ?? null;
+      },
+    },
     async text() {
       return typeof body === 'string' ? body : JSON.stringify(body);
     },
@@ -566,6 +576,19 @@ test(
         path.join(workspace, 'openapi/_internal/source/openapi.json'),
         nextSpec,
       );
+      await fs.mkdir(path.join(workspace, 'openapi/review/changes'), {
+        recursive: true,
+      });
+      await fs.writeFile(
+        path.join(workspace, 'openapi/review/changes/summary.md'),
+        '# stale summary\n',
+        'utf8',
+      );
+      await fs.writeFile(
+        path.join(workspace, 'openapi/review/changes/summary.json'),
+        '{"stale":true}\n',
+        'utf8',
+      );
 
       await runInWorkspace(workspace, () => catalogCommand.run());
 
@@ -585,9 +608,22 @@ test(
         path.join(historyDir, historyMarkdownFiles[0]),
         'utf8',
       );
-      const summarySource = await fs.readFile(
-        path.join(workspace, 'openapi/review/changes/summary.md'),
+      const topLevelChangesSource = await fs.readFile(
+        path.join(workspace, 'openapi/changes.md'),
         'utf8',
+      );
+      const topLevelChangesJson = await readJson(path.join(workspace, 'openapi/changes.json'));
+      const openapiGitignoreSource = await fs.readFile(
+        path.join(workspace, 'openapi/.gitignore'),
+        'utf8',
+      );
+      await assert.rejects(
+        () => fs.access(path.join(workspace, 'openapi/review/changes/summary.md')),
+        /ENOENT/,
+      );
+      await assert.rejects(
+        () => fs.access(path.join(workspace, 'openapi/review/changes/summary.json')),
+        /ENOENT/,
       );
       const historyJson = await readJson(path.join(historyDir, historyJsonFiles[0]));
       const detailPaths = historyJson.contractChanged[0].details.map(
@@ -595,6 +631,9 @@ test(
       );
 
       assert.equal(historyJson.contractChanged.length, 1);
+      assert.equal(topLevelChangesJson.contractChanged.length, 1);
+      assert.match(openapiGitignoreSource, /changes\.md/);
+      assert.match(openapiGitignoreSource, /changes\.json/);
       assert.equal(historyJson.contractChanged[0].detailsUnavailable, undefined);
       assert.deepEqual(historyJson.contractChanged[0].projectFiles, {
         dto: 'openapi/project/src/openapi-generated/Users/get-users-by-id.dto.ts',
@@ -659,12 +698,20 @@ test(
       );
       assert.match(historySource, /Contract Changed: 1/);
       assert.match(
-        summarySource,
-        /\[DTO\]\(<\.\.\/\.\.\/project\/src\/openapi-generated\/Users\/get-users-by-id\.dto\.ts>\)/,
+        topLevelChangesSource,
+        /\[DTO\]\(<project\/src\/openapi-generated\/Users\/get-users-by-id\.dto\.ts>\)/,
       );
       assert.match(
-        summarySource,
-        /\[API\]\(<\.\.\/\.\.\/project\/src\/openapi-generated\/Users\/get-users-by-id\.api\.ts>\)/,
+        topLevelChangesSource,
+        /\[API\]\(<project\/src\/openapi-generated\/Users\/get-users-by-id\.api\.ts>\)/,
+      );
+      assert.match(
+        topLevelChangesSource,
+        /History: \[openapi\/review\/changes\/history\]\(<review\/changes\/history>\)/,
+      );
+      assert.match(
+        topLevelChangesSource,
+        /Comparison baseline: \[openapi\/review\/catalog\/endpoints\.json\]\(<review\/catalog\/endpoints\.json>\)/,
       );
       assert.match(
         historySource,
@@ -711,6 +758,49 @@ test(
 );
 
 test(
+  'catalog renders first added query parameter as a parameter comparison row',
+  { concurrency: false },
+  async () => {
+    const spec = createSimpleSpec('Get inquiry detail');
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const nextSpec = structuredClone(spec);
+      nextSpec.paths['/ping'].get.parameters = [
+        {
+          name: 'abbb',
+          in: 'query',
+          required: true,
+          schema: {
+            type: 'integer',
+            format: 'int32',
+          },
+        },
+      ];
+
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.json'),
+        nextSpec,
+      );
+
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const topLevelChangesSource = await fs.readFile(
+        path.join(workspace, 'openapi/changes.md'),
+        'utf8',
+      );
+
+      assert.match(
+        topLevelChangesSource,
+        /\| Query Parameter \| `abbb` \| 없음 \| `integer`, format=`int32`, required \|/,
+      );
+      assert.doesNotMatch(topLevelChangesSource, /operation\.parameters` \| `\[\]`/);
+    });
+  },
+);
+
+test(
   'catalog skips oasdiff on first run and creates an oasdiff baseline',
   { concurrency: false },
   async () => {
@@ -730,10 +820,10 @@ test(
       await runInWorkspace(workspace, () => catalogCommand.run());
 
       const summaryJson = await readJson(
-        path.join(workspace, 'openapi/review/changes/summary.json'),
+        path.join(workspace, 'openapi/changes.json'),
       );
       const summarySource = await fs.readFile(
-        path.join(workspace, 'openapi/review/changes/summary.md'),
+        path.join(workspace, 'openapi/changes.md'),
         'utf8',
       );
 
@@ -775,7 +865,7 @@ test(
       await runInWorkspace(workspace, () => catalogCommand.run());
 
       const summaryJson = await readJson(
-        path.join(workspace, 'openapi/review/changes/summary.json'),
+        path.join(workspace, 'openapi/changes.json'),
       );
 
       assert.equal(summaryJson.externalDiff.oasdiff.status, 'off');
@@ -842,7 +932,7 @@ test(
       await runInWorkspace(workspace, () => catalogCommand.run());
 
       const summaryJson = await readJson(
-        path.join(workspace, 'openapi/review/changes/summary.json'),
+        path.join(workspace, 'openapi/changes.json'),
       );
 
       assert.equal(summaryJson.externalDiff.oasdiff.status, 'skipped');
@@ -895,10 +985,10 @@ test(
       await runInWorkspace(workspace, () => catalogCommand.run());
 
       const summaryJson = await readJson(
-        path.join(workspace, 'openapi/review/changes/summary.json'),
+        path.join(workspace, 'openapi/changes.json'),
       );
       const summarySource = await fs.readFile(
-        path.join(workspace, 'openapi/review/changes/summary.md'),
+        path.join(workspace, 'openapi/changes.md'),
         'utf8',
       );
       const breakingSource = await fs.readFile(
@@ -919,8 +1009,8 @@ test(
         summaryJson.externalDiff.oasdiff.changelogMarkdownPath,
         'openapi/review/changes/oasdiff/changelog.md',
       );
-      assert.match(summarySource, /\[breaking\]\(<oasdiff\/breaking\.md>\)/);
-      assert.match(summarySource, /\[changelog\]\(<oasdiff\/changelog\.md>\)/);
+      assert.match(summarySource, /\[breaking\]\(<review\/changes\/oasdiff\/breaking\.md>\)/);
+      assert.match(summarySource, /\[changelog\]\(<review\/changes\/oasdiff\/changelog\.md>\)/);
       assert.match(breakingSource, /# breaking/);
       assert.match(changelogSource, /# changelog/);
     });
@@ -1054,19 +1144,27 @@ test(
         /"projectRulesAnalysisJsonPath": "openapi\/review\/project-rules\/analysis\.json"/,
       );
       assert.match(projectReadmeSource, /# openapi-projector Workspace Guide/);
+      assert.doesNotMatch(projectReadmeSource, /## 명령 실행 기준/);
+      assert.doesNotMatch(projectReadmeSource, /최신 CLI 기능 강제 사용/);
+      assert.doesNotMatch(projectReadmeSource, /openapi-projector@<version>/);
+      assert.doesNotMatch(projectReadmeSource, /전역 설치 사용/);
+      assert.doesNotMatch(projectReadmeSource, /명령 실행 방식/);
       assert.match(projectReadmeSource, /## 사람용 요약/);
       assert.match(projectReadmeSource, /<details>/);
       assert.doesNotMatch(projectReadmeSource, /<summary>AI에게 붙여넣을 프롬프트<\/summary>/);
       assert.match(projectReadmeSource, /<summary>AI Agents: Detailed Workflow<\/summary>/);
       assert.match(projectReadmeSource, /## For AI Agents: Detailed Workflow/);
-      assert.match(projectReadmeSource, /openapi\/review\/changes\/summary\.md/);
+      assert.match(projectReadmeSource, /### 2\. Swagger\/OpenAPI 변경 비교 먼저 확인/);
+      assert.match(projectReadmeSource, /openapi\/changes\.md/);
+      assert.match(projectReadmeSource, /openapi\/changes\.json/);
+      assert.match(projectReadmeSource, /openapi\/review\/changes\/history\//);
       assert.match(projectReadmeSource, /openapi\/review\/project-rules\/analysis\.json/);
       assert.match(projectReadmeSource, /Contract Changed/);
       assert.match(projectReadmeSource, /npx --yes openapi-projector rules/);
       assert.match(projectReadmeSource, /rg "fetchAPI\|apiClient\|request\|axios\|ky\|httpClient" src/);
       assert.match(projectReadmeSource, /openapi\/config\/project-rules\.jsonc/);
       assert.match(projectReadmeSource, /npx --yes openapi-projector prepare/);
-      assert.match(projectReadmeSource, /### 2\. init이 만든 작업 공간 확인/);
+      assert.match(projectReadmeSource, /### 3\. init이 만든 작업 공간 확인/);
       assert.match(projectReadmeSource, /처음 `init`을 실행할 때 기본 `sourceUrl`을 그대로 두었다면/);
       assert.match(projectReadmeSource, /`init` 완료 로그에는 나중에 수정할 `openapi\/config\/project\.jsonc` 경로/);
       assert.doesNotMatch(projectReadmeSource, /<summary>CI\/스크립트에서 프롬프트 없이 실행하기<\/summary>/);
@@ -1074,12 +1172,11 @@ test(
       assert.match(projectReadmeSource, /AI에게 붙여넣기 전에 사람이 검토 자료를 만들어두고 싶다면/);
       assert.match(projectReadmeSource, /`prepare` 실행 후 사람이 먼저 볼 파일/);
       assert.match(projectReadmeSource, /\*\*중요:\*\* 규칙이 실제 프로젝트와 맞다고 확인한 뒤에만/);
-      assert.match(projectReadmeSource, /사람이 npx --yes openapi-projector prepare를 미리 실행했다면/);
-      assert.match(projectReadmeSource, /소스 checkout으로 `node <openapi-projector 저장소 루트>\/bin\/openapi-tool\.mjs init`/);
-      assert.match(projectReadmeSource, /같은 `node <openapi-projector 저장소 루트>\/bin\/openapi-tool\.mjs` 방식/);
+      assert.match(projectReadmeSource, /아래 명령은 프론트엔드 프로젝트 루트에서 실행해/);
+      assert.match(projectReadmeSource, /사람이 npx --yes openapi-projector refresh 또는 prepare를 미리 실행했다면/);
       assert.match(projectReadmeSource, /default `sourceUrl` is `http:\/\/localhost:8080\/v3\/api-docs`/i);
       assert.match(projectReadmeSource, /`prepare`는 아래 명령을 순서대로 대신 실행하는 단축 명령/);
-      assert.match(projectReadmeSource, /`refresh`: OpenAPI JSON을 내려받고 review 문서를 만듭니다/);
+      assert.match(projectReadmeSource, /`refresh`: OpenAPI JSON을 내려받고 이전 Swagger와 비교한 review 문서를 만듭니다/);
       assert.match(projectReadmeSource, /`rules`: 현재 프론트엔드 프로젝트의 API 호출 방식을 분석하고 `openapi\/config\/project-rules\.jsonc` 초안을 만듭니다/);
       assert.match(projectReadmeSource, /`project`: 검토된 규칙으로 DTO\/API 후보 코드를 만듭니다/);
       assert.match(projectReadmeSource, /처음 실행하면 `rules` 검토 단계에서 멈추는 것이 정상입니다/);
@@ -1098,6 +1195,8 @@ test(
         path.join(workspace, 'openapi/.gitignore'),
         'utf8',
       );
+      assert.match(openapiGitignoreSource, /changes\.md/);
+      assert.match(openapiGitignoreSource, /changes\.json/);
       assert.match(openapiGitignoreSource, /_internal\//);
       assert.match(openapiGitignoreSource, /review\//);
       assert.match(openapiGitignoreSource, /project\//);
@@ -1226,6 +1325,184 @@ test(
       assert.match(promptOutput.output(), /Trying common OpenAPI paths from http:\/\/localhost:8080/);
       assert.match(promptOutput.output(), /✓ GET http:\/\/localhost:8080\/api-docs - OpenAPI 3\.0\.3/);
       assert.match(promptOutput.output(), /Using discovered sourceUrl: http:\/\/localhost:8080\/api-docs/);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli init discovers a context-path OpenAPI URL from a Swagger UI URL',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-prompt-context-'));
+    const promptOutput = createWritableCapture();
+    const swaggerUiUrl = 'https://api.example.com/app/swagger-ui/index.html#/';
+    const discoveredUrl = 'https://api.example.com/app/v3/api-docs';
+    const fetchMock = createOpenApiFetchMock((url) => {
+      if (url === swaggerUiUrl) {
+        return createOpenApiFetchResponse({
+          body: '<!doctype html><html></html>',
+          headers: { 'content-type': 'text/html' },
+        });
+      }
+
+      if (url === discoveredUrl) {
+        return createOpenApiFetchResponse();
+      }
+
+      return createOpenApiFetchResponse({ status: 404, statusText: 'Not Found', body: 'not found' });
+    });
+
+    try {
+      await initCommand.run({
+        argv: [],
+        context: {
+          interactive: true,
+          fetch: fetchMock,
+          stdin: Readable.from([`${swaggerUiUrl}\n`]),
+          stdout: promptOutput.writable,
+          targetRoot: workspace,
+        },
+      });
+
+      const projectConfig = await readJson(
+        path.join(workspace, 'openapi/config/project.jsonc'),
+      );
+
+      assert.equal(projectConfig.sourceUrl, discoveredUrl);
+      assert.deepEqual(fetchMock.calls.map((call) => call.url), [
+        swaggerUiUrl,
+        discoveredUrl,
+      ]);
+      assert.match(promptOutput.output(), /x GET https:\/\/api\.example\.com\/app\/swagger-ui\/index\.html#\/ - response is not JSON/);
+      assert.match(promptOutput.output(), /✓ GET https:\/\/api\.example\.com\/app\/v3\/api-docs - OpenAPI 3\.0\.3/);
+      assert.match(promptOutput.output(), /Using discovered sourceUrl: https:\/\/api\.example\.com\/app\/v3\/api-docs/);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli init skip saves the best JSON candidate when discovered paths require auth',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-prompt-auth-skip-'));
+    const promptOutput = createWritableCapture();
+    const swaggerUiUrl = 'https://private.example.com/swagger-ui/index.html#/';
+    const bestCandidateUrl = 'https://private.example.com/v3/api-docs';
+    const fetchMock = createOpenApiFetchMock((url) => {
+      if (url === swaggerUiUrl) {
+        return createOpenApiFetchResponse({
+          body: '<!doctype html><html></html>',
+          headers: { 'content-type': 'text/html' },
+        });
+      }
+
+      return createOpenApiFetchResponse({
+        status: 401,
+        statusText: 'Unauthorized',
+        body: 'auth required',
+      });
+    });
+
+    try {
+      await initCommand.run({
+        argv: [],
+        context: {
+          interactive: true,
+          fetch: fetchMock,
+          stdin: Readable.from(delayedLines([
+            `${swaggerUiUrl}\n`,
+            'skip\n',
+          ])),
+          stdout: promptOutput.writable,
+          targetRoot: workspace,
+        },
+      });
+
+      const projectConfig = await readJson(
+        path.join(workspace, 'openapi/config/project.jsonc'),
+      );
+
+      assert.equal(projectConfig.sourceUrl, bestCandidateUrl);
+      assert.match(promptOutput.output(), /Best OpenAPI JSON URL candidate so far: https:\/\/private\.example\.com\/v3\/api-docs/);
+      assert.match(promptOutput.output(), /Skipping reachability check\. Saving sourceUrl anyway: https:\/\/private\.example\.com\/v3\/api-docs/);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli init accepts a discovered JSON path when GET validation times out but HEAD confirms JSON',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-prompt-head-'));
+    const promptOutput = createWritableCapture();
+    const swaggerUiUrl = 'https://dev-api.example.com/swagger-ui/index.html#/';
+    const discoveredUrl = 'https://dev-api.example.com/v3/api-docs';
+    const fetchMock = createOpenApiFetchMock((url, options) => {
+      const method = options.method ?? 'GET';
+
+      if (url === swaggerUiUrl) {
+        return createOpenApiFetchResponse({
+          body: '<!doctype html><html></html>',
+          headers: { 'content-type': 'text/html' },
+        });
+      }
+
+      if (url === discoveredUrl && method === 'GET') {
+        const error = new Error('request timed out');
+        error.name = 'TimeoutError';
+        throw error;
+      }
+
+      if (url === discoveredUrl && method === 'HEAD') {
+        return createOpenApiFetchResponse({
+          body: '',
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+
+      return createOpenApiFetchResponse({
+        status: 401,
+        statusText: 'Unauthorized',
+        body: 'auth required',
+      });
+    });
+
+    try {
+      await initCommand.run({
+        argv: [],
+        context: {
+          interactive: true,
+          fetch: fetchMock,
+          stdin: Readable.from(delayedLines([`${swaggerUiUrl}\n`])),
+          stdout: promptOutput.writable,
+          targetRoot: workspace,
+        },
+      });
+
+      const projectConfig = await readJson(
+        path.join(workspace, 'openapi/config/project.jsonc'),
+      );
+
+      assert.equal(projectConfig.sourceUrl, discoveredUrl);
+      assert.deepEqual(
+        fetchMock.calls.map((call) => `${call.options.method ?? 'GET'} ${call.url}`),
+        [
+          `GET ${swaggerUiUrl}`,
+          `GET ${discoveredUrl}`,
+          `HEAD ${discoveredUrl}`,
+        ],
+      );
+      assert.match(promptOutput.output(), /x GET https:\/\/dev-api\.example\.com\/swagger-ui\/index\.html#\/ - response is not JSON/);
+      assert.match(promptOutput.output(), /x GET https:\/\/dev-api\.example\.com\/v3\/api-docs - request timed out after 5000ms/);
+      assert.match(promptOutput.output(), /✓ HEAD https:\/\/dev-api\.example\.com\/v3\/api-docs - JSON endpoint reachable \(GET validation timed out\)/);
+      assert.match(promptOutput.output(), /Using discovered sourceUrl: https:\/\/dev-api\.example\.com\/v3\/api-docs/);
+      assert.doesNotMatch(promptOutput.output(), /Could not find a reachable OpenAPI JSON URL/);
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
     }
@@ -1551,6 +1828,7 @@ test(
     assert.match(output, /npx --yes openapi-projector init/);
     assert.match(output, /interactive terminals can confirm, validate, or retry the default sourceUrl/);
     assert.match(output, /CI\/scripts can pass --source-url explicitly or use --no-input/);
+    assert.match(output, /upgrade-docs\s+기존 설정은 보존하고 openapi\/README\.md 안내 문서만 최신화/);
     assert.doesNotMatch(output, /npx --yes openapi-projector init --source-url/);
   },
 );
@@ -1628,10 +1906,76 @@ test(
       assert.match(projectReadmeSource, /## For AI Agents: Detailed Workflow/);
       assert.equal(
         openapiGitignoreSource,
-        '# openapi-projector generated artifacts\n_internal/\nreview/\nproject/\n',
+        '# openapi-projector generated artifacts\nchanges.md\nchanges.json\n_internal/\nreview/\nproject/\n',
       );
       await assertExists(path.join(workspace, 'openapi/README.md'));
       await assertExists(path.join(workspace, 'openapi/config/project-rules.jsonc'));
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli upgrade-docs updates generated README without touching config or rules',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-upgrade-docs-'));
+    const projectConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
+    const projectRulesPath = path.join(workspace, 'openapi/config/project-rules.jsonc');
+    const projectReadmePath = path.join(workspace, 'openapi/README.md');
+
+    try {
+      await writeJsonFile(projectConfigPath, {
+        sourceUrl: 'https://existing.example.com/v3/api-docs',
+        sourcePath: 'custom/openapi.json',
+      });
+      await fs.writeFile(projectRulesPath, '{ "custom": true }\n', 'utf8');
+      await fs.writeFile(projectReadmePath, '# stale guide\n', 'utf8');
+
+      const beforeProjectConfig = await fs.readFile(projectConfigPath, 'utf8');
+      const beforeProjectRules = await fs.readFile(projectRulesPath, 'utf8');
+      const { output } = await captureConsoleLog(() =>
+        runInWorkspace(workspace, () => runCli(['upgrade-docs'])),
+      );
+
+      const afterProjectConfig = await fs.readFile(projectConfigPath, 'utf8');
+      const afterProjectRules = await fs.readFile(projectRulesPath, 'utf8');
+      const projectReadmeSource = await fs.readFile(projectReadmePath, 'utf8');
+
+      assert.equal(afterProjectConfig, beforeProjectConfig);
+      assert.equal(afterProjectRules, beforeProjectRules);
+      assert.match(projectReadmeSource, /# openapi-projector Workspace Guide/);
+      assert.match(projectReadmeSource, /Swagger\/OpenAPI 변경 비교 먼저 확인/);
+      assert.doesNotMatch(projectReadmeSource, /npx --yes openapi-projector@latest upgrade-docs/);
+      assert.doesNotMatch(projectReadmeSource, /# stale guide/);
+      assert.match(output, /project guide: .*openapi\/README\.md \(overwritten\)/);
+      assert.match(output, /kept project config: .*openapi\/config\/project\.jsonc/);
+      assert.match(output, /kept project rules, review history, and generated candidates unchanged/);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli upgrade-docs fails before init',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-upgrade-docs-missing-'));
+    const projectReadmePath = path.join(workspace, 'openapi/README.md');
+
+    try {
+      await fs.mkdir(path.dirname(projectReadmePath), { recursive: true });
+      await fs.writeFile(projectReadmePath, '# unrelated guide\n', 'utf8');
+
+      await assert.rejects(
+        () => runInWorkspace(workspace, () => runCli(['upgrade-docs'])),
+        /OpenAPI workspace not found\.\nRun npx --yes openapi-projector init before upgrading generated docs\./,
+      );
+
+      const projectReadmeSource = await fs.readFile(projectReadmePath, 'utf8');
+      assert.equal(projectReadmeSource, '# unrelated guide\n');
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
     }

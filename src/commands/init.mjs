@@ -78,20 +78,62 @@ function isPlainObject(value) {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
-function createFetchSignal() {
+function createFetchSignal(timeoutMs = SOURCE_URL_CHECK_TIMEOUT_MS) {
   if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
-    return AbortSignal.timeout(SOURCE_URL_CHECK_TIMEOUT_MS);
+    return AbortSignal.timeout(timeoutMs);
   }
 
   return undefined;
 }
 
-function describeFetchError(error) {
-  if (error?.name === 'AbortError' || error?.name === 'TimeoutError') {
-    return `request timed out after ${SOURCE_URL_CHECK_TIMEOUT_MS}ms`;
+function describeFetchError(error, timeoutMs = SOURCE_URL_CHECK_TIMEOUT_MS) {
+  if (isTimeoutError(error)) {
+    return `request timed out after ${timeoutMs}ms`;
   }
 
   return error?.message ?? String(error);
+}
+
+function isTimeoutError(error) {
+  const timeoutCodes = new Set([
+    'ETIMEDOUT',
+    'UND_ERR_CONNECT_TIMEOUT',
+    'UND_ERR_HEADERS_TIMEOUT',
+    'UND_ERR_BODY_TIMEOUT',
+  ]);
+  return (
+    error?.name === 'AbortError'
+    || error?.name === 'TimeoutError'
+    || timeoutCodes.has(error?.code)
+    || timeoutCodes.has(error?.cause?.code)
+  );
+}
+
+function getResponseHeader(response, headerName) {
+  if (typeof response?.headers?.get === 'function') {
+    return response.headers.get(headerName);
+  }
+
+  return null;
+}
+
+function isJsonContentType(contentType) {
+  return typeof contentType === 'string' && /(^|[+/])json($|[;\s])/i.test(contentType);
+}
+
+function isAuthFailureReason(reason) {
+  return /^HTTP (401|403)(\b| )/.test(reason ?? '');
+}
+
+function isLikelyOpenApiJsonUrl(sourceUrl) {
+  let parsed;
+  try {
+    parsed = new URL(sourceUrl);
+  } catch {
+    return false;
+  }
+
+  return COMMON_OPENAPI_PATHS.some((candidatePath) => parsed.pathname.endsWith(candidatePath));
 }
 
 function validateOpenApiJson(value) {
@@ -140,7 +182,11 @@ async function checkOpenApiSourceUrl(sourceUrl, fetchImpl) {
       signal: createFetchSignal(),
     });
   } catch (error) {
-    return { ok: false, reason: describeFetchError(error) };
+    return {
+      ok: false,
+      reason: describeFetchError(error),
+      canCheckReachability: isTimeoutError(error),
+    };
   }
 
   if (!response?.ok) {
@@ -153,7 +199,11 @@ async function checkOpenApiSourceUrl(sourceUrl, fetchImpl) {
   try {
     body = await response.text();
   } catch (error) {
-    return { ok: false, reason: `could not read response body: ${describeFetchError(error)}` };
+    return {
+      ok: false,
+      reason: `could not read response body: ${describeFetchError(error)}`,
+      canCheckReachability: true,
+    };
   }
 
   let spec;
@@ -171,6 +221,44 @@ async function checkOpenApiSourceUrl(sourceUrl, fetchImpl) {
   return { ok: true, detail: `OpenAPI ${spec.openapi}` };
 }
 
+async function checkJsonEndpointReachability(sourceUrl, fetchImpl, previousReason) {
+  let response;
+  try {
+    response = await fetchImpl(sourceUrl, {
+      method: 'HEAD',
+      headers: {
+        Accept: 'application/json, */*;q=0.8',
+      },
+      signal: createFetchSignal(),
+    });
+  } catch (error) {
+    return { ok: false, method: 'HEAD', reason: describeFetchError(error) };
+  }
+
+  if (!response?.ok) {
+    const status = response?.status ?? 'unknown';
+    const statusText = response?.statusText ? ` ${response.statusText}` : '';
+    return { ok: false, method: 'HEAD', reason: `HTTP ${status}${statusText}` };
+  }
+
+  const contentType = getResponseHeader(response, 'content-type');
+  if (!isJsonContentType(contentType)) {
+    const reason = contentType
+      ? `content-type is not JSON (${contentType})`
+      : 'content-type is not JSON';
+    return { ok: false, method: 'HEAD', reason };
+  }
+
+  const fallbackReason = previousReason?.includes('timed out')
+    ? 'GET validation timed out'
+    : 'GET body validation failed';
+  return {
+    ok: true,
+    method: 'HEAD',
+    detail: `JSON endpoint reachable (${fallbackReason})`,
+  };
+}
+
 function commonOpenApiUrlsFrom(sourceUrl) {
   let parsed;
   try {
@@ -184,44 +272,98 @@ function commonOpenApiUrlsFrom(sourceUrl) {
   }
 
   const originalUrl = parsed.href;
-  return COMMON_OPENAPI_PATHS
-    .map((candidatePath) => new URL(candidatePath, parsed.origin).href)
+  const contextBasePaths = inferOpenApiContextBasePaths(parsed.pathname);
+  const basePaths = [...contextBasePaths, ''];
+  const candidates = basePaths.flatMap((basePath) =>
+    COMMON_OPENAPI_PATHS.map((candidatePath) =>
+      new URL(`${basePath}${candidatePath}`, parsed.origin).href,
+    ),
+  );
+
+  return [...new Set(candidates)]
     .filter((candidateUrl) => candidateUrl !== originalUrl);
 }
 
-function writeUrlCheckResult(stdout, { ok, sourceUrl, detail, reason }) {
+function inferOpenApiContextBasePaths(pathname) {
+  const matches = [
+    pathname.indexOf('/swagger-ui/'),
+    pathname.indexOf('/swagger-ui.html'),
+  ].filter((index) => index > 0);
+
+  return [...new Set(matches.map((index) => pathname.slice(0, index)))];
+}
+
+function writeUrlCheckResult(stdout, { ok, sourceUrl, detail, reason, method = 'GET' }) {
   const suffix = ok ? ` - ${detail}` : ` - ${reason}`;
-  stdout.write(`${statusMark(ok, stdout)} GET ${sourceUrl}${suffix}\n`);
+  stdout.write(`${statusMark(ok, stdout)} ${method} ${sourceUrl}${suffix}\n`);
+}
+
+async function checkSourceUrlWithReachabilityFallback({ sourceUrl, fetchImpl, stdout }) {
+  const getResult = await checkOpenApiSourceUrl(sourceUrl, fetchImpl);
+  writeUrlCheckResult(stdout, { ...getResult, sourceUrl });
+  if (getResult.ok) {
+    return { ok: true, sourceUrl };
+  }
+
+  if (getResult.canCheckReachability) {
+    const headResult = await checkJsonEndpointReachability(
+      sourceUrl,
+      fetchImpl,
+      getResult.reason,
+    );
+    writeUrlCheckResult(stdout, { ...headResult, sourceUrl });
+
+    if (headResult.ok) {
+      return { ok: true, sourceUrl };
+    }
+
+    return { ok: false, suggestedSourceUrl: sourceUrl };
+  }
+
+  if (isAuthFailureReason(getResult.reason) && isLikelyOpenApiJsonUrl(sourceUrl)) {
+    return { ok: false, suggestedSourceUrl: sourceUrl };
+  }
+
+  return { ok: false };
 }
 
 async function resolveReachableSourceUrl({ sourceUrl, fetchImpl, stdout }) {
   stdout.write('\nChecking OpenAPI JSON URL...\n');
 
-  const directResult = await checkOpenApiSourceUrl(sourceUrl, fetchImpl);
-  writeUrlCheckResult(stdout, { ...directResult, sourceUrl });
+  const directResult = await checkSourceUrlWithReachabilityFallback({
+    fetchImpl,
+    sourceUrl,
+    stdout,
+  });
   if (directResult.ok) {
-    return { ok: true, sourceUrl };
+    return directResult;
   }
 
+  let suggestedSourceUrl = directResult.suggestedSourceUrl ?? null;
   const candidates = commonOpenApiUrlsFrom(sourceUrl);
   if (candidates.length === 0) {
-    return { ok: false };
+    return { ok: false, suggestedSourceUrl };
   }
 
   const origin = new URL(sourceUrl).origin;
   stdout.write(`Trying common OpenAPI paths from ${origin}...\n`);
 
   for (const candidateUrl of candidates) {
-    const candidateResult = await checkOpenApiSourceUrl(candidateUrl, fetchImpl);
-    writeUrlCheckResult(stdout, { ...candidateResult, sourceUrl: candidateUrl });
+    const candidateResult = await checkSourceUrlWithReachabilityFallback({
+      fetchImpl,
+      sourceUrl: candidateUrl,
+      stdout,
+    });
 
     if (candidateResult.ok) {
       stdout.write(`Using discovered sourceUrl: ${candidateUrl}\n`);
       return { ok: true, sourceUrl: candidateUrl };
     }
+
+    suggestedSourceUrl ??= candidateResult.suggestedSourceUrl ?? null;
   }
 
-  return { ok: false };
+  return { ok: false, suggestedSourceUrl };
 }
 
 async function promptForSourceUrl({ defaultSourceUrl, fetchImpl, stdin, stdout }) {
@@ -251,6 +393,10 @@ async function promptForSourceUrl({ defaultSourceUrl, fetchImpl, stdin, stdout }
         return result.sourceUrl;
       }
 
+      if (result.suggestedSourceUrl) {
+        lastCheckedSourceUrl = result.suggestedSourceUrl;
+        stdout.write(`Best OpenAPI JSON URL candidate so far: ${result.suggestedSourceUrl}\n`);
+      }
       stdout.write('\nCould not find a reachable OpenAPI JSON URL. Paste another URL, type "skip" to save this URL anyway, or press Ctrl+C to cancel.\n');
     }
   } finally {

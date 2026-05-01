@@ -18,6 +18,13 @@ import { projectOperations } from '../projector/project-endpoints.mjs';
 
 const CATALOG_FORMAT_VERSION = 2;
 const MAX_CHANGE_DETAILS = 60;
+const OPENAPI_GITIGNORE_ENTRIES = [
+  'changes.md',
+  'changes.json',
+  '_internal/',
+  'review/',
+  'project/',
+];
 const OASDIFF_DEFAULTS = {
   mode: 'auto',
   command: 'oasdiff',
@@ -38,9 +45,12 @@ const catalogCommand = {
     const catalogMarkdownPath = path.resolve(rootDir, projectConfig.catalogMarkdownPath);
     const reviewRoot = path.resolve(path.dirname(catalogMarkdownPath), '..');
     const changesDir = path.join(reviewRoot, 'changes');
-    const changesJsonPath = path.join(changesDir, 'summary.json');
-    const changesMarkdownPath = path.join(changesDir, 'summary.md');
     const historyDir = path.join(changesDir, 'history');
+    const openapiRoot = path.resolve(rootDir, 'openapi');
+    const changesIndexJsonPath = path.join(openapiRoot, 'changes.json');
+    const changesIndexMarkdownPath = path.join(openapiRoot, 'changes.md');
+    await ensureOpenapiGitignore(openapiRoot);
+    await removeLegacyChangeSummary(changesDir);
 
     const spec = await loadSupportedOpenApiSpec(sourcePath);
     const previousCatalog = await readJsonIfExists(catalogJsonPath);
@@ -69,12 +79,16 @@ const catalogCommand = {
       endpoints: catalogEntries,
     });
     await writeText(catalogMarkdownPath, renderEndpointCatalogMarkdown(catalogEntries));
-    await writeJson(changesJsonPath, changeSummary);
+    await writeJson(changesIndexJsonPath, changeSummary);
     await writeText(
-      changesMarkdownPath,
+      changesIndexMarkdownPath,
       renderChangeMarkdown(changeSummary, {
         rootDir,
-        markdownDir: changesDir,
+        markdownDir: openapiRoot,
+        locationLinks: {
+          history: 'openapi/review/changes/history',
+          catalogBaseline: 'openapi/review/catalog/endpoints.json',
+        },
       }),
     );
 
@@ -94,11 +108,43 @@ const catalogCommand = {
     console.log(
       `Generated ${catalogEntries.length} endpoint catalog item(s) into ${catalogJsonPath}`,
     );
+    console.log(`Latest change summary: ${changesIndexMarkdownPath}`);
     console.log(
       `Catalog changes: +${changeSummary.added.length} / -${changeSummary.removed.length} / ~contract ${changeSummary.contractChanged.length} / ~doc ${changeSummary.docChanged.length}`,
     );
   },
 };
+
+async function ensureOpenapiGitignore(openapiRoot) {
+  const gitignorePath = path.join(openapiRoot, '.gitignore');
+  let contents = '';
+
+  try {
+    contents = await fs.readFile(gitignorePath, 'utf8');
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      throw error;
+    }
+  }
+
+  const lines = contents.split(/\r?\n/);
+  const missingEntries = OPENAPI_GITIGNORE_ENTRIES.filter((entry) => !lines.includes(entry));
+
+  if (missingEntries.length === 0) {
+    return;
+  }
+
+  const prefix = contents && !contents.endsWith('\n') ? '\n' : '';
+  const header = contents ? '' : '# openapi-projector generated artifacts\n';
+  await writeText(gitignorePath, `${contents}${prefix}${header}${missingEntries.join('\n')}\n`);
+}
+
+async function removeLegacyChangeSummary(changesDir) {
+  await Promise.all([
+    fs.rm(path.join(changesDir, 'summary.md'), { force: true }),
+    fs.rm(path.join(changesDir, 'summary.json'), { force: true }),
+  ]);
+}
 
 async function buildProjectCandidateFilesByOperation({
   rootDir,
@@ -496,6 +542,7 @@ function renderChangeMarkdown(changeSummary, options = {}) {
     `- Current total endpoints: ${changeSummary.total}`,
   ];
 
+  appendLocationLinks(lines, options);
   appendCompatibilitySection(lines, changeSummary.externalDiff?.oasdiff, options);
 
   if (changeSummary.baseline) {
@@ -515,6 +562,27 @@ function renderChangeMarkdown(changeSummary, options = {}) {
   appendSection(lines, 'Doc Changed', changeSummary.docChanged, options);
 
   return lines.join('\n');
+}
+
+function appendLocationLinks(lines, options = {}) {
+  const { locationLinks } = options;
+
+  if (!locationLinks) {
+    return;
+  }
+
+  const links = [
+    ['History', locationLinks.history],
+    ['Comparison baseline', locationLinks.catalogBaseline],
+  ].filter(([, target]) => target);
+
+  if (links.length === 0) {
+    return;
+  }
+
+  for (const [label, target] of links) {
+    lines.push(`- ${label}: ${formatMarkdownLink(target, target, options)}`);
+  }
 }
 
 function appendCompatibilitySection(lines, oasdiffReport, options = {}) {
@@ -1371,12 +1439,19 @@ function diffContractSnapshots(previousSnapshot, nextSnapshot) {
   );
 }
 
-function normalizeDiffValue(value) {
+function normalizeDiffValue(value, pathSegments = []) {
   if (Array.isArray(value)) {
+    if (value.length === 0 && pathSegments.at(-1) === 'parameters') {
+      return {};
+    }
+
     if (value.length > 0 && value.every((item) => isParameterLikeObject(item))) {
       return Object.fromEntries(
         value
-          .map((item) => [`${item.in}.${item.name}`, normalizeDiffValue(item)])
+          .map((item) => [
+            `${item.in}.${item.name}`,
+            normalizeDiffValue(item, [...pathSegments, `${item.in}.${item.name}`]),
+          ])
           .sort(([left], [right]) => left.localeCompare(right)),
       );
     }
@@ -1387,14 +1462,14 @@ function normalizeDiffValue(value) {
       );
     }
 
-    return value.map((item) => normalizeDiffValue(item));
+    return value.map((item, index) => normalizeDiffValue(item, [...pathSegments, String(index)]));
   }
 
   if (isPlainObject(value)) {
     return Object.fromEntries(
       Object.keys(value)
         .sort((left, right) => left.localeCompare(right))
-        .map((key) => [key, normalizeDiffValue(value[key])]),
+        .map((key) => [key, normalizeDiffValue(value[key], [...pathSegments, key])]),
     );
   }
 

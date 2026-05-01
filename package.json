@@ -51,6 +51,7 @@
     "openapi:refresh": "node ./bin/openapi-tool.mjs refresh",
     "openapi:doctor": "node ./bin/openapi-tool.mjs doctor",
     "openapi:prepare": "node ./bin/openapi-tool.mjs prepare",
+    "openapi:upgrade-docs": "node ./bin/openapi-tool.mjs upgrade-docs",
     "test": "node --test"
   },
   "dependencies": {

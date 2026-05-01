@@ -11,6 +11,7 @@ import { projectCommand } from './commands/project.mjs';
 import { refreshCommand } from './commands/refresh.mjs';
 import { doctorCommand } from './commands/doctor.mjs';
 import { prepareCommand } from './commands/prepare.mjs';
+import { upgradeDocsCommand } from './commands/upgrade-docs.mjs';
 
 const commandMap = new Map([
   ['help', helpCommand],
@@ -23,6 +24,7 @@ const commandMap = new Map([
   ['refresh', refreshCommand],
   ['doctor', doctorCommand],
   ['prepare', prepareCommand],
+  ['upgrade-docs', upgradeDocsCommand],
 ]);
 
 function printUnknownCommand(commandName) {

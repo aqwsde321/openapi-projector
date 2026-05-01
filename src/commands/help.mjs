@@ -9,6 +9,7 @@ const commands = [
   ['refresh', 'download + catalog + generate'],
   ['doctor', '로컬 설정과 대상 프로젝트 준비 상태 점검'],
   ['prepare', 'init 필요 시 생성 후 refresh + rules 실행, 검토된 rules에서 project까지 실행'],
+  ['upgrade-docs', '기존 설정은 보존하고 openapi/README.md 안내 문서만 최신화'],
 ];
 
 const helpCommand = {
@@ -46,6 +47,7 @@ const helpCommand = {
     console.log('  - project 는 schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API 후보 코드를 생성합니다.');
     console.log('  - 실제 반영은 사람이거나 AI가 openapi/project 결과를 보고 진행합니다.');
     console.log('  - 새 프로젝트 시작은 init 명령으로 bootstrap 합니다.');
+    console.log('  - 이미 init된 프로젝트의 안내 문서는 upgrade-docs 로 안전하게 최신화합니다.');
     console.log('');
     console.log('Recommended flow:');
     console.log('  init -> read openapi/README.md -> doctor -> refresh -> rules -> review rules -> project');
