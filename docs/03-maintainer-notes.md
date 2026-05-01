@@ -34,6 +34,7 @@
   - 대상 프로젝트의 `src` 전체를 분석하고, source section 통계와 함께 규칙 문서/scaffold 생성
 - `project`
   - `project-rules.jsonc` 기준으로 `schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API` 후보 코드 생성
+  - `hooks.enabled=true`일 때 React Query hook 후보 코드 생성
   - 명시적 `2xx`/`2XX` 성공 응답이 없는 endpoint는 생성하지 않고 summary/manifest에 skip 사유를 남김
   - 생성 API wrapper는 path parameter를 `encodeURIComponent`로 URL encoding 함
 - `doctor`

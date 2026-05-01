@@ -942,8 +942,9 @@ test(
       assert.doesNotMatch(projectReadmeSource, /prefer the step-by-step flow over `prepare`/i);
       assert.match(projectReadmeSource, /`prepare`는 아래 흐름을 한 번에 실행합니다/);
       assert.match(projectReadmeSource, /`refresh`: Swagger\/OpenAPI를 내려받고 이전 버전과 비교해 `openapi\/changes\.md`를 만듭니다/);
-      assert.match(projectReadmeSource, /`rules`: 현재 프론트엔드 프로젝트의 API 호출 규칙을 분석해 `openapi\/config\/project-rules\.jsonc`를 만듭니다/);
-      assert.match(projectReadmeSource, /`project`: 검토된 규칙으로 DTO\/API 후보를 생성합니다/);
+      assert.match(projectReadmeSource, /`rules`: 현재 프론트엔드 프로젝트의 API 호출 규칙과 React Query 사용 여부를 분석해 `openapi\/config\/project-rules\.jsonc`를 만듭니다/);
+      assert.match(projectReadmeSource, /`project`: 검토된 규칙으로 DTO\/API 후보와 선택적 React Query hook 후보를 생성합니다/);
+      assert.match(projectReadmeSource, /hooks\.enabled가 true로 자동 제안/);
       assert.match(projectReadmeSource, /처음 실행하면 `rules` 검토 단계에서 멈추는 것이 정상입니다/);
       assert.match(projectReadmeSource, /`review\.rulesReviewed`를 `true`로 바꿉니다/);
       assert.match(projectReadmeSource, /`openapi\/review\/project-rules\/analysis\.md`와/);

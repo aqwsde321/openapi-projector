@@ -48,9 +48,14 @@ function formatSchemaBody(body) {
 }
 
 function renderEndpointApplicationReview(endpoint) {
+  const files = [
+    endpoint.generatedFiles.dto,
+    endpoint.generatedFiles.api,
+    endpoint.generatedFiles.hook,
+  ].filter(Boolean);
   const lines = [
     `- \`${endpoint.method} ${endpoint.path}\` -> \`${endpoint.functionName}\``,
-    `  - Files: \`${endpoint.generatedFiles.dto}\`, \`${endpoint.generatedFiles.api}\``,
+    `  - Files: ${files.map((file) => `\`${file}\``).join(', ')}`,
   ];
 
   if (endpoint.request.dtoShape === 'none') {

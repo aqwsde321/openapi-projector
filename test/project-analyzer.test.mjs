@@ -191,9 +191,142 @@ test('analyzeProject ignores unrelated imported function calls when selecting he
       importKind: 'named',
       callStyle: 'request-object',
     });
+    assert.equal(analysis.apiLayer.value.usesReactQuery, true);
     assert.ok(
       analysis.apiHelper.evidence.every((item) => !item.reason.includes('clsx')),
     );
+  });
+});
+
+test('rules enables React Query hook scaffold when hook usage is detected', async () => {
+  await withTempProject(async (workspace) => {
+    await writeProjectConfig(workspace);
+    await writeTextFile(
+      path.join(workspace, 'src/features/users/api.ts'),
+      [
+        "import { useQuery } from '@tanstack/react-query';",
+        "import { request } from '@/shared/request';",
+        '',
+        'export const useUsersQuery = () =>',
+        '  useQuery({',
+        "    queryKey: ['users'],",
+        "    queryFn: () => request({ url: '/users', method: 'GET' }),",
+        '  });',
+        '',
+      ].join('\n'),
+    );
+
+    await rulesCommand.run({
+      context: {
+        targetRoot: workspace,
+      },
+    });
+
+    const rules = await readJson(path.join(workspace, 'openapi/config/project-rules.jsonc'));
+
+    assert.equal(rules.hooks.enabled, true);
+    assert.equal(rules.hooks.library, '@tanstack/react-query');
+    assert.deepEqual(rules.hooks.queryMethods, ['GET']);
+    assert.deepEqual(rules.hooks.mutationMethods, ['POST', 'PUT', 'PATCH', 'DELETE']);
+  });
+});
+
+test('rules migrates existing rules to enable hooks when React Query usage is detected', async () => {
+  await withTempProject(async (workspace) => {
+    await writeProjectConfig(workspace);
+    await writeJsonFile(path.join(workspace, 'openapi/config/project-rules.jsonc'), {
+      review: {
+        rulesReviewed: true,
+        notes: ['already reviewed'],
+      },
+      api: {
+        fetchApiImportPath: '@/custom/api',
+        fetchApiSymbol: 'customFetch',
+        fetchApiImportKind: 'named',
+        adapterStyle: 'url-config',
+        wrapperGrouping: 'tag',
+      },
+      layout: {
+        schemaFileName: 'schema.ts',
+      },
+    });
+    await writeTextFile(
+      path.join(workspace, 'src/features/users/api.ts'),
+      [
+        "import { useMutation } from '@tanstack/react-query';",
+        "import { request } from '@/shared/request';",
+        '',
+        'export const useUpdateUserMutation = () =>',
+        '  useMutation({',
+        "    mutationFn: () => request({ url: '/users/1', method: 'PATCH' }),",
+        '  });',
+        '',
+      ].join('\n'),
+    );
+
+    await rulesCommand.run({
+      context: {
+        targetRoot: workspace,
+      },
+    });
+
+    const rules = await readJson(path.join(workspace, 'openapi/config/project-rules.jsonc'));
+
+    assert.equal(rules.review.rulesReviewed, true);
+    assert.equal(rules.api.fetchApiImportPath, '@/custom/api');
+    assert.equal(rules.api.fetchApiSymbol, 'customFetch');
+    assert.equal(rules.api.tagFileCase, 'title');
+    assert.equal(rules.hooks.enabled, true);
+    assert.equal(rules.hooks.library, '@tanstack/react-query');
+  });
+});
+
+test('rules preserves explicit hook disable while filling missing hook defaults', async () => {
+  await withTempProject(async (workspace) => {
+    await writeProjectConfig(workspace);
+    await writeJsonFile(path.join(workspace, 'openapi/config/project-rules.jsonc'), {
+      api: {
+        fetchApiImportPath: '@/custom/api',
+        fetchApiSymbol: 'customFetch',
+        fetchApiImportKind: 'named',
+        adapterStyle: 'url-config',
+        wrapperGrouping: 'tag',
+        tagFileCase: 'title',
+      },
+      hooks: {
+        enabled: false,
+      },
+      layout: {
+        schemaFileName: 'schema.ts',
+      },
+    });
+    await writeTextFile(
+      path.join(workspace, 'src/features/users/api.ts'),
+      [
+        "import { useQuery } from '@tanstack/react-query';",
+        "import { request } from '@/shared/request';",
+        '',
+        'export const useUsersQuery = () =>',
+        '  useQuery({',
+        "    queryKey: ['users'],",
+        "    queryFn: () => request({ url: '/users', method: 'GET' }),",
+        '  });',
+        '',
+      ].join('\n'),
+    );
+
+    await rulesCommand.run({
+      context: {
+        targetRoot: workspace,
+      },
+    });
+
+    const rules = await readJson(path.join(workspace, 'openapi/config/project-rules.jsonc'));
+
+    assert.equal(rules.hooks.enabled, false);
+    assert.equal(rules.hooks.library, '@tanstack/react-query');
+    assert.deepEqual(rules.hooks.queryMethods, ['GET']);
+    assert.deepEqual(rules.hooks.mutationMethods, ['POST', 'PUT', 'PATCH', 'DELETE']);
   });
 });
 

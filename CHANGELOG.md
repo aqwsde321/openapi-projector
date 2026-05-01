@@ -4,6 +4,19 @@
 
 형식은 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)를 느슨하게 따르고, 버전은 `package.json`의 `version` 및 Git 태그와 맞춥니다.
 
+## 0.3.0 - 2026-05-02
+
+### Added
+
+- React Query 사용 프로젝트를 감지해 `project-rules.jsonc`에 `hooks` 규칙을 자동 제안하도록 추가했습니다.
+- `hooks.enabled=true`일 때 GET endpoint는 `*.query.ts`, POST/PUT/PATCH/DELETE endpoint는 `*.mutation.ts` 후보를 생성하도록 추가했습니다.
+- hook 후보의 query key 방식, response unwrap, `STALE_TIME` import를 조정할 수 있는 `hooks` 설정 검증을 추가했습니다.
+
+### Changed
+
+- 생성 요약과 프로젝트 README가 DTO/API 후보뿐 아니라 선택적 React Query hook 후보도 함께 안내하도록 업데이트했습니다.
+- 기존 `project-rules.jsonc`에도 React Query 감지 결과를 바탕으로 `hooks` 기본값을 보강하되, 사용자가 명시한 `hooks.enabled=false`는 유지하도록 변경했습니다.
+
 ## 0.2.2 - 2026-05-02
 
 ### Added

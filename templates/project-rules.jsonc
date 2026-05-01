@@ -14,6 +14,20 @@
     "wrapperGrouping": "tag",
     "tagFileCase": "title"
   },
+  "hooks": {
+    // Set enabled=true to generate React Query *.query.ts and *.mutation.ts candidates.
+    "enabled": false,
+    "library": "@tanstack/react-query",
+    "queryMethods": ["GET"],
+    "mutationMethods": ["POST", "PUT", "PATCH", "DELETE"],
+    // "path-and-params" creates [path, params]. "path-and-fields" expands flat DTO fields.
+    "queryKeyStrategy": "path-and-params",
+    // "data" returns response.data from queryFn/mutationFn. Keep "none" when API wrappers return the body directly.
+    "responseUnwrap": "none",
+    // Optional:
+    // "staleTimeImportPath": "@/shared/constant/api",
+    // "staleTimeSymbol": "STALE_TIME"
+  },
   "layout": {
     "schemaFileName": "schema.ts"
   }

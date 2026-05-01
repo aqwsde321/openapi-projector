@@ -140,6 +140,7 @@ function buildEndpointApplicationReview({
   endpoint,
   dtoPath,
   apiPath,
+  hookPath = null,
 }) {
   const { operation, functionName } = endpoint;
   const dtoBaseName = toPascalIdentifier(functionName);
@@ -165,6 +166,7 @@ function buildEndpointApplicationReview({
     generatedFiles: {
       dto: dtoPath,
       api: apiPath,
+      ...(hookPath ? { hook: hookPath } : {}),
     },
     requestDto: requestShape === 'none' ? null : requestDto,
     responseDto,

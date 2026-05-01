@@ -18,6 +18,7 @@ import {
 } from '../src/generator/render-dto.mjs';
 import { buildEndpointApplicationReview } from '../src/generator/application-review.mjs';
 import { renderOperationSection } from '../src/generator/render-api.mjs';
+import { renderOperationHookSection } from '../src/generator/render-hooks.mjs';
 import { writeProjectOutputs } from '../src/generator/write-project-output.mjs';
 import { buildTagDirectoryName } from '../src/projector/layout.mjs';
 import {
@@ -332,6 +333,33 @@ test('validateProjectRules requires runtime helper fields after review confirmat
       'api.fetchApiSymbol',
       'api.fetchApiImportKind',
       'api.adapterStyle',
+    ],
+  );
+});
+
+test('validateProjectRules reports invalid React Query hook rules', () => {
+  const issues = validateProjectRules({
+    hooks: {
+      enabled: 'yes',
+      library: 'react-query',
+      queryMethods: ['GET', 'FETCH'],
+      mutationMethods: ['POST', 'GET'],
+      queryKeyStrategy: 'constant',
+      responseUnwrap: 'body',
+      staleTimeImportPath: '@/shared/constant/api',
+    },
+  });
+
+  assert.deepEqual(
+    issues.map((issue) => issue.path),
+    [
+      'hooks.enabled',
+      'hooks.library',
+      'hooks.queryMethods[1]',
+      'hooks.mutationMethods',
+      'hooks.queryKeyStrategy',
+      'hooks.responseUnwrap',
+      'hooks.staleTimeSymbol',
     ],
   );
 });
@@ -689,6 +717,113 @@ test('renderOperationSection can import default runtime helpers', () => {
   ]);
 });
 
+test('renderOperationHookSection generates React Query query hooks from hook rules', () => {
+  const rendered = renderOperationHookSection({
+    spec: {},
+    operation: {
+      method: 'get',
+      path: '/customers',
+      parameters: [
+        {
+          name: 'page',
+          in: 'query',
+          required: true,
+          schema: {
+            type: 'integer',
+          },
+        },
+        {
+          name: 'membership',
+          in: 'query',
+          required: false,
+          schema: {
+            type: 'string',
+          },
+        },
+      ],
+      requestBody: null,
+    },
+    functionName: 'getCustomersList',
+    endpointFileBase: 'get-customers-list',
+    hookRules: {
+      enabled: true,
+      queryKeyStrategy: 'path-and-fields',
+      responseUnwrap: 'data',
+      staleTimeImportPath: '@/shared/constant/api',
+      staleTimeSymbol: 'STALE_TIME',
+    },
+  });
+
+  assert.equal(rendered.hookKind, 'query');
+  assert.equal(rendered.hookFileBase, 'get-customers-list.query');
+  assert.match(rendered.hookSource, /import \{ useQuery \} from '@tanstack\/react-query';/);
+  assert.match(rendered.hookSource, /import \{ STALE_TIME \} from '@\/shared\/constant\/api';/);
+  assert.match(rendered.hookSource, /import \{ getCustomersList \} from '\.\/get-customers-list\.api';/);
+  assert.match(rendered.hookSource, /import type \{ GetCustomersListRequestDto \} from '\.\/get-customers-list\.dto';/);
+  assert.match(
+    rendered.hookSource,
+    /const useGetCustomersListQuery = \(params: GetCustomersListRequestDto\) => \{/,
+  );
+  assert.match(
+    rendered.hookSource,
+    /queryKey: \["\/customers", params\.page, params\.membership\],/,
+  );
+  assert.match(rendered.hookSource, /return response\.data;/);
+  assert.match(rendered.hookSource, /staleTime: STALE_TIME,/);
+});
+
+test('renderOperationHookSection generates React Query mutation hooks for write methods', () => {
+  const rendered = renderOperationHookSection({
+    spec: {},
+    operation: {
+      method: 'patch',
+      path: '/profiles/{id}',
+      parameters: [
+        {
+          name: 'id',
+          in: 'path',
+          required: true,
+          schema: {
+            type: 'string',
+          },
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['nickname'],
+              properties: {
+                nickname: {
+                  type: 'string',
+                },
+              },
+            },
+          },
+        },
+      },
+      requestMediaType: 'application/json',
+    },
+    functionName: 'updateProfile',
+    endpointFileBase: 'update-profile',
+    hookRules: {
+      enabled: true,
+    },
+  });
+
+  assert.equal(rendered.hookKind, 'mutation');
+  assert.equal(rendered.hookFileBase, 'update-profile.mutation');
+  assert.match(rendered.hookSource, /import \{ useMutation \} from '@tanstack\/react-query';/);
+  assert.match(rendered.hookSource, /const useUpdateProfileMutation = \(\) => \{/);
+  assert.match(
+    rendered.hookSource,
+    /mutationFn: \(params: UpdateProfileRequestDto\) => updateProfile\(params\),/,
+  );
+  assert.match(rendered.hookSource, /export \{ useUpdateProfileMutation \};/);
+});
+
 test('buildEndpointApplicationReview preserves nullable enum field types', () => {
   const spec = {
     openapi: '3.0.3',
@@ -967,6 +1102,167 @@ test('writeProjectOutputs handles all-skipped specs and custom schema file names
       'export type Contracts = never;\n',
     );
     await assert.rejects(() => fs.access(path.join(generatedDir, 'Reports')), /ENOENT/);
+  });
+});
+
+test('writeProjectOutputs generates React Query hook candidates when hook rules are enabled', async () => {
+  await withTempDir(async (workspace) => {
+    const generatedDir = path.join(workspace, 'openapi/project/src/openapi-generated');
+    const manifest = await writeProjectOutputs({
+      rootDir: workspace,
+      spec: {
+        openapi: '3.0.3',
+        info: {
+          title: 'Hooks',
+          version: '1.0.0',
+        },
+        paths: {
+          '/customers': {
+            get: {
+              tags: ['Customers'],
+              operationId: 'getCustomersList',
+              parameters: [
+                {
+                  name: 'page',
+                  in: 'query',
+                  required: true,
+                  schema: {
+                    type: 'integer',
+                  },
+                },
+              ],
+              responses: {
+                200: {
+                  description: 'OK',
+                  content: {
+                    'application/json': {
+                      schema: {
+                        type: 'object',
+                        properties: {
+                          data: {
+                            type: 'array',
+                            items: {
+                              type: 'string',
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          '/profiles/{id}': {
+            patch: {
+              tags: ['Profiles'],
+              operationId: 'updateProfile',
+              parameters: [
+                {
+                  name: 'id',
+                  in: 'path',
+                  required: true,
+                  schema: {
+                    type: 'string',
+                  },
+                },
+              ],
+              requestBody: {
+                required: true,
+                content: {
+                  'application/json': {
+                    schema: {
+                      type: 'object',
+                      required: ['nickname'],
+                      properties: {
+                        nickname: {
+                          type: 'string',
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              responses: {
+                200: {
+                  description: 'OK',
+                  content: {
+                    'application/json': {
+                      schema: {
+                        type: 'object',
+                        properties: {
+                          id: {
+                            type: 'string',
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      schemaSourcePath: path.join(workspace, 'openapi/_internal/source/openapi.json'),
+      schemaContents: 'export type Contracts = never;\n',
+      projectGeneratedSrcDir: generatedDir,
+      projectManifestPath: path.join(workspace, 'openapi/project/manifest.json'),
+      projectSummaryPath: path.join(workspace, 'openapi/project/summary.md'),
+      projectRulesPath: 'openapi/config/project-rules.jsonc',
+      generatedSchemaPath: 'openapi/review/generated/schema.ts',
+      apiRules: {
+        fetchApiImportPath: '@/shared/api',
+        fetchApiSymbol: 'fetchAPI',
+        wrapperGrouping: 'tag',
+      },
+      hookRules: {
+        enabled: true,
+        queryKeyStrategy: 'path-and-fields',
+        staleTimeImportPath: '@/shared/constant/api',
+        staleTimeSymbol: 'STALE_TIME',
+      },
+      layoutRules: {},
+    });
+
+    assert.deepEqual(
+      manifest.files.map((file) => file.generated),
+      [
+        'openapi/project/src/openapi-generated/schema.ts',
+        'openapi/project/src/openapi-generated/Customers/get-customers-list.dto.ts',
+        'openapi/project/src/openapi-generated/Customers/get-customers-list.api.ts',
+        'openapi/project/src/openapi-generated/Customers/get-customers-list.query.ts',
+        'openapi/project/src/openapi-generated/Profiles/update-profile.dto.ts',
+        'openapi/project/src/openapi-generated/Profiles/update-profile.api.ts',
+        'openapi/project/src/openapi-generated/Profiles/update-profile.mutation.ts',
+      ],
+    );
+    assert.equal(
+      manifest.applicationReview.endpoints[0].generatedFiles.hook,
+      'openapi/project/src/openapi-generated/Customers/get-customers-list.query.ts',
+    );
+    assert.equal(
+      manifest.applicationReview.endpoints[1].generatedFiles.hook,
+      'openapi/project/src/openapi-generated/Profiles/update-profile.mutation.ts',
+    );
+
+    const querySource = await fs.readFile(
+      path.join(generatedDir, 'Customers/get-customers-list.query.ts'),
+      'utf8',
+    );
+    assert.match(querySource, /import \{ useQuery \} from '@tanstack\/react-query';/);
+    assert.match(querySource, /queryKey: \["\/customers", params\.page\],/);
+    assert.match(querySource, /staleTime: STALE_TIME,/);
+
+    const mutationSource = await fs.readFile(
+      path.join(generatedDir, 'Profiles/update-profile.mutation.ts'),
+      'utf8',
+    );
+    assert.match(mutationSource, /import \{ useMutation \} from '@tanstack\/react-query';/);
+    assert.match(
+      mutationSource,
+      /mutationFn: \(params: UpdateProfileRequestDto\) => updateProfile\(params\),/,
+    );
   });
 });
 

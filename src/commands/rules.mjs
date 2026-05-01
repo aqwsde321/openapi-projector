@@ -19,6 +19,14 @@ const DEFAULT_API_RULES = {
   wrapperGrouping: 'tag',
   tagFileCase: 'title',
 };
+const DEFAULT_HOOK_RULES = {
+  enabled: false,
+  library: '@tanstack/react-query',
+  queryMethods: ['GET'],
+  mutationMethods: ['POST', 'PUT', 'PATCH', 'DELETE'],
+  queryKeyStrategy: 'path-and-params',
+  responseUnwrap: 'none',
+};
 const DEFAULT_LAYOUT_RULES = {
   schemaFileName: 'schema.ts',
 };
@@ -40,14 +48,15 @@ const GENERATED_REVIEW_NOTES = new Set([
   UNKNOWN_CALL_STYLE_REVIEW_NOTE,
   UNSUPPORTED_IMPORT_KIND_REVIEW_NOTE,
 ]);
-const SCAFFOLD_SIGNATURE_VERSION = 1;
+const SCAFFOLD_SIGNATURE_VERSION = 2;
 const DEFAULT_API_RULE_KEYS = new Set(Object.keys(DEFAULT_API_RULES));
+const DEFAULT_HOOK_RULE_KEYS = new Set(Object.keys(DEFAULT_HOOK_RULES));
 const DEFAULT_LAYOUT_RULE_KEYS = new Set(Object.keys(LEGACY_SCHEMA_LAYOUT_RULES));
 const DEFAULT_REVIEW_RULE_KEYS = new Set([
   ...Object.keys(DEFAULT_REVIEW_RULES),
   'scaffoldSignature',
 ]);
-const DEFAULT_ROOT_RULE_KEYS = new Set(['api', 'layout', 'review']);
+const DEFAULT_ROOT_RULE_KEYS = new Set(['api', 'hooks', 'layout', 'review']);
 
 function findMostUsedImportPath(stats) {
   return stats[0]?.importPath ?? null;
@@ -77,6 +86,7 @@ function buildScaffoldSignature(candidate) {
   const payload = {
     version: SCAFFOLD_SIGNATURE_VERSION,
     api: candidate.api,
+    hooks: candidate.hooks ?? DEFAULT_HOOK_RULES,
     layout: candidate.layout,
     reviewNotes: candidate.reviewNotes,
   };
@@ -116,6 +126,10 @@ function buildScaffoldDefaultsFromAnalysis(analysis) {
       wrapperGrouping: DEFAULT_API_RULES.wrapperGrouping,
       tagFileCase: DEFAULT_API_RULES.tagFileCase,
     },
+    hooks: {
+      ...DEFAULT_HOOK_RULES,
+      enabled: analysis?.apiLayer?.value?.usesReactQuery === true,
+    },
     layout: DEFAULT_LAYOUT_RULES,
     reviewNotes: buildReviewNotes(analysis),
   });
@@ -146,6 +160,7 @@ function hasOnlyGeneratedReviewNotes(review, { allowEmpty = false } = {}) {
 
 function buildCurrentRulesScaffoldCandidate(rules) {
   const api = rules.api ?? {};
+  const hooks = rules.hooks ?? DEFAULT_HOOK_RULES;
   const review = rules.review ?? DEFAULT_REVIEW_RULES;
   const notes = review.notes ?? [];
 
@@ -173,6 +188,14 @@ function buildCurrentRulesScaffoldCandidate(rules) {
       adapterStyle: api.adapterStyle,
       wrapperGrouping: DEFAULT_API_RULES.wrapperGrouping,
       tagFileCase: DEFAULT_API_RULES.tagFileCase,
+    },
+    hooks: {
+      enabled: hooks.enabled === true,
+      library: hooks.library ?? DEFAULT_HOOK_RULES.library,
+      queryMethods: hooks.queryMethods ?? DEFAULT_HOOK_RULES.queryMethods,
+      mutationMethods: hooks.mutationMethods ?? DEFAULT_HOOK_RULES.mutationMethods,
+      queryKeyStrategy: hooks.queryKeyStrategy ?? DEFAULT_HOOK_RULES.queryKeyStrategy,
+      responseUnwrap: hooks.responseUnwrap ?? DEFAULT_HOOK_RULES.responseUnwrap,
     },
     layout: DEFAULT_LAYOUT_RULES,
     reviewNotes: notes,
@@ -202,6 +225,20 @@ function matchesScaffoldLayoutValues(layout, expectedLayout) {
   );
 }
 
+function matchesScaffoldHookValues(hooks, expectedHooks) {
+  if (hooks == null) {
+    return true;
+  }
+
+  return Object.keys(DEFAULT_HOOK_RULES).every((key) => {
+    if (hooks[key] == null) {
+      return true;
+    }
+
+    return JSON.stringify(hooks[key]) === JSON.stringify(expectedHooks[key]);
+  });
+}
+
 function matchesScaffoldReviewValues(review, candidate) {
   const notes = review.notes ?? [];
 
@@ -216,9 +253,35 @@ function matchesScaffoldReviewValues(review, candidate) {
   return review.scaffoldSignature === candidate.scaffoldSignature;
 }
 
-function matchesScaffoldCandidate({ api, layout, review }, candidate) {
+function buildMigratedRulesDefaults(existingRules, scaffoldDefaults) {
+  const existingApi = existingRules.api ?? {};
+  const existingHooks = isPlainObject(existingRules.hooks) ? existingRules.hooks : null;
+  const hooks = existingHooks
+    ? {
+        ...existingHooks,
+        enabled: existingHooks.enabled ?? scaffoldDefaults.hooks.enabled,
+        library: existingHooks.library ?? DEFAULT_HOOK_RULES.library,
+        queryMethods: existingHooks.queryMethods ?? DEFAULT_HOOK_RULES.queryMethods,
+        mutationMethods: existingHooks.mutationMethods ?? DEFAULT_HOOK_RULES.mutationMethods,
+        queryKeyStrategy: existingHooks.queryKeyStrategy ?? DEFAULT_HOOK_RULES.queryKeyStrategy,
+        responseUnwrap: existingHooks.responseUnwrap ?? DEFAULT_HOOK_RULES.responseUnwrap,
+      }
+    : scaffoldDefaults.hooks;
+
+  return {
+    ...existingRules,
+    api: {
+      ...existingApi,
+      tagFileCase: existingApi.tagFileCase ?? DEFAULT_API_RULES.tagFileCase,
+    },
+    hooks,
+  };
+}
+
+function matchesScaffoldCandidate({ api, hooks, layout, review }, candidate) {
   return (
     matchesScaffoldApiValues(api, candidate.api) &&
+    matchesScaffoldHookValues(hooks, candidate.hooks ?? DEFAULT_HOOK_RULES) &&
     matchesScaffoldLayoutValues(layout, candidate.layout) &&
     matchesScaffoldReviewValues(review, candidate)
   );
@@ -228,11 +291,13 @@ function buildScaffoldCandidates(previousAnalysis, rules) {
   const candidates = [
     createScaffoldCandidate({
       api: DEFAULT_API_RULES,
+      hooks: DEFAULT_HOOK_RULES,
       layout: DEFAULT_LAYOUT_RULES,
       reviewNotes: DEFAULT_REVIEW_RULES.notes,
     }),
     createScaffoldCandidate({
       api: DEFAULT_API_RULES,
+      hooks: DEFAULT_HOOK_RULES,
       layout: LEGACY_SCHEMA_LAYOUT_RULES,
       reviewNotes: DEFAULT_REVIEW_RULES.notes,
     }),
@@ -264,10 +329,12 @@ function isDefaultProjectRulesScaffold(rules, previousAnalysis = null) {
   }
 
   const api = rules.api ?? {};
+  const hooks = rules.hooks ?? undefined;
   const layout = rules.layout ?? {};
   const review = rules.review ?? DEFAULT_REVIEW_RULES;
   const hasKnownShape =
     isPlainObject(api) &&
+    (hooks == null || (isPlainObject(hooks) && hasOnlyKeys(hooks, DEFAULT_HOOK_RULE_KEYS))) &&
     isPlainObject(layout) &&
     isPlainObject(review) &&
     hasOnlyKeys(api, DEFAULT_API_RULE_KEYS) &&
@@ -279,7 +346,7 @@ function isDefaultProjectRulesScaffold(rules, previousAnalysis = null) {
   }
 
   return buildScaffoldCandidates(previousAnalysis, rules).some((candidate) =>
-    matchesScaffoldCandidate({ api, layout, review }, candidate),
+    matchesScaffoldCandidate({ api, hooks, layout, review }, candidate),
   );
 }
 
@@ -393,6 +460,7 @@ function renderAnalysisMarkdown({
     '',
     '- wrapper grouping default: `tag` (`flat` is also supported)',
     '- tag file case: `title`',
+    '- React Query hook generation: disabled by default unless the analyzer detects React Query usage',
     '- schema file name: `schema.ts`',
     '',
   ].join('\n');
@@ -405,6 +473,7 @@ function buildRulesJsonc({
   fetchApiSymbol,
   fetchApiImportKind,
   adapterStyle,
+  hooks = DEFAULT_HOOK_RULES,
   reviewNotes = [],
 }) {
   const api = {
@@ -442,6 +511,14 @@ function buildRulesJsonc({
     "adapterStyle": ${JSON.stringify(adapterStyle)},
     "wrapperGrouping": "tag",
     "tagFileCase": "title"
+  },
+  "hooks": {
+    "enabled": ${hooks.enabled === true},
+    "library": ${JSON.stringify(hooks.library ?? DEFAULT_HOOK_RULES.library)},
+    "queryMethods": ${JSON.stringify(hooks.queryMethods ?? DEFAULT_HOOK_RULES.queryMethods)},
+    "mutationMethods": ${JSON.stringify(hooks.mutationMethods ?? DEFAULT_HOOK_RULES.mutationMethods)},
+    "queryKeyStrategy": ${JSON.stringify(hooks.queryKeyStrategy ?? DEFAULT_HOOK_RULES.queryKeyStrategy)},
+    "responseUnwrap": ${JSON.stringify(hooks.responseUnwrap ?? DEFAULT_HOOK_RULES.responseUnwrap)}
   },
   "layout": {
     "schemaFileName": "schema.ts"
@@ -511,6 +588,7 @@ const rulesCommand = {
           fetchApiSymbol: scaffoldDefaults.api.fetchApiSymbol,
           fetchApiImportKind: scaffoldDefaults.api.fetchApiImportKind,
           adapterStyle: scaffoldDefaults.api.adapterStyle,
+          hooks: scaffoldDefaults.hooks,
           reviewNotes: scaffoldDefaults.reviewNotes,
         }),
       );
@@ -525,6 +603,7 @@ const rulesCommand = {
           fetchApiSymbol: scaffoldDefaults.api.fetchApiSymbol,
           fetchApiImportKind: scaffoldDefaults.api.fetchApiImportKind,
           adapterStyle: scaffoldDefaults.api.adapterStyle,
+          hooks: scaffoldDefaults.hooks,
           reviewNotes: scaffoldDefaults.reviewNotes,
         });
         if (existingRulesSource !== nextRulesSource) {
@@ -532,13 +611,7 @@ const rulesCommand = {
           await writeText(rulesPath, nextRulesSource);
         }
       } else {
-        const nextRules = {
-          ...existingRules,
-          api: {
-            ...(existingRules.api ?? {}),
-            tagFileCase: existingRules?.api?.tagFileCase ?? 'title',
-          },
-        };
+        const nextRules = buildMigratedRulesDefaults(existingRules, scaffoldDefaults);
 
         if (JSON.stringify(existingRules) !== JSON.stringify(nextRules)) {
           rulesMigrated = true;

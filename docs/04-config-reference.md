@@ -97,6 +97,13 @@
 | `api.adapterStyle` | runtime client 호출 방식 | `url-config`, `request-object` |
 | `api.wrapperGrouping` | API/DTO wrapper 배치 방식 | `tag`, `flat` |
 | `api.tagFileCase` | 태그 폴더명 방식 | `title`, `kebab` |
+| `hooks.enabled` | React Query hook 후보 생성 여부 | `false`, `true` |
+| `hooks.queryMethods` | query hook으로 생성할 HTTP method 목록 | `["GET"]` |
+| `hooks.mutationMethods` | mutation hook으로 생성할 HTTP method 목록 | `["POST", "PUT", "PATCH", "DELETE"]` |
+| `hooks.queryKeyStrategy` | queryKey 생성 방식 | `path-and-params`, `path-and-fields` |
+| `hooks.responseUnwrap` | hook 반환값에서 `response.data`를 꺼낼지 여부 | `none`, `data` |
+| `hooks.staleTimeImportPath` | query hook의 staleTime symbol import 경로 | `@/shared/constant/api` |
+| `hooks.staleTimeSymbol` | query hook staleTime symbol 이름 | `STALE_TIME` |
 | `review.rulesReviewed` | `prepare`/`project` 후보 생성 전 분석 결과와 실제 API client 확인 여부 | `false`, `true` |
 
 검증 규칙:
@@ -106,6 +113,11 @@
 - `api.adapterStyle`은 `url-config` 또는 `request-object`만 지원합니다.
 - `api.wrapperGrouping`은 `tag` 또는 `flat`만 지원합니다.
 - `api.tagFileCase`는 `title` 또는 `kebab`만 지원합니다.
+- `hooks.library`는 현재 `@tanstack/react-query`만 지원합니다.
+- `hooks.queryMethods`와 `hooks.mutationMethods`는 중복되지 않는 HTTP method 배열이어야 합니다.
+- `hooks.queryKeyStrategy`는 `path-and-params` 또는 `path-and-fields`만 지원합니다.
+- `hooks.responseUnwrap`은 `none` 또는 `data`만 지원합니다.
+- `hooks.staleTimeImportPath`와 `hooks.staleTimeSymbol`은 둘 다 있거나 둘 다 없어야 합니다.
 - `layout.schemaFileName`은 경로가 아닌 `.ts` 파일명이어야 합니다.
 
 ### 배치 방식
@@ -114,6 +126,17 @@
 | --- | --- |
 | `tag` | 기본값. `<tag>/<endpoint>.dto.ts`, `<tag>/<endpoint>.api.ts` 형태로 생성 |
 | `flat` | 태그 폴더 없이 `<endpoint>.dto.ts`, `<endpoint>.api.ts`를 `projectGeneratedSrcDir` 바로 아래에 생성 |
+
+### React Query hook 생성
+
+`hooks.enabled`가 `true`이면 `project` 단계에서 API/DTO 후보와 함께 hook 후보를 생성합니다.
+
+| Endpoint method | 생성 파일 |
+| --- | --- |
+| `hooks.queryMethods`에 포함 | `<endpoint>.query.ts` |
+| `hooks.mutationMethods`에 포함 | `<endpoint>.mutation.ts` |
+
+기본 queryKey는 `[path, params]` 형태입니다. `hooks.queryKeyStrategy`를 `path-and-fields`로 바꾸면 flat request DTO의 필드를 `[path, params.page, params.size]`처럼 펼쳐 씁니다. `hooks.responseUnwrap`을 `data`로 설정하면 hook의 `queryFn`/`mutationFn`이 API wrapper 결과에서 `.data`를 반환합니다.
 
 ## 4. Config Discovery
 

@@ -61,6 +61,7 @@ const projectCommand = {
       projectRulesPath: toPosixPath(path.relative(rootDir, projectRulesPath)),
       generatedSchemaPath: toPosixPath(path.relative(rootDir, generatedSchemaPath)),
       apiRules: projectRules.api ?? {},
+      hookRules: projectRules.hooks ?? {},
       layoutRules: projectRules.layout ?? {},
     });
 

@@ -756,6 +756,7 @@ function pickApiLayerCandidate(signals) {
     {
       baseDirs,
       style: topStyle?.value ?? 'unknown',
+      usesReactQuery: signals.apiLayerStyles.has('react-query'),
     },
     baseDirs.length > 0 ? Math.min(1, 0.4 + baseDirs.length * 0.1) : 0,
     signals.apiLayerEvidence.slice(0, 8),

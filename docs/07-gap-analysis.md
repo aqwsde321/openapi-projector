@@ -76,6 +76,7 @@
 이미 가능한 것:
 
 - `project`로 `schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API` 후보 생성
+- `hooks.enabled=true`일 때 React Query `*.query.ts`, `*.mutation.ts` 후보 생성
 - `manifest.json`, `summary.md` 생성
 
 근거:
@@ -191,7 +192,7 @@
 필수로 해야 할 일:
 
 - wrapper grouping 확장
-- react-query 같은 상위 레이어 생성 여부 결정
+- React Query queryKey constant 매핑 같은 상위 레이어 세부 규칙 확장
 - output layout 규칙 확장
 
 이유:
@@ -206,6 +207,6 @@
 
 - 1단계는 꽤 잘 만들어짐
 - 2단계는 기본 규칙 문서화는 가능하지만 일반화가 더 필요함
-- 3단계는 `schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API`까지 동작하지만 지원 범위는 MVP 수준임
+- 3단계는 `schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API`와 선택적 React Query hook 후보까지 동작하지만 지원 범위는 MVP 수준임
 
 즉 이 저장소는 “목표와 다른 프로젝트”가 아니라, “MVP v2 기준 핵심 경로는 구현됐고 이제 입력 범위 확장과 규칙 일반화가 남은 프로젝트”입니다.

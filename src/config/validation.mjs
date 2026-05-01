@@ -1,5 +1,18 @@
 const SUPPORTED_ADAPTER_STYLES = new Set(['url-config', 'request-object']);
 const SUPPORTED_FETCH_API_IMPORT_KINDS = new Set(['named', 'default']);
+const SUPPORTED_HOOK_LIBRARIES = new Set(['@tanstack/react-query']);
+const SUPPORTED_HOOK_QUERY_KEY_STRATEGIES = new Set(['path-and-params', 'path-and-fields']);
+const SUPPORTED_HOOK_RESPONSE_UNWRAPS = new Set(['none', 'data']);
+const SUPPORTED_HTTP_METHODS = new Set([
+  'GET',
+  'POST',
+  'PUT',
+  'PATCH',
+  'DELETE',
+  'OPTIONS',
+  'HEAD',
+  'TRACE',
+]);
 const SUPPORTED_TAG_FILE_CASES = new Set(['kebab', 'title']);
 const SUPPORTED_WRAPPER_GROUPINGS = new Set(['tag', 'flat']);
 const IDENTIFIER_PATTERN = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
@@ -74,6 +87,49 @@ function validateOptionalIdentifier(issues, path, value) {
   if (typeof value !== 'string' || !IDENTIFIER_PATTERN.test(value)) {
     addIssue(issues, path, 'must be a valid JavaScript identifier');
   }
+}
+
+function validateOptionalBoolean(issues, path, value) {
+  if (value == null) {
+    return;
+  }
+
+  if (typeof value !== 'boolean') {
+    addIssue(issues, path, 'must be a boolean');
+  }
+}
+
+function validateOptionalMethodList(issues, path, value) {
+  if (value == null) {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    addIssue(issues, path, 'must be an array of HTTP methods');
+    return [];
+  }
+
+  const methods = [];
+
+  for (const [index, item] of value.entries()) {
+    if (typeof item !== 'string' || !item.trim()) {
+      addIssue(issues, `${path}[${index}]`, 'must be a non-empty string');
+      continue;
+    }
+
+    const method = item.toUpperCase();
+    methods.push(method);
+
+    if (!SUPPORTED_HTTP_METHODS.has(method)) {
+      addIssue(
+        issues,
+        `${path}[${index}]`,
+        `unsupported HTTP method ${JSON.stringify(item)}`,
+      );
+    }
+  }
+
+  return methods;
 }
 
 function validateRequiredIdentifier(issues, path, value) {
@@ -163,6 +219,7 @@ function validateProjectRules(projectRules) {
   }
 
   const api = projectRules.api ?? {};
+  const hooks = projectRules.hooks ?? {};
   const layout = projectRules.layout ?? {};
   const review = projectRules.review ?? {};
   const rulesReviewed = isPlainObject(review) && review.rulesReviewed === true;
@@ -219,6 +276,62 @@ function validateProjectRules(projectRules) {
     addIssue(issues, 'layout', 'must be an object');
   } else {
     validateOptionalFileName(issues, 'layout.schemaFileName', layout.schemaFileName);
+  }
+
+  if (!isPlainObject(hooks)) {
+    addIssue(issues, 'hooks', 'must be an object');
+  } else {
+    validateOptionalBoolean(issues, 'hooks.enabled', hooks.enabled);
+    validateOptionalEnum(
+      issues,
+      'hooks.library',
+      hooks.library,
+      SUPPORTED_HOOK_LIBRARIES,
+    );
+    const queryMethods = validateOptionalMethodList(
+      issues,
+      'hooks.queryMethods',
+      hooks.queryMethods,
+    );
+    const mutationMethods = validateOptionalMethodList(
+      issues,
+      'hooks.mutationMethods',
+      hooks.mutationMethods,
+    );
+    const queryMethodSet = new Set(queryMethods);
+
+    for (const method of mutationMethods) {
+      if (queryMethodSet.has(method)) {
+        addIssue(
+          issues,
+          'hooks.mutationMethods',
+          `must not overlap hooks.queryMethods; duplicate method ${method}`,
+        );
+      }
+    }
+
+    validateOptionalEnum(
+      issues,
+      'hooks.queryKeyStrategy',
+      hooks.queryKeyStrategy,
+      SUPPORTED_HOOK_QUERY_KEY_STRATEGIES,
+    );
+    validateOptionalEnum(
+      issues,
+      'hooks.responseUnwrap',
+      hooks.responseUnwrap,
+      SUPPORTED_HOOK_RESPONSE_UNWRAPS,
+    );
+    validateOptionalString(issues, 'hooks.staleTimeImportPath', hooks.staleTimeImportPath);
+    validateOptionalIdentifier(issues, 'hooks.staleTimeSymbol', hooks.staleTimeSymbol);
+
+    if (hooks.staleTimeImportPath != null && hooks.staleTimeSymbol == null) {
+      addIssue(issues, 'hooks.staleTimeSymbol', 'is required with hooks.staleTimeImportPath');
+    }
+
+    if (hooks.staleTimeSymbol != null && hooks.staleTimeImportPath == null) {
+      addIssue(issues, 'hooks.staleTimeImportPath', 'is required with hooks.staleTimeSymbol');
+    }
   }
 
   if (!isPlainObject(review)) {

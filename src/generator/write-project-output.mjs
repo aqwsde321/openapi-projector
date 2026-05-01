@@ -8,6 +8,7 @@ import {
   buildRuntimeWrapperReview,
 } from './application-review.mjs';
 import { renderTagFolderOutputs } from './render-api.mjs';
+import { renderOperationHookSection } from './render-hooks.mjs';
 import { renderProjectSummary } from './render-summary.mjs';
 
 function toProjectRelativePath(rootDir, filePath) {
@@ -24,6 +25,7 @@ async function writeProjectOutputs({
   projectRulesPath,
   generatedSchemaPath,
   apiRules = {},
+  hookRules = {},
   layoutRules = {},
 }) {
   const operations = collectProjectOperations(spec);
@@ -65,6 +67,19 @@ async function writeProjectOutputs({
       const apiFilePath = path.join(projectGeneratedSrcDir, `${endpointFile.endpointFileBase}.api.ts`);
       const dtoRelativePath = toProjectRelativePath(rootDir, dtoFilePath);
       const apiRelativePath = toProjectRelativePath(rootDir, apiFilePath);
+      const hookFile = renderOperationHookSection({
+        spec,
+        operation: endpoint.operation,
+        functionName: endpoint.functionName,
+        endpointFileBase: endpointFile.endpointFileBase,
+        hookRules,
+      });
+      const hookFilePath = hookFile
+        ? path.join(projectGeneratedSrcDir, `${hookFile.hookFileBase}.ts`)
+        : null;
+      const hookRelativePath = hookFilePath
+        ? toProjectRelativePath(rootDir, hookFilePath)
+        : null;
 
       await writeText(dtoFilePath, endpointFile.dtoSource);
       manifestFiles.push({
@@ -80,12 +95,22 @@ async function writeProjectOutputs({
         summary: `endpoint=${endpointFile.endpointFileBase}`,
       });
 
+      if (hookFile && hookFilePath && hookRelativePath) {
+        await writeText(hookFilePath, hookFile.hookSource);
+        manifestFiles.push({
+          kind: `${hookFile.hookKind}-hook`,
+          generated: hookRelativePath,
+          summary: `endpoint=${endpointFile.endpointFileBase} hook=${hookFile.hookName}`,
+        });
+      }
+
       endpointReviews.push(
         buildEndpointApplicationReview({
           spec,
           endpoint,
           dtoPath: dtoRelativePath,
           apiPath: apiRelativePath,
+          hookPath: hookRelativePath,
         }),
       );
     }
@@ -110,6 +135,19 @@ async function writeProjectOutputs({
         );
         const dtoRelativePath = toProjectRelativePath(rootDir, dtoFilePath);
         const apiRelativePath = toProjectRelativePath(rootDir, apiFilePath);
+        const hookFile = renderOperationHookSection({
+          spec,
+          operation: endpoint.operation,
+          functionName: endpoint.functionName,
+          endpointFileBase: endpointFile.endpointFileBase,
+          hookRules,
+        });
+        const hookFilePath = hookFile
+          ? path.join(tagDirectoryPath, `${hookFile.hookFileBase}.ts`)
+          : null;
+        const hookRelativePath = hookFilePath
+          ? toProjectRelativePath(rootDir, hookFilePath)
+          : null;
 
         await writeText(dtoFilePath, endpointFile.dtoSource);
         manifestFiles.push({
@@ -125,12 +163,22 @@ async function writeProjectOutputs({
           summary: `tag=${tagFileName} endpoint=${endpointFile.endpointFileBase}`,
         });
 
+        if (hookFile && hookFilePath && hookRelativePath) {
+          await writeText(hookFilePath, hookFile.hookSource);
+          manifestFiles.push({
+            kind: `${hookFile.hookKind}-hook`,
+            generated: hookRelativePath,
+            summary: `tag=${tagFileName} endpoint=${endpointFile.endpointFileBase} hook=${hookFile.hookName}`,
+          });
+        }
+
         endpointReviews.push(
           buildEndpointApplicationReview({
             spec,
             endpoint,
             dtoPath: dtoRelativePath,
             apiPath: apiRelativePath,
+            hookPath: hookRelativePath,
           }),
         );
       }

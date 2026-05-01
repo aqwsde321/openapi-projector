@@ -1,6 +1,6 @@
 # openapi-projector
 
-`openapi-projector`는 Swagger/OpenAPI 변경을 먼저 검토하고, 필요한 endpoint만 TypeScript DTO/API 후보 코드로 뽑아보는 review-first CLI입니다.
+`openapi-projector`는 Swagger/OpenAPI 변경을 먼저 검토하고, 필요한 endpoint만 TypeScript DTO/API/hook 후보 코드로 뽑아보는 review-first CLI입니다.
 
 생성 결과는 앱 `src/`에 바로 쓰지 않고 프론트엔드 프로젝트 안의 `openapi/` 작업 공간에 먼저 쌓입니다.
 
@@ -8,7 +8,8 @@
 
 - Swagger가 바뀌었을 때 어느 endpoint의 무엇이 바뀌었는지 `openapi/changes.md`에서 먼저 확인합니다.
 - endpoint 추가/삭제, request/response/parameter 계약 변경, 문서성 변경을 구분해서 봅니다.
-- 기존 API client, import 경로, request call style을 분석한 뒤 endpoint별 `.dto.ts`, `.api.ts` 후보를 만듭니다.
+- 기존 API client, import 경로, request call style, React Query 사용 여부를 분석합니다.
+- endpoint별 `.dto.ts`, `.api.ts` 후보를 만들고, React Query 사용이 감지되면 `.query.ts`, `.mutation.ts` 후보 생성 규칙도 자동으로 제안합니다.
 - 필요한 endpoint 코드만 골라 실제 앱 구조에 맞게 옮길 수 있습니다.
 - `openapi/review/`와 `openapi/project/`는 재생성 가능한 검토 산출물이라 앱 코드와 분리됩니다.
 
@@ -55,11 +56,12 @@ Enter를 누르면 기본값을 쓰고, 다른 주소를 쓰려면 OpenAPI JSON 
 5. prepare가 rules 검토 단계에서 멈췄다면 openapi/review/project-rules/analysis.md와 analysis.json을 읽고,
    실제 프로젝트의 API client, import 경로, request 호출 방식을 확인해.
 6. rules가 만든 openapi/config/project-rules.jsonc 초안이 프로젝트 컨벤션과 맞는지 확인해.
+   React Query를 쓰는 프로젝트라면 hooks.enabled가 true로 자동 제안됐는지도 확인해.
    맞지 않는 부분이 있으면 수정하고, 맞다고 판단되면 review.rulesReviewed를 true로 바꿔.
 7. review.rulesReviewed를 true로 바꾼 뒤 npx --yes openapi-projector@latest prepare를 다시 실행해.
 8. openapi/project/summary.md를 읽고 생성된 endpoint와 skipped endpoint를 요약해.
 
-아직 실제 앱 코드에는 반영하지 말고, Swagger 변경 비교 요약과 DTO/API 후보 요약을 나눈 뒤 내가 어떤 endpoint를 적용할지 아래 형식으로 물어봐.
+아직 실제 앱 코드에는 반영하지 말고, Swagger 변경 비교 요약과 DTO/API/hook 후보 요약을 나눈 뒤 내가 어떤 endpoint를 적용할지 아래 형식으로 물어봐.
 
 적용할 endpoint:
 - <METHOD> <PATH> 또는 operationId
@@ -67,6 +69,7 @@ Enter를 누르면 기본값을 쓰고, 다른 주소를 쓰려면 OpenAPI JSON 
 반영 범위:
 - DTO만
 - DTO + API wrapper
+- DTO + API wrapper + React Query hook
 
 사용할 실제 앱 코드 위치:
 - <예: src/features/user/api>
@@ -85,8 +88,8 @@ refresh -> rules -> project
 ```
 
 - `refresh`: Swagger/OpenAPI를 내려받고 이전 버전과 비교해 `openapi/changes.md`를 만듭니다.
-- `rules`: 현재 프론트엔드 프로젝트의 API 호출 규칙을 분석해 `openapi/config/project-rules.jsonc`를 만듭니다.
-- `project`: 검토된 규칙으로 DTO/API 후보를 생성합니다.
+- `rules`: 현재 프론트엔드 프로젝트의 API 호출 규칙과 React Query 사용 여부를 분석해 `openapi/config/project-rules.jsonc`를 만듭니다.
+- `project`: 검토된 규칙으로 DTO/API 후보와 선택적 React Query hook 후보를 생성합니다.
 
 처음 실행하면 `rules` 검토 단계에서 멈추는 것이 정상입니다. 생성 규칙이 실제 프로젝트와 맞는지 확인한 뒤, 아래 파일에서 `review.rulesReviewed`를 `true`로 바꿉니다.
 
@@ -94,7 +97,7 @@ refresh -> rules -> project
 openapi/config/project-rules.jsonc
 ```
 
-의미는 “이 프로젝트의 API client/import/call style 규칙을 확인했으니, 이 규칙으로 DTO/API 후보를 만들어도 된다”는 승인 표시입니다.
+의미는 “이 프로젝트의 API client/import/call style/hook 규칙을 확인했으니, 이 규칙으로 후보 코드를 만들어도 된다”는 승인 표시입니다.
 
 ```jsonc
 {
@@ -110,7 +113,7 @@ openapi/config/project-rules.jsonc
 npx --yes openapi-projector@latest prepare
 ```
 
-두 번째 실행부터는 검토된 rules로 `openapi/project/summary.md`와 `openapi/project/src/openapi-generated/` 아래 DTO/API 후보가 생성됩니다.
+두 번째 실행부터는 검토된 rules로 `openapi/project/summary.md`와 `openapi/project/src/openapi-generated/` 아래 DTO/API 후보와 선택적 React Query hook 후보가 생성됩니다.
 
 ## Swagger 변경 비교
 
@@ -168,8 +171,10 @@ npx --yes openapi-projector@latest project
 | `openapi/changes.json` | 최신 변경 비교의 machine-readable JSON |
 | `openapi/review/changes/history/` | 변경이 감지된 refresh 시점별 비교 스냅샷 |
 | `openapi/config/project.jsonc` | OpenAPI JSON URL과 산출물 경로 설정 |
-| `openapi/config/project-rules.jsonc` | 프로젝트 API client/import/call style 규칙 |
-| `openapi/project/summary.md` | 생성된 DTO/API 후보와 skipped endpoint 요약 |
+| `openapi/config/project-rules.jsonc` | 프로젝트 API client/import/call style/hook 규칙 |
+| `openapi/project/summary.md` | 생성된 DTO/API/hook 후보와 skipped endpoint 요약 |
+
+`rules`는 `useQuery`/`useMutation` 사용을 감지하면 `openapi/config/project-rules.jsonc`의 `hooks.enabled`를 `true`로 자동 제안합니다. 기존 rules 파일에는 `hooks` 블록을 보강하되, 사용자가 명시한 `hooks.enabled=false`는 유지합니다. `hooks.enabled=true`이면 GET endpoint는 `*.query.ts`, POST/PUT/PATCH/DELETE endpoint는 `*.mutation.ts` 후보로 생성됩니다. `hooks.queryKeyStrategy`, `hooks.responseUnwrap`, `hooks.staleTimeImportPath`, `hooks.staleTimeSymbol`로 프로젝트 hook 규칙에 맞게 조정할 수 있습니다.
 
 ## 업데이트
 
