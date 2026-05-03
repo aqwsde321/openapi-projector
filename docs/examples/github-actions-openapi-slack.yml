@@ -1,0 +1,132 @@
+name: OpenAPI Slack Report
+
+on:
+  workflow_dispatch:
+
+jobs:
+  # Replace this job with the backend repository's real deploy job.
+  deploy-dev:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy dev
+        run: echo "replace with backend dev deploy"
+
+  openapi-change-report:
+    name: OpenAPI Change Report
+    runs-on: ubuntu-latest
+    needs: deploy-dev
+    if: github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
+    environment: dev
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: openapi-change-report-dev
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout backend repository
+        uses: actions/checkout@v4
+
+      - name: Checkout OpenAPI baseline
+        uses: actions/checkout@v4
+        with:
+          ref: openapi-baseline
+          path: baseline
+
+      - name: Restore previous catalog baseline
+        run: |
+          mkdir -p openapi/review/catalog
+          if [ -f baseline/dev/endpoints.json ]; then
+            cp baseline/dev/endpoints.json openapi/review/catalog/endpoints.json
+          fi
+
+      - name: Download deployed OpenAPI spec
+        env:
+          DEV_OAS_URL: ${{ secrets.DEV_OAS_URL }}
+          OAS_AUTH_HEADER: ${{ secrets.OAS_AUTH_HEADER }}
+        run: |
+          mkdir -p openapi/_internal/source
+
+          for attempt in $(seq 1 20); do
+            if [ -n "$OAS_AUTH_HEADER" ]; then
+              curl -fsSL -H "$OAS_AUTH_HEADER" "$DEV_OAS_URL" -o openapi/_internal/source/openapi.json && exit 0
+            else
+              curl -fsSL "$DEV_OAS_URL" -o openapi/_internal/source/openapi.json && exit 0
+            fi
+
+            echo "Waiting for deployed OpenAPI spec... attempt=${attempt}"
+            sleep 5
+          done
+
+          echo "Failed to download deployed OpenAPI spec"
+          exit 1
+
+      - name: Generate OpenAPI change report
+        run: npx --yes openapi-projector catalog
+
+      - name: Detect OpenAPI changes
+        id: changes
+        run: |
+          node <<'NODE' >> "$GITHUB_OUTPUT"
+          const fs = require('node:fs');
+          const changes = JSON.parse(fs.readFileSync('openapi/changes.json', 'utf8'));
+          const added = changes.added.length;
+          const removed = changes.removed.length;
+          const contractChanged = changes.contractChanged.length;
+          const docChanged = changes.docChanged.length;
+          const count = added + removed + contractChanged + docChanged;
+          const shouldNotify = changes.baseline !== true && count > 0;
+
+          console.log(`changed=${shouldNotify}`);
+          console.log(`summary=+${added} / -${removed} / contract ${contractChanged} / doc ${docChanged}`);
+          NODE
+
+      - name: Upload full OpenAPI report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-change-report-dev
+          path: |
+            openapi/changes.md
+            openapi/changes.json
+          if-no-files-found: ignore
+
+      - name: Send Slack report
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          CHANGE_SUMMARY: ${{ steps.changes.outputs.summary }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const report = fs.readFileSync('openapi/changes.md', 'utf8');
+          const maxReportLength = 3200;
+          const trimmedReport =
+            report.length > maxReportLength
+              ? `${report.slice(0, maxReportLength)}\n\n...truncated. See the GitHub Actions artifact for the full report.`
+              : report;
+          const payload = {
+            text: `[DEV] OpenAPI 변경 감지: ${process.env.CHANGE_SUMMARY}\n\n\`\`\`${trimmedReport}\`\`\``,
+          };
+
+          fs.writeFileSync('slack-payload.json', JSON.stringify(payload));
+          NODE
+
+          curl -fsSL \
+            -X POST \
+            -H "Content-Type: application/json" \
+            --data @slack-payload.json \
+            "$SLACK_WEBHOOK_URL"
+
+      - name: Update OpenAPI baseline
+        run: |
+          mkdir -p baseline/dev
+          cp openapi/review/catalog/endpoints.json baseline/dev/endpoints.json
+
+          cd baseline
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add dev/endpoints.json
+          git commit -m "chore(openapi): update dev baseline" || exit 0
+          git push origin openapi-baseline
