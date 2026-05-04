@@ -4,7 +4,7 @@
 
 형식은 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)를 느슨하게 따르고, 버전은 `package.json`의 `version` 및 Git 태그와 맞춥니다.
 
-## Unreleased
+## 0.3.1 - 2026-05-04
 
 ### Changed
 
