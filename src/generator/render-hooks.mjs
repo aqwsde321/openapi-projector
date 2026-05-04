@@ -43,7 +43,10 @@ function buildPropertyAccess(sourceExpression, propertyName) {
 
 function getRequestContext(spec, operation) {
   const pathFields = buildFieldEntriesFromParameters(operation.parameters ?? [], 'path');
-  const queryFields = buildFieldEntriesFromParameters(operation.parameters ?? [], 'query');
+  const queryFields = buildFieldEntriesFromParameters(operation.parameters ?? [], 'query', {
+    spec,
+    flattenObjectParameters: true,
+  });
   const headerFields = buildFieldEntriesFromParameters(operation.parameters ?? [], 'header');
   const cookieFields = buildFieldEntriesFromParameters(operation.parameters ?? [], 'cookie');
   const requestSchema = resolveSchema(

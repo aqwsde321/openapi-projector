@@ -68,10 +68,6 @@ function summarizeFields(fields) {
   }));
 }
 
-function summarizeParameters(operation, location) {
-  return summarizeFields(buildFieldEntriesFromParameters(operation.parameters ?? [], location));
-}
-
 function summarizeSchemaObject(spec, schema) {
   if (!schema) {
     return {
@@ -96,9 +92,12 @@ function summarizeSchemaObject(spec, schema) {
   };
 }
 
-function getRequestDtoShape({ operation, requestSchema }) {
+function getRequestDtoShape({ spec, operation, requestSchema }) {
   const pathFields = buildFieldEntriesFromParameters(operation.parameters ?? [], 'path');
-  const queryFields = buildFieldEntriesFromParameters(operation.parameters ?? [], 'query');
+  const queryFields = buildFieldEntriesFromParameters(operation.parameters ?? [], 'query', {
+    spec,
+    flattenObjectParameters: true,
+  });
   const headerFields = buildFieldEntriesFromParameters(operation.parameters ?? [], 'header');
   const cookieFields = buildFieldEntriesFromParameters(operation.parameters ?? [], 'cookie');
   const bodyFields =
@@ -157,7 +156,7 @@ function buildEndpointApplicationReview({
     operation.responseMediaType,
   );
   const requestSchema = resolveSchema(spec, requestSchemaRaw);
-  const requestShape = getRequestDtoShape({ operation, requestSchema });
+  const requestShape = getRequestDtoShape({ spec, operation, requestSchema });
 
   return {
     method: operation.method.toUpperCase(),
@@ -174,10 +173,21 @@ function buildEndpointApplicationReview({
       dtoShape: requestShape,
       mediaType: operation.requestMediaType ?? null,
       bodyRequired: Boolean(operation.requestBody?.required),
-      pathParams: summarizeParameters(operation, 'path'),
-      queryParams: summarizeParameters(operation, 'query'),
-      headerParams: summarizeParameters(operation, 'header'),
-      cookieParams: summarizeParameters(operation, 'cookie'),
+      pathParams: summarizeFields(
+        buildFieldEntriesFromParameters(operation.parameters ?? [], 'path'),
+      ),
+      queryParams: summarizeFields(
+        buildFieldEntriesFromParameters(operation.parameters ?? [], 'query', {
+          spec,
+          flattenObjectParameters: true,
+        }),
+      ),
+      headerParams: summarizeFields(
+        buildFieldEntriesFromParameters(operation.parameters ?? [], 'header'),
+      ),
+      cookieParams: summarizeFields(
+        buildFieldEntriesFromParameters(operation.parameters ?? [], 'cookie'),
+      ),
       body: summarizeSchemaObject(spec, requestSchemaRaw),
     },
     response: {

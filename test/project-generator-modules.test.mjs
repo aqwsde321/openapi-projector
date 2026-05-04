@@ -717,6 +717,152 @@ test('renderOperationSection can import default runtime helpers', () => {
   ]);
 });
 
+test('renderOperationSection flattens object query parameters into request DTO fields', () => {
+  const spec = {
+    components: {
+      schemas: {
+        PageRequest: {
+          type: 'object',
+          properties: {
+            page: {
+              type: 'integer',
+            },
+            size: {
+              type: 'integer',
+            },
+          },
+        },
+        PaymentListFilter: {
+          type: 'object',
+          properties: {
+            status: {
+              type: 'string',
+            },
+            keyword: {
+              type: 'string',
+            },
+          },
+        },
+      },
+    },
+  };
+  const rendered = renderOperationSection({
+    spec,
+    operation: {
+      method: 'get',
+      path: '/payments',
+      parameters: [
+        {
+          name: 'pageable',
+          in: 'query',
+          schema: {
+            $ref: '#/components/schemas/PageRequest',
+          },
+        },
+        {
+          name: 'condition',
+          in: 'query',
+          schema: {
+            $ref: '#/components/schemas/PaymentListFilter',
+          },
+        },
+      ],
+      successResponse: {
+        description: 'OK',
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                items: {
+                  type: 'array',
+                  items: {
+                    type: 'string',
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    functionName: 'getPaymentList',
+    dtoImportPath: './get-payment-list.dto',
+    runtimeFetchImportPath: '@/shared/api',
+    runtimeFetchSymbol: 'fetchAPI',
+    runtimeCallStyle: 'url-config',
+  });
+
+  assert.match(rendered.dtoSource, /export interface GetPaymentListRequestDto \{/);
+  assert.match(rendered.dtoSource, /page\?: number;/);
+  assert.match(rendered.dtoSource, /size\?: number;/);
+  assert.match(rendered.dtoSource, /status\?: string;/);
+  assert.match(rendered.dtoSource, /keyword\?: string;/);
+  assert.doesNotMatch(rendered.dtoSource, /export interface PageRequest \{/);
+  assert.doesNotMatch(rendered.dtoSource, /export interface PaymentListFilter \{/);
+  assert.doesNotMatch(rendered.dtoSource, /pageable\?: PageRequest;/);
+  assert.doesNotMatch(rendered.dtoSource, /condition\?: PaymentListFilter;/);
+  assert.match(rendered.apiSource, /"page": requestDto\["page"\]/);
+  assert.match(rendered.apiSource, /"status": requestDto\["status"\]/);
+});
+
+test('renderOperationHookSection uses flattened object query parameter fields in query keys', () => {
+  const rendered = renderOperationHookSection({
+    spec: {
+      components: {
+        schemas: {
+          PageRequest: {
+            type: 'object',
+            properties: {
+              page: {
+                type: 'integer',
+              },
+            },
+          },
+          PaymentListFilter: {
+            type: 'object',
+            properties: {
+              status: {
+                type: 'string',
+              },
+            },
+          },
+        },
+      },
+    },
+    operation: {
+      method: 'get',
+      path: '/payments',
+      parameters: [
+        {
+          name: 'pageable',
+          in: 'query',
+          schema: {
+            $ref: '#/components/schemas/PageRequest',
+          },
+        },
+        {
+          name: 'condition',
+          in: 'query',
+          schema: {
+            $ref: '#/components/schemas/PaymentListFilter',
+          },
+        },
+      ],
+      requestBody: null,
+    },
+    functionName: 'getPaymentList',
+    endpointFileBase: 'get-payment-list',
+    hookRules: {
+      enabled: true,
+      queryKeyStrategy: 'path-and-fields',
+    },
+  });
+
+  assert.match(rendered.hookSource, /const useGetPaymentListQuery = \(params: GetPaymentListRequestDto\) => \{/);
+  assert.match(rendered.hookSource, /queryKey: \["\/payments", params\.page, params\.status\],/);
+});
+
 test('renderOperationHookSection generates React Query query hooks from hook rules', () => {
   const rendered = renderOperationHookSection({
     spec: {},
