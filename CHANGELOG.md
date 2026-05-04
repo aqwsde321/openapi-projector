@@ -4,6 +4,12 @@
 
 형식은 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)를 느슨하게 따르고, 버전은 `package.json`의 `version` 및 Git 태그와 맞춥니다.
 
+## Unreleased
+
+### Changed
+
+- GET query object parameter가 기본 `form` + `explode` 직렬화일 때 `pageable?: Pageable`, `condition?: SearchCondition` 같은 wrapper 필드 대신 `page`, `size`, 검색 조건 필드를 request DTO 최상위에 펼쳐 생성하도록 변경했습니다. 이 변경은 새로 생성하는 DTO/API/hook 후보에만 반영되며, 이미 앱 코드에 복사된 기존 DTO/API 파일은 자동으로 수정되지 않습니다.
+
 ## 0.3.0 - 2026-05-02
 
 ### Added
