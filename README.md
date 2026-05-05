@@ -174,6 +174,8 @@ npx --yes openapi-projector@latest project
 | `openapi/config/project-rules.jsonc` | 프로젝트 API client/import/call style/hook 규칙 |
 | `openapi/project/summary.md` | 생성된 DTO/API/hook 후보와 skipped endpoint 요약 |
 
+기본 `form` + `explode` query object parameter는 별도 wrapper DTO로 두지 않고 request DTO의 flat 필드로 펼쳐 생성합니다. 예를 들어 `pageable`과 `condition` query object는 `page`, `size`, `status` 같은 필드가 `XxxRequestDto`에 직접 들어갑니다.
+
 `rules`는 `useQuery`/`useMutation` 사용을 감지하면 `openapi/config/project-rules.jsonc`의 `hooks.enabled`를 `true`로 자동 제안합니다. 기존 rules 파일에는 `hooks` 블록을 보강하되, 사용자가 명시한 `hooks.enabled=false`는 유지합니다. `hooks.enabled=true`이면 GET endpoint는 `*.query.ts`, POST/PUT/PATCH/DELETE endpoint는 `*.mutation.ts` 후보로 생성됩니다. `hooks.queryKeyStrategy`, `hooks.responseUnwrap`, `hooks.staleTimeImportPath`, `hooks.staleTimeSymbol`로 프로젝트 hook 규칙에 맞게 조정할 수 있습니다.
 
 ## 업데이트

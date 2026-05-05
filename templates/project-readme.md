@@ -201,6 +201,8 @@ openapi/
 | `openapi/review/project-rules/analysis.json` | AI와 자동화가 참고할 수 있는 분석 evidence |
 | `openapi/project/summary.md` | 생성된 DTO/API/hook 후보와 skipped endpoint 요약 |
 
+기본 `form` + `explode` query object parameter는 별도 wrapper DTO로 두지 않고 request DTO의 flat 필드로 펼쳐 생성합니다. 예를 들어 `pageable`과 `condition` query object는 `page`, `size`, `status` 같은 필드가 `XxxRequestDto`에 직접 들어갑니다.
+
 <details>
 <summary>AI Agents: Detailed Workflow</summary>
 

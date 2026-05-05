@@ -114,17 +114,6 @@ function createUniqueTypeName(baseName, usedNames) {
   return candidate;
 }
 
-function buildFieldEntriesFromParameters(parameters, location) {
-  return parameters
-    .filter((parameter) => parameter.in === location)
-    .map((parameter) => ({
-      name: parameter.name,
-      required: parameter.required,
-      schema: parameter.schema,
-      description: parameter.description,
-    }));
-}
-
 function buildFieldEntriesFromSchema(schema) {
   const properties = schema?.properties ?? {};
   const required = new Set(schema?.required ?? []);
@@ -135,6 +124,71 @@ function buildFieldEntriesFromSchema(schema) {
     schema: propertySchema,
     description: propertySchema.description,
   }));
+}
+
+function canFlattenQueryObjectParameter(spec, parameter) {
+  if (parameter?.in !== 'query') {
+    return false;
+  }
+
+  if (parameter.style && parameter.style !== 'form') {
+    return false;
+  }
+
+  if (parameter.explode === false) {
+    return false;
+  }
+
+  return isSimpleObjectSchema(resolveSchema(spec, parameter.schema));
+}
+
+function buildFlattenedQueryParameterEntries(spec, parameter) {
+  const schema = resolveSchema(spec, parameter.schema);
+
+  return buildFieldEntriesFromSchema(schema).map((field) => ({
+    ...field,
+    required: Boolean(parameter.required && field.required),
+    description: field.description ?? parameter.description,
+  }));
+}
+
+function buildFieldEntriesFromParameters(parameters, location, options = {}) {
+  const { spec = null, flattenObjectParameters = false } = options;
+  const entries = [];
+  const usedNames = new Set();
+
+  for (const parameter of parameters.filter((item) => item.in === location)) {
+    if (
+      flattenObjectParameters &&
+      location === 'query' &&
+      spec &&
+      canFlattenQueryObjectParameter(spec, parameter)
+    ) {
+      const flattenedEntries = buildFlattenedQueryParameterEntries(spec, parameter);
+      const flattenedNames = flattenedEntries.map((entry) => String(entry.name));
+      const hasDuplicateFlattenedName =
+        new Set(flattenedNames).size !== flattenedNames.length ||
+        flattenedNames.some((name) => usedNames.has(name));
+
+      if (!hasDuplicateFlattenedName) {
+        for (const entry of flattenedEntries) {
+          entries.push(entry);
+          usedNames.add(String(entry.name));
+        }
+        continue;
+      }
+    }
+
+    entries.push({
+      name: parameter.name,
+      required: parameter.required,
+      schema: parameter.schema,
+      description: parameter.description,
+    });
+    usedNames.add(String(parameter.name));
+  }
+
+  return entries;
 }
 
 function hasDuplicateFieldNames(entries) {
@@ -153,9 +207,18 @@ function hasDuplicateFieldNames(entries) {
 
 function buildLocalSchemaContext(spec, operation, reservedNames = []) {
   const refs = new Set();
+  const parameterFields = [
+    ...buildFieldEntriesFromParameters(operation.parameters ?? [], 'path'),
+    ...buildFieldEntriesFromParameters(operation.parameters ?? [], 'query', {
+      spec,
+      flattenObjectParameters: true,
+    }),
+    ...buildFieldEntriesFromParameters(operation.parameters ?? [], 'header'),
+    ...buildFieldEntriesFromParameters(operation.parameters ?? [], 'cookie'),
+  ];
 
-  for (const parameter of operation.parameters ?? []) {
-    collectRefs(parameter.schema, refs);
+  for (const field of parameterFields) {
+    collectRefs(field.schema, refs);
   }
 
   const requestSchema = resolveSchema(
