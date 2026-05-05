@@ -48,7 +48,7 @@ Swagger/OpenAPI 원본을 받아서 review 산출물을 만듭니다.
 
 `Added`, `Contract Changed`, `Doc Changed` 항목은 `project-rules.jsonc` 기준으로 생성될 DTO/API 후보 파일 링크도 함께 표시합니다. React Query hook 생성을 켠 경우 hook 후보도 같은 generated 디렉터리에 생깁니다. 링크 대상은 `project` 실행 후 생기는 `openapi/project/src/openapi-generated/...` 아래 파일입니다.
 
-`Contract Changed`는 이전 catalog와 현재 catalog 모두 비교용 snapshot을 가지고 있으면 필드 단위 상세 변경을 비교 표로 표시합니다. 예를 들어 query parameter 추가, request body required 변경, response body field type 변경 같은 내용이 `openapi/changes.md`와 `history/*.md`에 남습니다.
+`Contract Changed`는 이전 catalog와 현재 catalog 모두 비교용 snapshot을 가지고 있으면 필드 단위 상세 변경을 Slack에서도 읽기 쉬운 한 줄 목록으로 표시합니다. 예를 들어 query parameter 추가, request body required 변경, response body field type 변경 같은 내용이 `openapi/changes.md`와 `history/*.md`에 남습니다.
 이전 catalog가 snapshot이 없는 구버전 산출물이라면 첫 refresh에서는 영향 endpoint만 표시되고, 그 다음 refresh부터 상세 변경 비교가 가능합니다.
 
 ### 2. `rules`

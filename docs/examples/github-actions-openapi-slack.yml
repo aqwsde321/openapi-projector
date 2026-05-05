@@ -1,10 +1,15 @@
 name: OpenAPI Slack Report
 
+# Project setup points:
+# - Replace deploy-dev with your real backend deploy job, or attach openapi-change-report after it.
+# - Change the branch condition on openapi-change-report if dev deploy does not run from develop.
+# - For stg/prod, copy openapi-change-report and change dev names, paths, and secrets consistently.
+
 on:
   workflow_dispatch:
 
 jobs:
-  # Replace this job with the backend repository's real deploy job.
+  # Replace this placeholder with the backend repository's real deploy job.
   deploy-dev:
     runs-on: ubuntu-latest
     steps:
@@ -15,7 +20,9 @@ jobs:
     name: OpenAPI Change Report
     runs-on: ubuntu-latest
     needs: deploy-dev
+    # Change this branch condition to match the backend repository's dev deploy branch.
     if: github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
+    # Remove this line if the repository does not use GitHub Environments.
     environment: dev
     permissions:
       contents: write
@@ -28,11 +35,44 @@ jobs:
       - name: Checkout backend repository
         uses: actions/checkout@v4
 
+      - name: Prepare openapi-projector config
+        run: |
+          mkdir -p openapi/config
+          if [ ! -f openapi/config/project.jsonc ]; then
+            printf '{}\n' > openapi/config/project.jsonc
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check OpenAPI baseline branch
+        id: baseline_branch
+        run: |
+          if git ls-remote --exit-code --heads origin openapi-baseline >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout OpenAPI baseline
+        if: steps.baseline_branch.outputs.exists == 'true'
         uses: actions/checkout@v4
         with:
           ref: openapi-baseline
           path: baseline
+
+      - name: Initialize OpenAPI baseline
+        if: steps.baseline_branch.outputs.exists != 'true'
+        run: |
+          mkdir -p baseline
+          git -C baseline init
+          git -C baseline remote add origin "$(git config --get remote.origin.url)"
+          if git config --local --get http.https://github.com/.extraheader >/dev/null; then
+            git -C baseline config http.https://github.com/.extraheader "$(git config --local --get http.https://github.com/.extraheader)"
+          fi
+          git -C baseline checkout --orphan openapi-baseline
 
       - name: Restore previous catalog baseline
         run: |
@@ -46,6 +86,18 @@ jobs:
           DEV_OAS_URL: ${{ secrets.DEV_OAS_URL }}
           OAS_AUTH_HEADER: ${{ secrets.OAS_AUTH_HEADER }}
         run: |
+          if [ -z "$DEV_OAS_URL" ]; then
+            echo "DEV_OAS_URL is required."
+            exit 1
+          fi
+
+          case "$DEV_OAS_URL" in
+            http://localhost*|https://localhost*|http://127.0.0.1*|https://127.0.0.1*)
+              echo "DEV_OAS_URL must point to a deployed server, not localhost: $DEV_OAS_URL"
+              exit 1
+              ;;
+          esac
+
           mkdir -p openapi/_internal/source
 
           for attempt in $(seq 1 20); do
@@ -63,7 +115,7 @@ jobs:
           exit 1
 
       - name: Generate OpenAPI change report
-        run: npx --yes openapi-projector catalog
+        run: npx --yes openapi-projector@latest catalog
 
       - name: Detect OpenAPI changes
         id: changes
@@ -79,7 +131,7 @@ jobs:
           const shouldNotify = changes.baseline !== true && count > 0;
 
           console.log(`changed=${shouldNotify}`);
-          console.log(`summary=+${added} / -${removed} / contract ${contractChanged} / doc ${docChanged}`);
+          console.log(`summary=🆕 Added ${added} / 🗑️ Removed ${removed} / 🧩 Contract Changed ${contractChanged} / 📝 Doc Changed ${docChanged}`);
           NODE
 
       - name: Upload full OpenAPI report
@@ -90,24 +142,45 @@ jobs:
           path: |
             openapi/changes.md
             openapi/changes.json
+            openapi/_internal/source/openapi.json
+            openapi/review/catalog/endpoints.json
           if-no-files-found: ignore
 
       - name: Send Slack report
         if: steps.changes.outputs.changed == 'true'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-          CHANGE_SUMMARY: ${{ steps.changes.outputs.summary }}
+          ACTIONS_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "SLACK_WEBHOOK_URL is required when OpenAPI changes are detected."
+            exit 1
+          fi
+
           node <<'NODE'
           const fs = require('node:fs');
-          const report = fs.readFileSync('openapi/changes.md', 'utf8');
-          const maxReportLength = 3200;
-          const trimmedReport =
-            report.length > maxReportLength
-              ? `${report.slice(0, maxReportLength)}\n\n...truncated. See the GitHub Actions artifact for the full report.`
-              : report;
+
+          const report = fs.readFileSync('openapi/changes.md', 'utf8').trim();
+          const maxReportLength = 3000;
+          const artifactText = process.env.ACTIONS_RUN_URL
+            ? `<${process.env.ACTIONS_RUN_URL}|Actions artifact>의 changes.md`
+            : 'Actions artifact의 changes.md';
+
+          function trimReport(text) {
+            if (text.length <= maxReportLength) {
+              return text;
+            }
+
+            const paragraphCut = text.lastIndexOf('\n\n', maxReportLength);
+            const lineCut = text.lastIndexOf('\n', maxReportLength);
+            const cut = paragraphCut > 1000 ? paragraphCut : lineCut > 1000 ? lineCut : maxReportLength;
+
+            return `${text.slice(0, cut).trim()}\n\n...`;
+          }
+
+          const trimmedReport = trimReport(report);
           const payload = {
-            text: `[DEV] OpenAPI 변경 감지: ${process.env.CHANGE_SUMMARY}\n\n\`\`\`${trimmedReport}\`\`\``,
+            text: `[DEV] OpenAPI 변경 감지\n\n${trimmedReport}\n\n전체 상세는 ${artifactText} 확인`,
           };
 
           fs.writeFileSync('slack-payload.json', JSON.stringify(payload));

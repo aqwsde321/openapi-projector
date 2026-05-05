@@ -328,15 +328,22 @@ function toContractChangeItem(
           },
         ];
 
+  const comparisonContext = {
+    previousSnapshot: previousEntry.contractSnapshot,
+    nextSnapshot: nextEntry.contractSnapshot,
+  };
+  const comparisonRows = buildComparisonRows(
+    details.slice(0, MAX_CHANGE_DETAILS),
+    comparisonContext,
+  );
+
   return {
     ...baseItem,
     detailCount: details.length,
     detailsTruncated: details.length > MAX_CHANGE_DETAILS,
     details: details.slice(0, MAX_CHANGE_DETAILS),
-    comparisonRows: buildComparisonRows(details.slice(0, MAX_CHANGE_DETAILS), {
-      previousSnapshot: previousEntry.contractSnapshot,
-      nextSnapshot: nextEntry.contractSnapshot,
-    }),
+    comparisonRows,
+    comparisonDisplayRows: buildComparisonDisplayRows(comparisonRows, comparisonContext),
   };
 }
 
@@ -408,10 +415,10 @@ function renderChangeMarkdown(changeSummary, options = {}) {
     return lines.join('\n');
   }
 
-  lines.push(`- Added: ${changeSummary.added.length}`);
-  lines.push(`- Removed: ${changeSummary.removed.length}`);
-  lines.push(`- Contract Changed: ${changeSummary.contractChanged.length}`);
-  lines.push(`- Doc Changed: ${changeSummary.docChanged.length}`);
+  lines.push(`- 🆕 Added: ${changeSummary.added.length}`);
+  lines.push(`- 🗑️ Removed: ${changeSummary.removed.length}`);
+  lines.push(`- 🧩 Contract Changed: ${changeSummary.contractChanged.length}`);
+  lines.push(`- 📝 Doc Changed: ${changeSummary.docChanged.length}`);
   lines.push('');
 
   appendSection(lines, 'Added', changeSummary.added, options);
@@ -466,7 +473,7 @@ function buildHistoryFileName(isoTimestamp) {
 }
 
 function appendSection(lines, title, items, options = {}) {
-  lines.push(`## ${title}`, '');
+  lines.push(`## ${formatChangeSectionTitle(title)}`, '');
 
   if (items.length === 0) {
     lines.push('- 없음', '');
@@ -504,13 +511,21 @@ function appendChangeItem(lines, item, options = {}) {
   }
 
   if ((item.comparisonRows ?? []).length > 0) {
-    lines.push('');
-    appendComparisonTable(lines, item.comparisonRows);
+    appendComparisonList(lines, item.comparisonRows, item.comparisonDisplayRows);
   }
 
   if (item.detailsTruncated) {
     lines.push(`  - ... ${item.detailCount - (item.details?.length ?? 0)}개 변경 항목 생략`);
   }
+}
+
+function formatChangeSectionTitle(title) {
+  return {
+    Added: '🆕 Added',
+    Removed: '🗑️ Removed',
+    'Contract Changed': '🧩 Contract Changed',
+    'Doc Changed': '📝 Doc Changed',
+  }[title] ?? title;
 }
 
 function formatProjectFileLinks(item, options = {}) {
@@ -553,17 +568,35 @@ function formatMarkdownDestination(target) {
   return `<${target.replaceAll('>', '%3E')}>`;
 }
 
-function appendComparisonTable(lines, rows) {
-  lines.push('| 구분 | 항목 | 이전 | 변경 |');
-  lines.push('| --- | --- | --- | --- |');
+function appendComparisonList(lines, rows, displayRows = null) {
+  const renderedRows = Array.isArray(displayRows) && displayRows.length > 0
+    ? displayRows
+    : rows.map(toFallbackDisplayRow);
 
-  for (const row of rows) {
+  for (const row of renderedRows) {
     lines.push(
-      `| ${escapeMarkdownTableCell(row.category)} | ${escapeMarkdownTableCell(row.target)} | ${escapeMarkdownTableCell(row.previous)} | ${escapeMarkdownTableCell(row.next)} |`,
+      `  - ${formatDisplayCell(row.change)} | ${formatDisplayCell(row.location)} | ${formatDisplayCell(row.declaration)}`,
     );
   }
+}
 
-  lines.push('');
+function toFallbackDisplayRow(row) {
+  const kind = getComparisonRowKind(row);
+
+  return {
+    change: formatComparisonKind(kind),
+    location: row.category,
+    declaration: kind === 'changed'
+      ? `${stripMarkdownFormatting(row.target)}; // ${stripMarkdownFormatting(row.previous)} → ${stripMarkdownFormatting(row.next)}`
+      : stripMarkdownFormatting(kind === 'removed' ? row.previous : row.next),
+  };
+}
+
+function formatDisplayCell(value) {
+  return String(value ?? '')
+    .replace(/\|/g, '/')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function buildComparisonRows(details, context = {}) {
@@ -586,8 +619,337 @@ function buildComparisonRows(details, context = {}) {
   return rows;
 }
 
+function buildComparisonDisplayRows(rows, context = {}) {
+  const comparisonContext = buildComparisonContext(context);
+
+  return rows.map((row) => {
+    const kind = getComparisonRowKind(row);
+
+    return {
+      change: formatComparisonKind(kind),
+      location: localizeComparisonCategory(row),
+      declaration: formatJavaStyleDeclaration(kind, row, comparisonContext),
+    };
+  });
+}
+
+function getComparisonRowKind(row) {
+  if (row.previous === '없음') {
+    return 'added';
+  }
+
+  if (row.next === '없음') {
+    return 'removed';
+  }
+
+  return 'changed';
+}
+
+function formatComparisonKind(kind) {
+  return {
+    added: '🟢 추가',
+    changed: '🟡 변경',
+    removed: '🔴 삭제',
+  }[kind] ?? '⚪ 변경';
+}
+
+function localizeComparisonCategory(row) {
+  const category = String(row?.category ?? '');
+  const parameterLocation = inferParameterLocation(row);
+
+  if (parameterLocation === 'query' || category === 'Query Parameter') {
+    return '요청 Query 파라미터';
+  }
+  if (parameterLocation === 'path' || category === 'Path Parameter') {
+    return '요청 Path 파라미터';
+  }
+  if (parameterLocation === 'header' || category === 'Header Parameter') {
+    return '요청 Header 파라미터';
+  }
+  if (parameterLocation === 'cookie' || category === 'Cookie Parameter') {
+    return '요청 Cookie 파라미터';
+  }
+  if (category.includes('Request/Response Body')) {
+    return '요청/응답 Body 필드';
+  }
+  if (category.includes('Request Body/Header')) {
+    return '요청 Body/Header 필드';
+  }
+  if (category.includes('Response Body/Header')) {
+    return '응답 Body/Header 필드';
+  }
+  if (category.includes('Request Body')) {
+    return '요청 Body 필드';
+  }
+  if (category.includes('Response Body')) {
+    return '응답 Body 필드';
+  }
+  if (category.includes('Request Header')) {
+    return '요청 Header 필드';
+  }
+  if (category.includes('Response Header')) {
+    return '응답 Header 필드';
+  }
+  if (category === 'Documentation') {
+    return '문서';
+  }
+
+  return category || '계약';
+}
+
+function inferParameterLocation(row) {
+  const parameterKey = parseParameterTarget(row?.target);
+  if (parameterKey) {
+    return parameterKey.split('.')[0] || null;
+  }
+
+  const category = String(row?.category ?? '');
+  if (category === 'Query Parameter') {
+    return 'query';
+  }
+  if (category === 'Path Parameter') {
+    return 'path';
+  }
+  if (category === 'Header Parameter') {
+    return 'header';
+  }
+  if (category === 'Cookie Parameter') {
+    return 'cookie';
+  }
+
+  return null;
+}
+
+function parseParameterTarget(target) {
+  const match = stripMarkdownFormatting(target).match(/parameters\["([^"]+)"\]/);
+  return match ? match[1] : null;
+}
+
+function formatJavaStyleDeclaration(kind, row, comparisonContext) {
+  const summary = parseComparisonValue(kind === 'removed' ? row.previous : row.next);
+  const field = getComparisonFieldName(row);
+  const type = summary.type
+    ? javaTypeFromComparisonValue(summary)
+    : inferJavaTypeFromComparisonContext(row, comparisonContext);
+  const comment = formatDeclarationComment(kind, row, summary);
+  const declaration = type ? `${type} ${field};${comment}` : `${field};${comment}`;
+
+  return kind === 'removed' ? `~${declaration}~` : declaration;
+}
+
+function getComparisonFieldName(row) {
+  const parameterTarget = parseParameterTarget(row?.target);
+  if (parameterTarget) {
+    return parameterTarget.split('.').slice(1).join('.') || parameterTarget;
+  }
+
+  const target = stripMarkdownFormatting(row?.target)
+    .replace(/^schema\./, '')
+    .replace(/\.(required|type|format|nullable|enum|items)$/u, '');
+  const parts = target.split('.');
+  return parts.at(-1) || 'value';
+}
+
+function parseComparisonValue(value) {
+  const raw = stripMarkdownFormatting(value);
+  const parts = raw.split(',').map((part) => part.trim()).filter(Boolean);
+  const type = parts.find((part) =>
+    !['required', 'optional', 'nullable', 'true', 'false', '없음'].includes(part) &&
+    !part.startsWith('format=')
+  );
+  const format = parts.find((part) => part.startsWith('format='));
+
+  return {
+    raw,
+    type: type ?? null,
+    format: format ? format.slice('format='.length) : null,
+    required: parts.includes('required') ? true : parts.includes('optional') ? false : null,
+    nullable: parts.includes('nullable'),
+  };
+}
+
+function javaTypeFromComparisonValue(summary) {
+  const type = summary.type;
+  if (!type) {
+    return null;
+  }
+
+  if (type.endsWith('[]')) {
+    return `List<${javaTypeFromComparisonValue({ ...summary, type: type.slice(0, -2) }) ?? 'Object'}>`;
+  }
+
+  if (type.startsWith('enum(')) {
+    return 'String';
+  }
+
+  return javaTypeFromOpenApiType(type, summary.format) ?? type;
+}
+
+function javaTypeFromOpenApiType(type, format = null) {
+  if (type === 'string') {
+    if (format === 'uuid') {
+      return 'UUID';
+    }
+    if (format === 'date') {
+      return 'LocalDate';
+    }
+    if (format === 'date-time') {
+      return 'OffsetDateTime';
+    }
+    if (format === 'binary') {
+      return 'MultipartFile';
+    }
+    return 'String';
+  }
+
+  if (type === 'integer') {
+    return format === 'int64' ? 'Long' : 'Integer';
+  }
+
+  if (type === 'number') {
+    if (format === 'float') {
+      return 'Float';
+    }
+    if (format === 'double') {
+      return 'Double';
+    }
+    return 'BigDecimal';
+  }
+
+  if (type === 'boolean') {
+    return 'Boolean';
+  }
+
+  if (type === 'object') {
+    return 'Map<String, Object>';
+  }
+
+  if (['unknown', 'oneOf', 'anyOf', 'allOf'].includes(type)) {
+    return 'Object';
+  }
+
+  return null;
+}
+
+function inferJavaTypeFromComparisonContext(row, comparisonContext) {
+  const parameterLocation = inferParameterLocation(row);
+  const field = getComparisonFieldName(row);
+  const snapshots = [
+    comparisonContext?.nextSnapshot,
+    comparisonContext?.previousSnapshot,
+  ].filter(Boolean);
+
+  if (parameterLocation) {
+    for (const snapshot of snapshots) {
+      const parameter = (snapshot?.operation?.parameters ?? []).find((candidate) =>
+        candidate?.in === parameterLocation && candidate?.name === field
+      );
+      const type = javaTypeFromSchema(parameter?.schema);
+      if (type) {
+        return type;
+      }
+    }
+  }
+
+  const target = stripMarkdownFormatting(row?.target)
+    .replace(/^schema\./, '')
+    .replace(/\.(required|type|format|nullable|enum|items)$/u, '');
+  const [schemaName, propertyName] = target.split('.');
+
+  if (!schemaName || !propertyName) {
+    return null;
+  }
+
+  for (const snapshot of snapshots) {
+    const schema = snapshot?.referencedSchemas?.[schemaName]?.properties?.[propertyName];
+    const type = javaTypeFromSchema(schema);
+    if (type) {
+      return type;
+    }
+  }
+
+  return null;
+}
+
+function javaTypeFromSchema(schema) {
+  if (!schema || typeof schema !== 'object') {
+    return null;
+  }
+
+  if (typeof schema.$ref === 'string') {
+    return schemaRefName(schema.$ref);
+  }
+
+  if (Array.isArray(schema.enum)) {
+    return 'String';
+  }
+
+  if (schema.type === 'array') {
+    return `List<${javaTypeFromSchema(schema.items) ?? 'Object'}>`;
+  }
+
+  const schemaTypes = Array.isArray(schema.type)
+    ? schema.type.filter((type) => type !== 'null')
+    : [schema.type];
+  const type = schemaTypes[0];
+
+  return javaTypeFromOpenApiType(type, schema.format);
+}
+
+function formatDeclarationComment(kind, row, summary) {
+  if (kind === 'changed') {
+    const previousSummary = parseComparisonValue(row.previous);
+    const nextSummary = parseComparisonValue(row.next);
+
+    if (
+      previousSummary.type &&
+      previousSummary.type === nextSummary.type &&
+      previousSummary.nullable !== nextSummary.nullable
+    ) {
+      return nextSummary.nullable ? ' // nullable 추가' : ' // nullable 제거';
+    }
+
+    if (
+      previousSummary.type &&
+      previousSummary.type === nextSummary.type &&
+      previousSummary.required !== null &&
+      nextSummary.required !== null &&
+      previousSummary.required !== nextSummary.required
+    ) {
+      const previousRequired = previousSummary.required ? 'required' : 'optional';
+      const nextRequired = nextSummary.required ? 'required' : 'optional';
+      return ` // ${previousRequired} → ${nextRequired}`;
+    }
+
+    return previousSummary.raw && nextSummary.raw
+      ? ` // ${previousSummary.raw} → ${nextSummary.raw}`
+      : '';
+  }
+
+  const flags = [];
+  if (summary.required === true) {
+    flags.push('required');
+  } else if (summary.required === false) {
+    flags.push('optional');
+  }
+  if (summary.nullable) {
+    flags.push('nullable');
+  }
+
+  return flags.length > 0 ? ` // ${flags.join(', ')}` : '';
+}
+
+function stripMarkdownFormatting(value) {
+  return String(value ?? '')
+    .replace(/\\`/g, '`')
+    .replace(/`/g, '')
+    .trim();
+}
+
 function buildComparisonContext({ previousSnapshot, nextSnapshot } = {}) {
   return {
+    previousSnapshot,
+    nextSnapshot,
     schemaUsageByName: mergeSchemaUsageMaps(
       buildSchemaUsageMap(previousSnapshot),
       buildSchemaUsageMap(nextSnapshot),
@@ -1247,12 +1609,6 @@ function formatDetailValue(value) {
 
 function formatInlineCode(value) {
   return `\`${String(value).replace(/`/g, '\\`')}\``;
-}
-
-function escapeMarkdownTableCell(value) {
-  return String(value ?? '')
-    .replace(/\|/g, '\\|')
-    .replace(/\n/g, '<br>');
 }
 
 function diffContractSnapshots(previousSnapshot, nextSnapshot) {

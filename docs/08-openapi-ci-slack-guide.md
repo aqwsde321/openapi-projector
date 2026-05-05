@@ -18,81 +18,73 @@ backend deploy 완료
 
 `openapi-projector`는 `catalog` 단계에서 `openapi/changes.md`와 `openapi/changes.json`을 만듭니다. Slack 공지는 이 산출물을 GitHub Actions에서 전송합니다. npm 배포나 CLI 기능 추가는 필요하지 않습니다.
 
-## 백엔드 저장소 준비
+## 최소 설정
 
-백엔드 저장소에 `openapi/config/project.jsonc`를 추가합니다.
+dev 환경만 기준으로 시작하면 백엔드 저장소에서 필요한 작업은 아래가 전부입니다.
+
+1. 예제 workflow를 `.github/workflows/openapi-slack-report.yml`로 추가
+2. GitHub Secrets에 아래 2개 값 추가
+
+```text
+DEV_OAS_URL=https://dev-api.example.com/v3/api-docs
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+```
+
+workflow 안에서 프로젝트별로 바꿔야 하는 지점은 아래 정도입니다.
+
+- `deploy-dev`: 실제 백엔드 dev 배포 job으로 교체하거나 기존 배포 workflow 뒤에 `openapi-change-report` job을 붙임
+- `needs: deploy-dev`: 실제 배포 job 이름에 맞춤
+- `if: github.ref == 'refs/heads/develop'`: dev 배포 브랜치 조건에 맞춤
+- `environment: dev`: GitHub Environment를 쓰지 않으면 제거
+
+수동 실행부터 확인할 거면 예제 그대로 `workflow_dispatch`로 먼저 돌려볼 수 있습니다.
+
+## 자동 처리되는 것
+
+예제 workflow는 CI 안에서 `openapi/config/project.jsonc`가 없으면 빈 설정 파일을 만듭니다. 백엔드 저장소에 설정 파일을 커밋하지 않아도 됩니다.
 
 ```jsonc
-{
-  "sourceUrl": "",
-  "sourcePath": "openapi/_internal/source/openapi.json",
-  "catalogJsonPath": "openapi/review/catalog/endpoints.json",
-  "catalogMarkdownPath": "openapi/review/catalog/endpoints.md",
-  "docsDir": "openapi/review/docs",
-  "generatedSchemaPath": "openapi/review/generated/schema.ts",
-  "projectRulesAnalysisPath": "openapi/review/project-rules/analysis.md",
-  "projectRulesAnalysisJsonPath": "openapi/review/project-rules/analysis.json",
-  "projectRulesPath": "openapi/config/project-rules.jsonc",
-  "projectGeneratedSrcDir": "openapi/project/src/openapi-generated"
-}
+{}
 ```
 
 CI에서는 `sourceUrl`을 사용하지 않습니다. 배포된 Swagger JSON을 `curl`로 직접 받아 `openapi/_internal/source/openapi.json`에 저장한 뒤 `catalog`만 실행합니다. 이 방식은 인증 헤더, retry, 사설망 접근 같은 CI 조건을 workflow에서 직접 제어하기 쉽습니다.
 
 생성물은 백엔드 main 브랜치에 커밋하지 않습니다. 필요한 기준선은 `openapi/review/catalog/endpoints.json` 하나뿐입니다.
 
-## Baseline 브랜치
-
-GitHub Actions runner는 이전 실행 상태를 기억하지 못하므로 기준선을 별도 브랜치에 저장합니다.
-
-권장 브랜치:
-
-```text
-openapi-baseline
-```
-
-권장 파일 구조:
+기준선은 `openapi-baseline` 브랜치에 저장합니다. 브랜치가 없으면 예제 workflow가 orphan branch로 자동 초기화합니다.
 
 ```text
 dev/endpoints.json
-stg/endpoints.json
-prod/endpoints.json
 ```
 
 처음 실행하면 이전 기준선이 없어 `openapi/changes.json`에 `baseline: true`가 기록됩니다. 이 경우 Slack 공지는 보내지 않고 기준선만 저장합니다. 두 번째 배포부터 변경이 있을 때 Slack 공지가 전송됩니다.
 
-## GitHub Secrets
+## 선택 설정
 
-백엔드 저장소의 GitHub Secrets에 값을 추가합니다.
+아래 항목은 필요할 때만 추가합니다.
 
-```text
-DEV_OAS_URL=https://dev-api.example.com/v3/api-docs
-STG_OAS_URL=https://stg-api.example.com/v3/api-docs
-PROD_OAS_URL=https://api.example.com/v3/api-docs
-SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+- Swagger 접근에 인증이 필요하면 `OAS_AUTH_HEADER=Authorization: Bearer ...` secret 추가
+- stg/prod도 운영하면 `STG_OAS_URL`, `PROD_OAS_URL`처럼 환경별 secret을 추가하고 workflow job 복사
+- 경로를 바꾸고 싶으면 백엔드 저장소에 `openapi/config/project.jsonc` 커밋
+- 배포 직후 이전 버전 Swagger가 응답할 수 있으면 `/healthz` 같은 배포 확인 step 추가
+
+경로 override가 필요한 경우의 `project.jsonc` 예시:
+
+```jsonc
+{
+  "sourcePath": "openapi/_internal/source/openapi.json",
+  "catalogJsonPath": "openapi/review/catalog/endpoints.json",
+  "catalogMarkdownPath": "openapi/review/catalog/endpoints.md"
+}
 ```
-
-Swagger 접근에 인증이 필요하면 추가합니다.
-
-```text
-OAS_AUTH_HEADER=Authorization: Bearer ...
-```
-
-환경별로 인증 값이 다르면 `DEV_OAS_AUTH_HEADER`, `STG_OAS_AUTH_HEADER`, `PROD_OAS_AUTH_HEADER`처럼 나누고 workflow에서 맞는 값을 사용합니다.
 
 ## GitHub Actions 예제
 
 복붙 가능한 예제는 [docs/examples/github-actions-openapi-slack.yml](examples/github-actions-openapi-slack.yml)에 있습니다.
 
-백엔드 workflow에 붙일 때는 아래 항목만 프로젝트에 맞게 바꿉니다.
+백엔드 workflow에 붙일 때는 위의 프로젝트별 수정 지점만 확인합니다.
 
-- `needs: deploy-dev`: 실제 배포 job 이름
-- `if: github.ref == 'refs/heads/develop'`: dev 배포 브랜치 조건
-- `environment: dev`: GitHub Environment를 쓰는 경우에만 유지
-- `DEV_OAS_URL`: 배포된 OpenAPI JSON URL secret
-- `baseline/dev/endpoints.json`: 환경별 baseline 경로
-
-stg/prod도 같은 job 구조를 복사해서 환경명과 secret만 바꾸면 됩니다.
+stg/prod도 같은 job 구조를 복사해서 환경명, baseline path, secret만 바꾸면 됩니다.
 
 ## 변경 여부 판단
 
@@ -112,13 +104,15 @@ const shouldNotify = changes.baseline !== true && count > 0;
 
 ## Slack 메시지
 
-초기 운영은 `openapi/changes.md` 내용을 그대로 보내는 방식으로 시작합니다. Slack 메시지 길이 제한을 넘을 수 있으므로 예제 workflow는 본문을 잘라 전송하고, 전체 파일은 artifact로 업로드합니다.
+초기 운영은 `openapi/changes.md` 내용을 그대로 보내는 방식으로 시작합니다. 예제 workflow는 Slack 메시지가 길어지면 본문을 약 3,000자에서 자르고, 전체 파일은 artifact로 업로드합니다.
 
 권장 제목:
 
 ```text
-[DEV] OpenAPI 변경 감지: +2 / -0 / contract 1 / doc 3
+[DEV] OpenAPI 변경 감지
 ```
+
+변경 건수는 `changes.md` 본문의 `Change Summary`에 표시됩니다.
 
 주요 섹션:
 
@@ -138,7 +132,7 @@ const shouldNotify = changes.baseline !== true && count > 0;
    - 기대 결과: Slack 공지 전송
    - 기대 결과: `Added` 섹션에 endpoint 표시
 3. query parameter required 여부 또는 response DTO 필드 타입을 변경하고 배포합니다.
-   - 기대 결과: `Contract Changed` 섹션에 비교 표 표시
+   - 기대 결과: `Contract Changed` 섹션에 이모지가 붙은 한 줄 변경 목록 표시
 4. summary 또는 description만 변경하고 배포합니다.
    - 기대 결과: `Doc Changed` 섹션에 표시
 5. Swagger 변경 없이 workflow를 다시 실행합니다.
@@ -148,7 +142,8 @@ const shouldNotify = changes.baseline !== true && count > 0;
 ## 운영 주의사항
 
 - 배포 직후 `/v3/api-docs`가 아직 갱신되지 않았을 수 있으므로 retry를 둡니다.
+- `/healthz`처럼 배포 커밋을 확인할 수 있는 endpoint가 있다면, `/v3/api-docs` 다운로드 전에 해당 커밋이 배포됐는지 확인하는 단계를 추가합니다.
 - 환경별 workflow concurrency를 설정해 baseline push 충돌을 줄입니다.
-- Slack 본문은 길이 제한 때문에 잘릴 수 있습니다. 전체 `openapi/changes.md`는 artifact에서 확인합니다.
+- Slack 본문은 길이 제한 때문에 잘릴 수 있습니다. 전체 `openapi/changes.md`, 원본 `openapi.json`, 최신 `endpoints.json`은 artifact에서 확인합니다.
 - `openapi-projector` 리포트는 팀 공지용입니다. breaking/compatible 판정을 엄밀하게 해서 배포를 막는 용도는 아닙니다.
 - 배포 차단이 필요해지면 별도 job에서 `oasdiff breaking` 같은 검사를 추가합니다.

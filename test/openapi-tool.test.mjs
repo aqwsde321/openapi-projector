@@ -456,7 +456,7 @@ test(
 );
 
 test(
-  'catalog records contract comparison tables in change history',
+  'catalog records Slack-friendly contract comparison rows in change history',
   { concurrency: false },
   async () => {
     const spec = {
@@ -661,6 +661,7 @@ test(
       );
       assert.ok(detailPaths.includes('referencedSchemas.ChangedHeader.required'));
       const comparisonRows = historyJson.contractChanged[0].comparisonRows;
+      const comparisonDisplayRows = historyJson.contractChanged[0].comparisonDisplayRows;
       assert.deepEqual(historyJson.contractChanged[0].comparisonRows[0], {
         category: 'Query Parameter',
         target: '`active`',
@@ -706,7 +707,20 @@ test(
           next: 'required',
         },
       );
-      assert.match(historySource, /Contract Changed: 1/);
+      assert.deepEqual(comparisonDisplayRows.find((row) => row.declaration === 'Boolean active; // required'), {
+        change: '🟢 추가',
+        location: '요청 Query 파라미터',
+        declaration: 'Boolean active; // required',
+      });
+      assert.deepEqual(
+        comparisonDisplayRows.find((row) => row.declaration === 'Integer value; // required → optional'),
+        {
+          change: '🟡 변경',
+          location: '응답 Header 필드',
+          declaration: 'Integer value; // required → optional',
+        },
+      );
+      assert.match(historySource, /🧩 Contract Changed: 1/);
       assert.match(
         topLevelChangesSource,
         /\[DTO\]\(<project\/src\/openapi-generated\/Users\/get-users-by-id\.dto\.ts>\)/,
@@ -733,42 +747,38 @@ test(
       );
       assert.match(
         historySource,
-        /\| 구분 \| 항목 \| 이전 \| 변경 \|/,
+        /- 🟢 추가 \| 요청 Query 파라미터 \| Boolean active; \/\/ required/,
       );
       assert.match(
         historySource,
-        /\| Query Parameter \| `active` \| 없음 \| `boolean`, required \|/,
+        /- 🟢 추가 \| 응답 Body\/Header 필드 \| List<File> attachments;/,
       );
       assert.match(
         historySource,
-        /\| Response Body\/Header Field \| `User\.attachments` \| 없음 \| `File\[\]` \|/,
+        /- 🟡 변경 \| 응답 Body\/Header 필드 \| Integer email; \/\/ optional → required/,
       );
       assert.match(
         historySource,
-        /\| Response Body\/Header Field \| `User\.email\.required` \| optional \| required \|/,
+        /- 🟡 변경 \| 응답 Body\/Header 필드 \| Integer email; \/\/ string → integer/,
       );
       assert.match(
         historySource,
-        /\| Response Body\/Header Field \| `User\.email\.type` \| `string` \| `integer` \|/,
+        /- 🟡 변경 \| 응답 Header 필드 \| Integer value; \/\/ string → integer/,
       );
       assert.match(
         historySource,
-        /\| Response Header Field \| `ResponseHeader\.value\.type` \| `string` \| `integer` \|/,
+        /- 🟡 변경 \| 응답 Header 필드 \| Integer value; \/\/ required → optional/,
       );
       assert.match(
         historySource,
-        /\| Response Header Field \| `ResponseHeader\.value\.required` \| required \| optional \|/,
-      );
-      assert.match(
-        historySource,
-        /\| Response Header Field \| `ChangedHeader\.expiresAt\.required` \| optional \| required \|/,
+        /- 🟡 변경 \| 응답 Header 필드 \| String expiresAt; \/\/ optional → required/,
       );
     });
   },
 );
 
 test(
-  'catalog renders first added query parameter as a parameter comparison row',
+  'catalog renders first added query parameter as a Slack-friendly comparison row',
   { concurrency: false },
   async () => {
     const spec = createSimpleSpec('Get inquiry detail');
@@ -806,7 +816,7 @@ test(
 
       assert.match(
         topLevelChangesSource,
-        /\| Query Parameter \| `abbb` \| 없음 \| `integer`, format=`int32`, required \|/,
+        /- 🟢 추가 \| 요청 Query 파라미터 \| Integer abbb; \/\/ required/,
       );
       assert.doesNotMatch(topLevelChangesSource, /operation\.parameters` \| `\[\]`/);
       assert.doesNotMatch(topLevelChangesSource, /Compatibility Check/);
