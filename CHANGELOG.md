@@ -4,6 +4,15 @@
 
 형식은 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)를 느슨하게 따르고, 버전은 `package.json`의 `version` 및 Git 태그와 맞춥니다.
 
+## 0.3.5 - 2026-05-07
+
+### Fixed
+
+- `changes.md`의 계약 변경 요약을 endpoint 아래에 들여쓴 표로 표시해 endpoint별 구분이 더 명확해지도록 수정했습니다.
+- enum 변경을 배열 전체 변경 대신 추가/삭제된 enum 값 단위로 표시하도록 수정했습니다.
+- schema 교체나 필드 삭제에서 required/optional 변경 노이즈가 중복 표시되는 문제를 줄였습니다.
+- 전체 AS-IS/TO-BE 비교는 실제 표시할 변경이 있는 endpoint에서만 접힌 상세 영역으로 출력하도록 정리했습니다.
+
 ## 0.3.4 - 2026-05-06
 
 ### Added
