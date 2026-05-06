@@ -941,10 +941,329 @@ test(
       assert.doesNotMatch(topLevelChangesSource, /`get-platform-orders-claims` \[GET\]/);
       assert.doesNotMatch(topLevelChangesSource, /"\];/);
       assert.doesNotMatch(topLevelChangesSource, /Map<String, Object> .*Dto;/);
+      assert.doesNotMatch(topLevelChangesSource, /응답 Body 필드/);
+      assert.doesNotMatch(topLevelChangesSource, /data;/);
+      assert.doesNotMatch(topLevelChangesSource, /String message;/);
       assert.match(
         topLevelChangesSource,
-        /List<PlatformOrderClaimController\.ClaimListResDto> data;/,
+        /JsendResponseDtoListClaimListResDto → JsendResponseDtoListPlatformOrderClaimController\.ClaimListResDto/,
       );
+    });
+  },
+);
+
+test(
+  'catalog suppresses field noise when request body schema is renamed without shape changes',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Claims API',
+        version: '1.0.0',
+      },
+      paths: {
+        '/platform/orders/claims': {
+          post: {
+            summary: '클레임 신청',
+            requestBody: {
+              required: true,
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/CreateOrderClaimDto',
+                  },
+                },
+              },
+            },
+            responses: {
+              200: {
+                description: 'OK',
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          CreateOrderClaimDto: {
+            type: 'object',
+            required: ['applyClaim', 'orderItemId', 'reason'],
+            properties: {
+              applyClaim: {
+                type: 'string',
+              },
+              deliveryFeePaymentConfirmDto: {
+                $ref: '#/components/schemas/PaymentConfirmDto',
+              },
+              orderItemId: {
+                type: 'integer',
+                format: 'int64',
+              },
+              reason: {
+                type: 'string',
+              },
+            },
+          },
+          PaymentConfirmDto: {
+            type: 'object',
+            properties: {
+              paymentKey: {
+                type: 'string',
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const nextSpec = structuredClone(spec);
+      nextSpec.paths['/platform/orders/claims'].post.requestBody.content['application/json'].schema = {
+        $ref: '#/components/schemas/PlatformOrderClaimController.CreateOrderClaimDto',
+      };
+      nextSpec.components.schemas = {
+        'PlatformOrderClaimController.CreateOrderClaimDto': spec.components.schemas.CreateOrderClaimDto,
+        PaymentConfirmDto: spec.components.schemas.PaymentConfirmDto,
+      };
+
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.json'),
+        nextSpec,
+      );
+
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const topLevelChangesSource = await fs.readFile(
+        path.join(workspace, 'openapi/changes.md'),
+        'utf8',
+      );
+
+      assert.match(topLevelChangesSource, /요청 Body schema/);
+      assert.match(
+        topLevelChangesSource,
+        /CreateOrderClaimDto → PlatformOrderClaimController\.CreateOrderClaimDto/,
+      );
+      assert.doesNotMatch(topLevelChangesSource, /required → optional/);
+      assert.doesNotMatch(topLevelChangesSource, /optional → required/);
+      assert.doesNotMatch(topLevelChangesSource, /🔴 삭제 \| 요청 Body 필드/);
+      assert.doesNotMatch(topLevelChangesSource, /🟢 추가 \| 요청 Body 필드/);
+      assert.doesNotMatch(topLevelChangesSource, /Map<String, Object> CreateOrderClaimDto/);
+    });
+  },
+);
+
+test(
+  'catalog reports nested field changes inside renamed response wrapper schemas',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Claims API',
+        version: '1.0.0',
+      },
+      paths: {
+        '/platform/orders/claims': {
+          get: {
+            summary: '클레임 내역 목록 조회',
+            responses: {
+              200: {
+                description: 'OK',
+                content: {
+                  'application/json': {
+                    schema: {
+                      $ref: '#/components/schemas/JsendResponseDtoListClaimListResDto',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          JsendResponseDtoListClaimListResDto: {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'array',
+                items: {
+                  $ref: '#/components/schemas/ClaimListResDto',
+                },
+              },
+              message: {
+                type: 'string',
+              },
+              status: {
+                type: 'string',
+              },
+            },
+          },
+          ClaimListResDto: {
+            type: 'object',
+            properties: {
+              id: {
+                type: 'string',
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const nextSpec = structuredClone(spec);
+      nextSpec.paths['/platform/orders/claims'].get.responses[200].content['application/json'].schema = {
+        $ref: '#/components/schemas/JsendResponseDtoListPlatformOrderClaimController.ClaimListResDto',
+      };
+      nextSpec.components.schemas = {
+        'JsendResponseDtoListPlatformOrderClaimController.ClaimListResDto': {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'array',
+              items: {
+                $ref: '#/components/schemas/PlatformOrderClaimController.ClaimListResDto',
+              },
+            },
+            message: {
+              type: 'string',
+            },
+            status: {
+              type: 'string',
+            },
+          },
+        },
+        'PlatformOrderClaimController.ClaimListResDto': {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'integer',
+            },
+          },
+        },
+      };
+
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.json'),
+        nextSpec,
+      );
+
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const topLevelChangesSource = await fs.readFile(
+        path.join(workspace, 'openapi/changes.md'),
+        'utf8',
+      );
+
+      assert.match(
+        topLevelChangesSource,
+        /JsendResponseDtoListClaimListResDto → JsendResponseDtoListPlatformOrderClaimController\.ClaimListResDto/,
+      );
+      assert.match(topLevelChangesSource, /Integer id; \/\/ string → integer/);
+      assert.doesNotMatch(topLevelChangesSource, /String message;/);
+      assert.doesNotMatch(topLevelChangesSource, /data;/);
+      assert.doesNotMatch(topLevelChangesSource, /🔴 삭제 \| 응답 Body 필드/);
+      assert.doesNotMatch(topLevelChangesSource, /🟢 추가 \| 응답 Body 필드/);
+    });
+  },
+);
+
+test(
+  'catalog reports real field changes inside renamed request body schemas',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Claims API',
+        version: '1.0.0',
+      },
+      paths: {
+        '/platform/orders/claims': {
+          post: {
+            summary: '클레임 신청',
+            requestBody: {
+              required: true,
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/CreateOrderClaimDto',
+                  },
+                },
+              },
+            },
+            responses: {
+              200: {
+                description: 'OK',
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          CreateOrderClaimDto: {
+            type: 'object',
+            required: ['applyClaim', 'orderItemId', 'reason'],
+            properties: {
+              applyClaim: {
+                type: 'string',
+              },
+              orderItemId: {
+                type: 'integer',
+                format: 'int64',
+              },
+              reason: {
+                type: 'string',
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const nextSpec = structuredClone(spec);
+      nextSpec.paths['/platform/orders/claims'].post.requestBody.content['application/json'].schema = {
+        $ref: '#/components/schemas/PlatformOrderClaimController.CreateOrderClaimDto',
+      };
+      nextSpec.components.schemas = {
+        'PlatformOrderClaimController.CreateOrderClaimDto': {
+          ...spec.components.schemas.CreateOrderClaimDto,
+          required: ['applyClaim', 'orderItemId'],
+        },
+      };
+
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.json'),
+        nextSpec,
+      );
+
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const topLevelChangesSource = await fs.readFile(
+        path.join(workspace, 'openapi/changes.md'),
+        'utf8',
+      );
+
+      assert.match(
+        topLevelChangesSource,
+        /CreateOrderClaimDto → PlatformOrderClaimController\.CreateOrderClaimDto/,
+      );
+      assert.match(topLevelChangesSource, /String reason; \/\/ required → optional/);
+      assert.doesNotMatch(topLevelChangesSource, /optional → required/);
+      assert.doesNotMatch(topLevelChangesSource, /🔴 삭제 \| 요청 Body 필드/);
+      assert.doesNotMatch(topLevelChangesSource, /🟢 추가 \| 요청 Body 필드/);
+      assert.doesNotMatch(topLevelChangesSource, /Map<String, Object> CreateOrderClaimDto/);
     });
   },
 );

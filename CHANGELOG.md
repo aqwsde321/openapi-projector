@@ -11,6 +11,7 @@
 - `changes.md`의 endpoint 항목 제목에서 generated id를 제거해 method/path/summary 중심으로 읽히도록 정리했습니다.
 - 점이 포함된 OpenAPI schema 이름을 비교할 때 Java 스타일 변경 목록에 `"];` 같은 깨진 선언이 표시되는 문제를 수정했습니다.
 - schema root의 `type: object` 추가/삭제 줄이 불필요한 `Map<String, Object> ...` 변경으로 표시되는 노이즈를 줄였습니다.
+- OpenAPI schema 이름만 바뀐 경우 필드 삭제/추가처럼 중복 표시하지 않고 schema 참조 변경으로 요약하되, 실제 필드 타입/required 변경은 별도로 표시하도록 수정했습니다.
 
 ## 0.3.2 - 2026-05-06
 

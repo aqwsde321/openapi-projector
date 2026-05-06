@@ -619,6 +619,8 @@ function buildComparisonRows(details, context = {}) {
     }
   });
 
+  appendRenamedSchemaRows(rows, comparisonContext);
+
   return rows;
 }
 
@@ -633,6 +635,39 @@ function buildComparisonDisplayRows(rows, context = {}) {
       location: localizeComparisonCategory(row),
       declaration: formatJavaStyleDeclaration(kind, row, comparisonContext),
     };
+  });
+}
+
+function appendRenamedSchemaRows(rows, comparisonContext) {
+  const renamedDetails = buildRenamedSchemaComparisonDetails(comparisonContext);
+  const renamedConsumedIndexes = new Set();
+  const renamedComparisonContext = {
+    ...comparisonContext,
+    includeRenamedSchemaDetails: true,
+  };
+
+  appendSchemaRequiredRows(
+    rows,
+    renamedDetails,
+    renamedConsumedIndexes,
+    renamedComparisonContext,
+  );
+  appendSchemaPropertyObjectRows(
+    rows,
+    renamedDetails,
+    renamedConsumedIndexes,
+    renamedComparisonContext,
+  );
+
+  renamedDetails.forEach((detail, index) => {
+    if (renamedConsumedIndexes.has(index)) {
+      return;
+    }
+
+    const genericRow = toGenericComparisonRow(detail, renamedComparisonContext);
+    if (genericRow) {
+      rows.push(genericRow);
+    }
   });
 }
 
@@ -660,6 +695,12 @@ function localizeComparisonCategory(row) {
   const category = String(row?.category ?? '');
   const parameterLocation = inferParameterLocation(row);
 
+  if (category.includes('Request Body Schema')) {
+    return '요청 Body schema';
+  }
+  if (category.includes('Response Body Schema')) {
+    return '응답 Body schema';
+  }
   if (parameterLocation === 'query' || category === 'Query Parameter') {
     return '요청 Query 파라미터';
   }
@@ -729,6 +770,10 @@ function parseParameterTarget(target) {
 }
 
 function formatJavaStyleDeclaration(kind, row, comparisonContext) {
+  if (isSchemaRefComparisonRow(row)) {
+    return formatSchemaRefDeclaration(kind, row);
+  }
+
   const summary = parseComparisonValue(kind === 'removed' ? row.previous : row.next);
   const field = getComparisonFieldName(row, comparisonContext);
   const type = summary.type
@@ -738,6 +783,29 @@ function formatJavaStyleDeclaration(kind, row, comparisonContext) {
   const declaration = type ? `${type} ${field};${comment}` : `${field};${comment}`;
 
   return kind === 'removed' ? `~${declaration}~` : declaration;
+}
+
+function isSchemaRefComparisonRow(row) {
+  const target = stripMarkdownFormatting(row?.target);
+  return (
+    target.endsWith('$ref') &&
+    (
+      target.startsWith('operation.requestBody') ||
+      target.startsWith('operation.responses')
+    )
+  );
+}
+
+function formatSchemaRefDeclaration(kind, row) {
+  const previousRef = stripMarkdownFormatting(row.previous);
+  const nextRef = stripMarkdownFormatting(row.next);
+
+  if (kind === 'changed') {
+    return `${schemaRefName(previousRef)} → ${schemaRefName(nextRef)}`;
+  }
+
+  const schemaName = schemaRefName(kind === 'removed' ? previousRef : nextRef);
+  return kind === 'removed' ? `~${schemaName}~` : schemaName;
 }
 
 function getComparisonFieldName(row, comparisonContext = {}) {
@@ -967,14 +1035,281 @@ function stripMarkdownFormatting(value) {
 }
 
 function buildComparisonContext({ previousSnapshot, nextSnapshot } = {}) {
+  const schemaRenames = detectSchemaRenames(previousSnapshot, nextSnapshot);
+
   return {
     previousSnapshot,
     nextSnapshot,
+    schemaRenames,
+    renamedSchemaNames: new Set([
+      ...schemaRenames.keys(),
+      ...schemaRenames.values(),
+    ]),
     schemaUsageByName: mergeSchemaUsageMaps(
       buildSchemaUsageMap(previousSnapshot),
       buildSchemaUsageMap(nextSnapshot),
     ),
   };
+}
+
+function detectSchemaRenames(previousSnapshot, nextSnapshot) {
+  const previousSchemas = previousSnapshot?.referencedSchemas ?? {};
+  const nextSchemas = nextSnapshot?.referencedSchemas ?? {};
+  const schemaRenames = new Map();
+
+  mergeSchemaRenames(
+    schemaRenames,
+    detectOperationSchemaRefRenames(previousSnapshot?.operation, nextSnapshot?.operation),
+  );
+  mergeSchemaRenames(
+    schemaRenames,
+    detectEquivalentSchemaRenames(previousSchemas, nextSchemas),
+  );
+  expandSchemaRenamesFromSchemaRefChanges(schemaRenames, previousSchemas, nextSchemas);
+
+  return schemaRenames;
+}
+
+function mergeSchemaRenames(target, source) {
+  for (const [previousName, nextName] of source) {
+    addSchemaRename(target, previousName, nextName);
+  }
+}
+
+function addSchemaRename(schemaRenames, previousName, nextName) {
+  if (!previousName || !nextName || previousName === nextName) {
+    return false;
+  }
+
+  const existingNextName = schemaRenames.get(previousName);
+  if (existingNextName && existingNextName !== nextName) {
+    return false;
+  }
+
+  schemaRenames.set(previousName, nextName);
+  return !existingNextName;
+}
+
+function detectOperationSchemaRefRenames(previousOperation, nextOperation) {
+  const schemaRenames = new Map();
+  collectSchemaRefRenames(previousOperation, nextOperation, schemaRenames);
+  return schemaRenames;
+}
+
+function expandSchemaRenamesFromSchemaRefChanges(schemaRenames, previousSchemas, nextSchemas) {
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+
+    for (const schemaName of Object.keys(previousSchemas ?? {})) {
+      if (Object.hasOwn(nextSchemas ?? {}, schemaName)) {
+        changed = collectSchemaRefRenames(
+          previousSchemas[schemaName],
+          nextSchemas[schemaName],
+          schemaRenames,
+        ) || changed;
+      }
+    }
+
+    for (const [previousName, nextName] of schemaRenames) {
+      if (previousSchemas?.[previousName] && nextSchemas?.[nextName]) {
+        changed = collectSchemaRefRenames(
+          previousSchemas[previousName],
+          nextSchemas[nextName],
+          schemaRenames,
+        ) || changed;
+      }
+    }
+  }
+}
+
+function collectSchemaRefRenames(previousValue, nextValue, schemaRenames) {
+  let changed = false;
+
+  if (!previousValue || !nextValue) {
+    return false;
+  }
+
+  if (
+    isPlainObject(previousValue) &&
+    isPlainObject(nextValue) &&
+    typeof previousValue.$ref === 'string' &&
+    typeof nextValue.$ref === 'string' &&
+    previousValue.$ref !== nextValue.$ref
+  ) {
+    changed = addSchemaRename(
+      schemaRenames,
+      schemaRefName(previousValue.$ref),
+      schemaRefName(nextValue.$ref),
+    ) || changed;
+  }
+
+  if (Array.isArray(previousValue) && Array.isArray(nextValue)) {
+    const length = Math.min(previousValue.length, nextValue.length);
+    for (let index = 0; index < length; index += 1) {
+      changed = collectSchemaRefRenames(
+        previousValue[index],
+        nextValue[index],
+        schemaRenames,
+      ) || changed;
+    }
+    return changed;
+  }
+
+  if (isPlainObject(previousValue) && isPlainObject(nextValue)) {
+    const keys = new Set([...Object.keys(previousValue), ...Object.keys(nextValue)]);
+    for (const key of keys) {
+      changed = collectSchemaRefRenames(
+        previousValue[key],
+        nextValue[key],
+        schemaRenames,
+      ) || changed;
+    }
+  }
+
+  return changed;
+}
+
+function detectEquivalentSchemaRenames(previousSchemas = {}, nextSchemas = {}) {
+  const previousNames = Object.keys(previousSchemas ?? {})
+    .filter((name) => !Object.hasOwn(nextSchemas ?? {}, name));
+  const nextNames = Object.keys(nextSchemas ?? {})
+    .filter((name) => !Object.hasOwn(previousSchemas ?? {}, name));
+  const previousBySignature = groupSchemaNamesBySignature(previousNames, previousSchemas);
+  const nextBySignature = groupSchemaNamesBySignature(nextNames, nextSchemas);
+  const renames = new Map();
+
+  for (const [signature, removedNames] of previousBySignature) {
+    const addedNames = nextBySignature.get(signature) ?? [];
+
+    if (removedNames.length === 1 && addedNames.length === 1) {
+      renames.set(removedNames[0], addedNames[0]);
+      continue;
+    }
+
+    for (const removedName of removedNames) {
+      const displayNameMatches = addedNames.filter(
+        (addedName) => getSchemaDisplayName(addedName) === getSchemaDisplayName(removedName),
+      );
+
+      if (displayNameMatches.length === 1) {
+        renames.set(removedName, displayNameMatches[0]);
+      }
+    }
+  }
+
+  return renames;
+}
+
+function groupSchemaNamesBySignature(schemaNames, schemas) {
+  const grouped = new Map();
+
+  for (const schemaName of schemaNames) {
+    const signature = schemaStructuralSignature(schemaName, schemas);
+    const names = grouped.get(signature) ?? [];
+    names.push(schemaName);
+    grouped.set(signature, names);
+  }
+
+  return grouped;
+}
+
+function schemaStructuralSignature(schemaName, schemas = {}) {
+  return stableStringify(normalizeSchemaForSignature(schemas?.[schemaName], schemas, new Set()));
+}
+
+function normalizeSchemaForSignature(value, schemas = {}, seenRefs = new Set()) {
+  if (Array.isArray(value)) {
+    const values = value.map((item) => normalizeSchemaForSignature(item, schemas, seenRefs));
+    return values.every(isScalarValue)
+      ? [...values].sort((left, right) => String(left).localeCompare(String(right)))
+      : values;
+  }
+
+  if (!isPlainObject(value)) {
+    return value;
+  }
+
+  if (typeof value.$ref === 'string') {
+    const refName = schemaRefName(value.$ref);
+
+    if (schemas?.[refName] && !seenRefs.has(refName)) {
+      return normalizeSchemaForSignature(
+        schemas[refName],
+        schemas,
+        new Set([...seenRefs, refName]),
+      );
+    }
+
+    return { $ref: refName ? '__schema_ref__' : value.$ref };
+  }
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, child]) => [
+        key,
+        normalizeSchemaForSignature(child, schemas, seenRefs),
+      ]),
+  );
+}
+
+function buildRenamedSchemaComparisonDetails(comparisonContext) {
+  const previousSchemas = comparisonContext?.previousSnapshot?.referencedSchemas ?? {};
+  const nextSchemas = comparisonContext?.nextSnapshot?.referencedSchemas ?? {};
+  const details = [];
+
+  for (const [previousName, nextName] of comparisonContext?.schemaRenames ?? new Map()) {
+    const previousSchema = previousSchemas?.[previousName];
+    const nextSchema = nextSchemas?.[nextName];
+
+    if (!previousSchema || !nextSchema) {
+      continue;
+    }
+
+    details.push(
+      ...diffValues(
+        normalizeDiffValue(
+          normalizeRenamedSchemaRefs(previousSchema, comparisonContext?.schemaRenames),
+          ['referencedSchemas', nextName],
+        ),
+        normalizeDiffValue(nextSchema, ['referencedSchemas', nextName]),
+        ['referencedSchemas', nextName],
+      ),
+    );
+  }
+
+  return details;
+}
+
+function normalizeRenamedSchemaRefs(value, schemaRenames = new Map()) {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeRenamedSchemaRefs(item, schemaRenames));
+  }
+
+  if (!isPlainObject(value)) {
+    return value;
+  }
+
+  if (typeof value.$ref === 'string') {
+    const refName = schemaRefName(value.$ref);
+    const renamedRefName = schemaRenames.get(refName);
+
+    if (renamedRefName) {
+      return {
+        ...value,
+        $ref: value.$ref.replace(/[^/]+$/u, renamedRefName),
+      };
+    }
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([key, child]) => [
+      key,
+      normalizeRenamedSchemaRefs(child, schemaRenames),
+    ]),
+  );
 }
 
 function mergeSchemaUsageMaps(...usageMaps) {
@@ -1143,6 +1478,10 @@ function appendSchemaRequiredRows(rows, details, consumedIndexes, comparisonCont
     if (!parsed || !['added', 'changed', 'removed'].includes(detail.kind)) {
       return;
     }
+    if (shouldSuppressRenamedSchema(parsed.schemaName, comparisonContext)) {
+      consumedIndexes.add(index);
+      return;
+    }
 
     const previousValue = detail.kind === 'added' ? [] : detail.previous;
     const nextValue = detail.kind === 'removed' ? [] : detail.next;
@@ -1182,6 +1521,10 @@ function appendSchemaPropertyObjectRows(rows, details, consumedIndexes, comparis
     const parsed = parseSchemaPropertyDetailPath(detail.path);
 
     if (!parsed || (detail.kind !== 'added' && detail.kind !== 'removed')) {
+      return;
+    }
+    if (shouldSuppressRenamedSchema(parsed.schemaName, comparisonContext)) {
+      consumedIndexes.add(index);
       return;
     }
 
@@ -1403,6 +1746,9 @@ function toGenericComparisonRow(detail, comparisonContext) {
   if (isSchemaRootObjectTypeChange(detail)) {
     return null;
   }
+  if (shouldSuppressRenamedSchemaDetail(detail, comparisonContext)) {
+    return null;
+  }
 
   const schemaProperty = parseSchemaPropertyDetailPath(detail.path);
 
@@ -1433,9 +1779,29 @@ function isSchemaRootObjectTypeChange(detail) {
   );
 }
 
+function shouldSuppressRenamedSchemaDetail(detail, comparisonContext) {
+  const schemaName = parseReferencedSchemaName(detail.path);
+  return Boolean(schemaName && shouldSuppressRenamedSchema(schemaName, comparisonContext));
+}
+
+function shouldSuppressRenamedSchema(schemaName, comparisonContext = {}) {
+  return (
+    comparisonContext.includeRenamedSchemaDetails !== true &&
+    comparisonContext?.renamedSchemaNames?.has(schemaName) === true
+  );
+}
+
 function classifyChangeDetail(detailPath, comparisonContext) {
   if (detailPath.startsWith('operation.parameters')) {
     return 'Parameter';
+  }
+
+  if (detailPath.startsWith('operation.requestBody') && detailPath.endsWith('$ref')) {
+    return 'Request Body Schema';
+  }
+
+  if (detailPath.startsWith('operation.responses') && detailPath.endsWith('$ref')) {
+    return 'Response Body Schema';
   }
 
   if (detailPath.startsWith('operation.requestBody')) {
