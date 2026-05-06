@@ -963,17 +963,17 @@ test(
           next: 'required',
         },
       );
-      assert.deepEqual(comparisonDisplayRows.find((row) => row.declaration === 'Boolean active; // required'), {
+      assert.deepEqual(comparisonDisplayRows.find((row) => row.declaration === 'active: Boolean (required)'), {
         change: '🟢 추가',
         location: '요청 Query 파라미터',
-        declaration: 'Boolean active; // required',
+        declaration: 'active: Boolean (required)',
       });
       assert.deepEqual(
-        comparisonDisplayRows.find((row) => row.declaration === 'Integer value; // required → optional'),
+        comparisonDisplayRows.find((row) => row.declaration === 'value: Integer (required → optional)'),
         {
           change: '🟡 변경',
           location: '응답 Header 필드',
-          declaration: 'Integer value; // required → optional',
+          declaration: 'value: Integer (required → optional)',
         },
       );
       assert.match(historySource, /🧩 Contract Changed: 1/);
@@ -1001,6 +1001,27 @@ test(
         historySource,
         /\[API\]\(<\.\.\/\.\.\/\.\.\/project\/src\/openapi-generated\/Users\/get-users-by-id\.api\.ts>\)/,
       );
+      assert.match(historySource, /\| 변경 \| 위치 \| AS-IS \| TO-BE \|/);
+      assert.match(
+        historySource,
+        /## 🧩 Contract Changed\n\n- \[GET\] `\/users\/\{id\}` - Get user/,
+      );
+      assert.doesNotMatch(
+        historySource,
+        /## 🧩 Contract Changed\n\n### \[GET\] `\/users\/\{id\}` - Get user/,
+      );
+      assert.match(historySource, /\n  \| 변경 \| 위치 \| AS-IS \| TO-BE \|/);
+      assert.match(historySource, /\n  <details>\n  <summary>전체 AS-IS \/ TO-BE 보기<\/summary>/);
+      assert.match(
+        historySource,
+        /\| 🟢 추가 \| 요청 Query 파라미터 \| 없음 \| `active: Boolean \(required\)` \|/,
+      );
+      assert.match(
+        historySource,
+        /\| 🟡 변경 \| 응답 Header 필드 \| `value: String \(required\)` \| `value: Integer \(optional\)` \|/,
+      );
+      assert.match(historySource, /<details>/);
+      assert.match(historySource, /<summary>전체 AS-IS \/ TO-BE 보기<\/summary>/);
       assert.match(historySource, /\| AS-IS \| TO-BE \|/);
       assert.match(
         historySource,
@@ -1073,12 +1094,364 @@ test(
 
       assert.match(
         topLevelChangesSource,
-        /\| &nbsp; \| \*\*🟢 &nbsp;&nbsp;- abbb: Integer \(required\)\*\* \|/,
+        /\| 🟢 추가 \| 요청 Query 파라미터 \| 없음 \| `abbb: Integer \(required\)` \|/,
       );
+      assert.match(topLevelChangesSource, /<details>/);
       assert.doesNotMatch(topLevelChangesSource, /<br>/);
       assert.doesNotMatch(topLevelChangesSource, /operation\.parameters` \| `\[\]`/);
       assert.doesNotMatch(topLevelChangesSource, /Compatibility Check/);
       assert.equal(topLevelChangesJson.externalDiff, undefined);
+    });
+  },
+);
+
+test(
+  'catalog renders enum-only contract changes with distinct comparison cells',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Enum Change API',
+        version: '1.0.0',
+      },
+      paths: {
+        '/claims': {
+          get: {
+            summary: 'List claims',
+            parameters: [
+              {
+                name: 'condition',
+                in: 'query',
+                schema: {
+                  $ref: '#/components/schemas/ClaimSearchCondition',
+                },
+              },
+            ],
+            responses: {
+              200: {
+                description: 'OK',
+                content: {
+                  'application/json': {
+                    schema: {
+                      $ref: '#/components/schemas/ClaimResponse',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          ClaimSearchCondition: {
+            type: 'object',
+            properties: {
+              claimStatuses: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                  enum: ['WAITING'],
+                },
+              },
+              itemTypes: {
+                type: 'array',
+                enum: ['SINGLE', 'SET'],
+                items: {
+                  type: 'string',
+                  enum: ['SINGLE', 'SET'],
+                },
+              },
+              productTypes: {
+                type: 'array',
+                enum: ['MIXED', 'OPTION_SET', 'SINGLE'],
+                items: {
+                  type: 'string',
+                  enum: ['MIXED', 'OPTION_SET', 'SINGLE'],
+                },
+              },
+            },
+          },
+          ClaimResponse: {
+            type: 'object',
+            properties: {
+              claimStatus: {
+                type: 'string',
+                enum: ['WAITING', 'APPROVED'],
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const nextSpec = structuredClone(spec);
+      nextSpec.components.schemas.ClaimSearchCondition.properties.claimStatuses.items.enum = [
+        'WAITING',
+        'APPROVED',
+      ];
+      nextSpec.components.schemas.ClaimSearchCondition.properties.itemTypes.enum = [
+        'SINGLE',
+      ];
+      nextSpec.components.schemas.ClaimSearchCondition.properties.itemTypes.items.enum = [
+        'SINGLE',
+      ];
+      nextSpec.components.schemas.ClaimSearchCondition.properties.productTypes.items.enum = [
+        'MIXED',
+        'OPTION_SET',
+        'SET',
+        'SINGLE',
+      ];
+      nextSpec.components.schemas.ClaimSearchCondition.properties.newStatuses = {
+        type: 'array',
+        enum: ['WAITING'],
+        items: {
+          type: 'string',
+          enum: ['WAITING'],
+        },
+      };
+      nextSpec.components.schemas.ClaimResponse.properties.claimStatus.enum = [
+        'WAITING',
+      ];
+
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.json'),
+        nextSpec,
+      );
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const topLevelChangesSource = await fs.readFile(
+        path.join(workspace, 'openapi/changes.md'),
+        'utf8',
+      );
+      const topLevelChangesJson = await readJson(path.join(workspace, 'openapi/changes.json'));
+      const contractChange = topLevelChangesJson.contractChanged[0];
+
+      assert.match(
+        topLevelChangesSource,
+        /\| 🟢 추가 \| 요청 Query 파라미터 enum 값 \| 없음 \| `claimStatuses: APPROVED` \|/,
+      );
+      assert.match(
+        topLevelChangesSource,
+        /\| 🔴 삭제 \| 요청 Query 파라미터 enum 값 \| `itemTypes: SET` \| 없음 \|/,
+      );
+      assert.match(
+        topLevelChangesSource,
+        /\| 🟢 추가 \| 요청 Query 파라미터 enum 값 \| 없음 \| `productTypes: SET` \|/,
+      );
+      assert.match(
+        topLevelChangesSource,
+        /\| 🟢 추가 \| 요청 Query 파라미터 필드 \| 없음 \| `newStatuses: List<String> \(optional, enum: WAITING\)` \|/,
+      );
+      assert.match(
+        topLevelChangesSource,
+        /\| 🔴 삭제 \| 응답 Body enum 값 \| `claimStatus: APPROVED` \| 없음 \|/,
+      );
+      assert.doesNotMatch(
+        topLevelChangesSource,
+        /\| 🟡 변경 \| 응답 Body 필드 \| `claimStatus: String \(optional\)` \| `claimStatus: String \(optional\)` \|/,
+      );
+      assert.doesNotMatch(topLevelChangesSource, /enum: WAITING, APPROVED/);
+      assert.doesNotMatch(topLevelChangesSource, /itemTypes: \["SINGLE","SET"\]/);
+      assert.doesNotMatch(topLevelChangesSource, /productTypes: \["MIXED","OPTION_SET","SET","SINGLE"\]/);
+      assert.doesNotMatch(topLevelChangesSource, /newStatuses: String \(optional, enum: WAITING\)/);
+      const sortRows = (rows) => rows
+        .map((row) => JSON.stringify(row))
+        .sort()
+        .map((row) => JSON.parse(row));
+      assert.deepEqual(sortRows(contractChange.comparisonTableRows), sortRows([
+        {
+          change: '🟢 추가',
+          location: '요청 Query 파라미터 enum 값',
+          previous: '없음',
+          next: 'claimStatuses: APPROVED',
+        },
+        {
+          change: '🔴 삭제',
+          location: '요청 Query 파라미터 enum 값',
+          previous: 'itemTypes: SET',
+          next: '없음',
+        },
+        {
+          change: '🟢 추가',
+          location: '요청 Query 파라미터 enum 값',
+          previous: '없음',
+          next: 'productTypes: SET',
+        },
+        {
+          change: '🟢 추가',
+          location: '요청 Query 파라미터 필드',
+          previous: '없음',
+          next: 'newStatuses: List<String> (optional, enum: WAITING)',
+        },
+        {
+          change: '🔴 삭제',
+          location: '응답 Body enum 값',
+          previous: 'claimStatus: APPROVED',
+          next: '없음',
+        },
+      ]));
+    });
+  },
+);
+
+test(
+  'catalog suppresses required rows for removed nested schemas',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Removed Nested Schema API',
+        version: '1.0.0',
+      },
+      paths: {
+        '/products': {
+          post: {
+            summary: 'Create product',
+            requestBody: {
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/ProductRequest',
+                  },
+                },
+              },
+            },
+            responses: {
+              200: {
+                description: 'OK',
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          ProductRequest: {
+            type: 'object',
+            properties: {
+              setComponentList: {
+                type: 'array',
+                items: {
+                  $ref: '#/components/schemas/SetComponent',
+                },
+              },
+            },
+          },
+          SetComponent: {
+            type: 'object',
+            required: ['refProductId'],
+            properties: {
+              refProductId: {
+                type: 'integer',
+                format: 'int64',
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const nextSpec = structuredClone(spec);
+      delete nextSpec.components.schemas.ProductRequest.properties.setComponentList;
+      delete nextSpec.components.schemas.SetComponent;
+
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.json'),
+        nextSpec,
+      );
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const topLevelChangesSource = await fs.readFile(
+        path.join(workspace, 'openapi/changes.md'),
+        'utf8',
+      );
+
+      assert.match(
+        topLevelChangesSource,
+        /\| 🔴 삭제 \| 요청 Body 필드 \| `setComponentList: List<SetComponent> \(optional\)` \| 없음 \|/,
+      );
+      assert.doesNotMatch(topLevelChangesSource, /refProductId: Long \(required\).*refProductId: Long \(optional\)/);
+      assert.doesNotMatch(topLevelChangesSource, /refProductId\.required/);
+    });
+  },
+);
+
+test(
+  'catalog omits wildcard media type labels in the contract comparison preview',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Wildcard API',
+        version: '1.0.0',
+      },
+      paths: {
+        '/wild': {
+          get: {
+            summary: 'Wildcard response',
+            responses: {
+              200: {
+                description: 'OK',
+                content: {
+                  '*/*': {
+                    schema: {
+                      $ref: '#/components/schemas/WildResponse',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          WildResponse: {
+            type: 'object',
+            properties: {
+              value: {
+                type: 'string',
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const nextSpec = structuredClone(spec);
+      nextSpec.components.schemas.WildResponse.properties.value = {
+        type: 'integer',
+        format: 'int32',
+      };
+
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.json'),
+        nextSpec,
+      );
+
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const topLevelChangesSource = await fs.readFile(
+        path.join(workspace, 'openapi/changes.md'),
+        'utf8',
+      );
+
+      assert.match(topLevelChangesSource, /- 200: WildResponse/);
+      assert.doesNotMatch(topLevelChangesSource, /200 \*\/\*/);
+      assert.doesNotMatch(topLevelChangesSource, /200 \/:/);
     });
   },
 );
@@ -1539,6 +1912,115 @@ test(
       assert.doesNotMatch(topLevelChangesSource, /🔴 삭제 \| 요청 Body 필드/);
       assert.doesNotMatch(topLevelChangesSource, /🟢 추가 \| 요청 Body 필드/);
       assert.doesNotMatch(topLevelChangesSource, /Map<String, Object> CreateOrderClaimDto/);
+    });
+  },
+);
+
+test(
+  'catalog suppresses required noise when renamed request schema replaces required fields',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Claims API',
+        version: '1.0.0',
+      },
+      paths: {
+        '/bos/orders/claims/confirm': {
+          post: {
+            summary: '클레임 승인/반려 처리',
+            requestBody: {
+              required: true,
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/ConfirmClaimDto',
+                  },
+                },
+              },
+            },
+            responses: {
+              200: {
+                description: 'OK',
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          ConfirmClaimDto: {
+            type: 'object',
+            required: ['orderItemIdList', 'permission'],
+            properties: {
+              orderItemIdList: {
+                type: 'array',
+                items: {
+                  type: 'integer',
+                  format: 'int64',
+                },
+              },
+              permission: {
+                type: 'boolean',
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const nextSpec = structuredClone(spec);
+      nextSpec.paths['/bos/orders/claims/confirm'].post.requestBody.content['application/json'].schema = {
+        $ref: '#/components/schemas/BosConfirmClaimDto',
+      };
+      nextSpec.components.schemas = {
+        BosConfirmClaimDto: {
+          type: 'object',
+          required: ['orderItemId', 'permission'],
+          properties: {
+            orderItemId: {
+              type: 'integer',
+              format: 'int64',
+            },
+            permission: {
+              type: 'boolean',
+            },
+          },
+        },
+      };
+
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.json'),
+        nextSpec,
+      );
+
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const topLevelChangesSource = await fs.readFile(
+        path.join(workspace, 'openapi/changes.md'),
+        'utf8',
+      );
+      const topLevelChangesJson = await readJson(path.join(workspace, 'openapi/changes.json'));
+      const [contractChange] = topLevelChangesJson.contractChanged;
+
+      assert.match(
+        topLevelChangesSource,
+        /\| 🟢 추가 \| 요청 Body 필드 \| 없음 \| `orderItemId: Long \(required\)` \|/,
+      );
+      assert.match(
+        topLevelChangesSource,
+        /\| 🔴 삭제 \| 요청 Body 필드 \| `orderItemIdList: List<Long> \(required\)` \| 없음 \|/,
+      );
+      assert.doesNotMatch(topLevelChangesSource, /orderItemId: Long \(optional\).*orderItemId: Long \(required\)/);
+      assert.doesNotMatch(topLevelChangesSource, /orderItemIdList: List<Long> \(required\).*optional/);
+      assert.equal(
+        contractChange.comparisonTableRows.some((row) => row.next === 'optional'),
+        false,
+      );
     });
   },
 );

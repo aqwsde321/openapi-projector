@@ -319,8 +319,13 @@ function withEndpointPreviews(
       previousEntry,
       nextEntry,
     );
+    const comparisonContext = {
+      previousSnapshot: previousEntry?.contractSnapshot,
+      nextSnapshot: nextEntry?.contractSnapshot,
+    };
     return {
       ...withSwaggerLink(item),
+      comparisonTableRows: buildComparisonTableRows(item.comparisonRows ?? [], comparisonContext),
       ...(endpointPreview ? { endpointPreview } : {}),
     };
   };
@@ -495,7 +500,7 @@ function renderPreviewRequestLines(snapshot) {
     ?? null;
   const schema = mediaType ? content[mediaType]?.schema : null;
   lines.push(`- Body: ${schema ? formatPreviewSchemaLabel(schema) : 'unknown'}`);
-  if (mediaType) {
+  if (mediaType && mediaType !== '*/*') {
     lines.push(`- Content-Type: ${mediaType}`);
   }
   appendPreviewSchemaFields(lines, schema, referencedSchemas);
@@ -538,7 +543,7 @@ function renderPreviewResponseLines(snapshot) {
     ?? null;
   const schema = mediaType ? content[mediaType]?.schema : null;
   const statusLabel = status ?? 'default';
-  const mediaLabel = mediaType ? ` ${mediaType}` : '';
+  const mediaLabel = mediaType && mediaType !== '*/*' ? ` ${mediaType}` : '';
   lines.push(`- ${statusLabel}${mediaLabel}: ${schema ? formatPreviewSchemaLabel(schema) : 'body 없음'}`);
   appendPreviewSchemaFields(lines, schema, referencedSchemas);
   appendPreviewHeaders(lines, response.headers ?? {}, referencedSchemas);
@@ -746,6 +751,7 @@ function buildAlignedEndpointPreview(previousLines, nextLines) {
 
   return {
     rows,
+    hasVisibleChanges: rows.some((row) => /[🟢🟡🔴]/u.test(`${row.previous}${row.next}`)),
   };
 }
 
@@ -1026,6 +1032,7 @@ function toContractChangeItem(
     details.slice(0, MAX_CHANGE_DETAILS),
     comparisonContext,
   );
+  const comparisonTableRows = buildComparisonTableRows(comparisonRows, comparisonContext);
 
   return {
     ...baseItem,
@@ -1033,6 +1040,7 @@ function toContractChangeItem(
     detailsTruncated: details.length > MAX_CHANGE_DETAILS,
     details: details.slice(0, MAX_CHANGE_DETAILS),
     comparisonRows,
+    comparisonTableRows,
     comparisonDisplayRows: buildComparisonDisplayRows(comparisonRows, comparisonContext),
   };
 }
@@ -1049,7 +1057,6 @@ function toDocChangeItem(
     detailCount: details.length,
     detailsTruncated: false,
     details,
-    comparisonRows: buildComparisonRows(details),
   };
 }
 
@@ -1182,45 +1189,59 @@ function appendChangeItem(lines, item, options = {}) {
     ? ` ${formatExternalMarkdownLink('Swagger', item.swaggerUrl)}`
     : '';
   const title = `[${item.method.toUpperCase()}] \`${item.path}\`${item.summary ? ` - ${item.summary}` : ''}${swaggerLink}`;
-  lines.push(`- ${item.removed ? `~~${title}~~` : title}`);
-
   const projectFileLinks = formatProjectFileLinks(item, options);
+  const detailPrefix = '  - ';
+  const nestedIndent = '  ';
+
+  lines.push(`- ${item.removed ? `~~${title}~~` : title}`);
   if (projectFileLinks) {
-    lines.push(`  - 후보 파일: ${projectFileLinks}`);
+    lines.push(`${detailPrefix}후보 파일: ${projectFileLinks}`);
   }
 
   if (item.detailsUnavailable) {
     lines.push(
-      '  - 상세 변경 내용은 이전 catalog에 비교용 snapshot이 없어 표시할 수 없습니다. 이번 refresh 이후부터 기록됩니다.',
+      `${detailPrefix}상세 변경 내용은 이전 catalog에 비교용 snapshot이 없어 표시할 수 없습니다. 이번 refresh 이후부터 기록됩니다.`,
     );
     return;
   }
 
   for (const detail of item.details ?? []) {
     if ((item.comparisonRows ?? []).length === 0) {
-      lines.push(`  - ${formatChangeDetail(detail)}`);
+      lines.push(`${detailPrefix}${formatChangeDetail(detail)}`);
     }
   }
 
-  if ((item.comparisonRows ?? []).length > 0 && !item.endpointPreview) {
-    appendComparisonList(lines, item.comparisonRows, item.comparisonDisplayRows);
+  if ((item.comparisonRows ?? []).length > 0) {
+    appendComparisonTable(lines, item.comparisonRows, item.comparisonTableRows, nestedIndent);
   }
 
   if (item.detailsTruncated) {
-    lines.push(`  - ... ${item.detailCount - (item.details?.length ?? 0)}개 변경 항목 생략`);
+    lines.push(`${detailPrefix}... ${item.detailCount - (item.details?.length ?? 0)}개 변경 항목 생략`);
   }
 
-  if (item.endpointPreview) {
-    appendEndpointPreviewTable(lines, item.endpointPreview);
+  if (item.endpointPreview?.hasVisibleChanges) {
+    appendEndpointPreviewDetails(lines, item.endpointPreview, nestedIndent);
+  }
+
+  if ((item.comparisonRows ?? []).length > 0 || item.endpointPreview?.hasVisibleChanges) {
+    lines.push('');
   }
 }
 
-function appendEndpointPreviewTable(lines, endpointPreview) {
+function appendEndpointPreviewDetails(lines, endpointPreview, indent = '') {
   lines.push('');
-  lines.push('| AS-IS | TO-BE |');
-  lines.push('| --- | --- |');
+  lines.push(`${indent}<details>`);
+  lines.push(`${indent}<summary>전체 AS-IS / TO-BE 보기</summary>`);
+  appendEndpointPreviewTable(lines, endpointPreview, indent);
+  lines.push(`${indent}</details>`);
+}
+
+function appendEndpointPreviewTable(lines, endpointPreview, indent = '') {
+  lines.push('');
+  lines.push(`${indent}| AS-IS | TO-BE |`);
+  lines.push(`${indent}| --- | --- |`);
   for (const row of endpointPreview.rows ?? []) {
-    lines.push(`| ${row.previous} | ${row.next} |`);
+    lines.push(`${indent}| ${row.previous} | ${row.next} |`);
   }
 }
 
@@ -1277,6 +1298,21 @@ function formatExternalMarkdownLink(label, url) {
   return `[${label}](${formatMarkdownDestination(url)})`;
 }
 
+function appendComparisonTable(lines, rows, tableRows = null, indent = '') {
+  const renderedRows = Array.isArray(tableRows) && tableRows.length > 0
+    ? tableRows
+    : buildComparisonTableRows(rows);
+
+  lines.push('');
+  lines.push(`${indent}| 변경 | 위치 | AS-IS | TO-BE |`);
+  lines.push(`${indent}| --- | --- | --- | --- |`);
+  for (const row of renderedRows) {
+    lines.push(
+      `${indent}| ${formatDisplayCell(row.change)} | ${formatDisplayCell(row.location)} | ${formatComparisonTableCell(row.previous)} | ${formatComparisonTableCell(row.next)} |`,
+    );
+  }
+}
+
 function appendComparisonList(lines, rows, displayRows = null) {
   const renderedRows = Array.isArray(displayRows) && displayRows.length > 0
     ? displayRows
@@ -1289,6 +1325,11 @@ function appendComparisonList(lines, rows, displayRows = null) {
   }
 }
 
+function formatComparisonTableCell(value) {
+  const text = formatDisplayCell(value);
+  return text === '없음' ? text : formatInlineCode(text);
+}
+
 function toFallbackDisplayRow(row) {
   const kind = getComparisonRowKind(row);
 
@@ -1296,7 +1337,7 @@ function toFallbackDisplayRow(row) {
     change: formatComparisonKind(kind),
     location: row.category,
     declaration: kind === 'changed'
-      ? `${stripMarkdownFormatting(row.target)}; // ${stripMarkdownFormatting(row.previous)} → ${stripMarkdownFormatting(row.next)}`
+      ? `${stripMarkdownFormatting(row.target)} (${stripMarkdownFormatting(row.previous)} → ${stripMarkdownFormatting(row.next)})`
       : stripMarkdownFormatting(kind === 'removed' ? row.previous : row.next),
   };
 }
@@ -1350,9 +1391,325 @@ function buildComparisonDisplayRows(rows, context = {}) {
     return {
       change: formatComparisonKind(kind),
       location: localizeComparisonCategory(row),
-      declaration: formatJavaStyleDeclaration(kind, row, comparisonContext),
+      declaration: formatPreviewStyleComparisonDeclaration(kind, row, comparisonContext),
     };
   });
+}
+
+function buildComparisonTableRows(rows, context = {}) {
+  const comparisonContext = buildComparisonContext(context);
+
+  const tableRows = rows.flatMap((row) => {
+    const kind = getComparisonRowKind(row);
+    const enumRows = buildEnumComparisonTableRows(row, kind, comparisonContext);
+    if (enumRows.length > 0) {
+      return enumRows;
+    }
+
+    const previous = formatComparisonSideDeclaration(kind, row, comparisonContext, 'previous');
+    const next = formatComparisonSideDeclaration(kind, row, comparisonContext, 'next');
+
+    const renderedRow = {
+      change: formatComparisonKind(kind),
+      location: localizeComparisonCategory(row),
+      previous,
+      next,
+    };
+
+    return disambiguateIdenticalComparisonTableRow(renderedRow, row, kind, comparisonContext);
+  });
+
+  return dedupeComparisonTableRows(tableRows);
+}
+
+function dedupeComparisonTableRows(rows) {
+  const seen = new Set();
+
+  return rows.filter((row) => {
+    const key = [
+      row.change,
+      row.location,
+      row.previous,
+      row.next,
+    ].join('\u0000');
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
+}
+
+function buildEnumComparisonTableRows(row, kind, comparisonContext) {
+  if (kind !== 'changed' || !isEnumComparisonRow(row)) {
+    return [];
+  }
+
+  const previousValues = getComparisonEnumValues(row, comparisonContext, 'previous');
+  const nextValues = getComparisonEnumValues(row, comparisonContext, 'next');
+  if (!previousValues || !nextValues) {
+    return [];
+  }
+
+  const previousSet = new Set(previousValues);
+  const nextSet = new Set(nextValues);
+  const removedValues = previousValues.filter((value) => !nextSet.has(value));
+  const addedValues = nextValues.filter((value) => !previousSet.has(value));
+  const field = getComparisonFieldName(row, comparisonContext);
+  const location = localizeEnumComparisonCategory(row);
+
+  return [
+    ...removedValues.map((value) => ({
+      change: formatComparisonKind('removed'),
+      location,
+      previous: `${field}: ${value}`,
+      next: '없음',
+    })),
+    ...addedValues.map((value) => ({
+      change: formatComparisonKind('added'),
+      location,
+      previous: '없음',
+      next: `${field}: ${value}`,
+    })),
+  ];
+}
+
+function isEnumComparisonRow(row) {
+  return stripMarkdownFormatting(row?.target).endsWith('.enum');
+}
+
+function getComparisonEnumValues(row, comparisonContext, side) {
+  const target = stripMarkdownFormatting(row?.target);
+  const snapshot = side === 'previous'
+    ? comparisonContext?.previousSnapshot
+    : comparisonContext?.nextSnapshot;
+  const fallbackValues = parseComparisonEnumValues(
+    side === 'previous' ? row?.previous : row?.next,
+  );
+
+  if (!snapshot) {
+    return fallbackValues;
+  }
+
+  const parameterLocation = inferParameterLocation(row);
+  const field = getComparisonFieldName(row, comparisonContext);
+  if (parameterLocation) {
+    const parameter = (snapshot?.operation?.parameters ?? []).find((candidate) =>
+      candidate?.in === parameterLocation && candidate?.name === field
+    );
+    const parameterEnums = getSchemaEnumValuesForTarget(parameter?.schema, target);
+    if (parameterEnums) {
+      return parameterEnums.map(String);
+    }
+  }
+
+  const schemaTarget = resolveComparisonSchemaTarget(row, comparisonContext, side);
+  if (!schemaTarget?.schemaName || !schemaTarget?.propertyName) {
+    return null;
+  }
+
+  const schema = snapshot?.referencedSchemas?.[schemaTarget.schemaName];
+  const propertySchema = schema?.properties?.[schemaTarget.propertyName];
+  const enumValues = getSchemaEnumValuesForTarget(propertySchema, target);
+
+  return enumValues ? enumValues.map(String) : fallbackValues;
+}
+
+function parseComparisonEnumValues(value) {
+  const raw = stripMarkdownFormatting(value);
+  if (!raw || raw === '없음') {
+    return null;
+  }
+
+  if (raw.startsWith('[') && raw.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.map(String) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  const enumMatch = raw.match(/^enum\((.*)\)$/u);
+  if (!enumMatch) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(`[${enumMatch[1]}]`);
+    return Array.isArray(parsed) ? parsed.map(String) : null;
+  } catch {
+    return enumMatch[1]
+      .split(',')
+      .map((item) => item.trim().replace(/^["']|["']$/g, ''))
+      .filter(Boolean);
+  }
+}
+
+function localizeEnumComparisonCategory(row) {
+  const location = localizeComparisonCategory(row);
+  if (location.endsWith('파라미터 필드')) {
+    return location.replace(/ 필드$/u, ' enum 값');
+  }
+  if (location.endsWith('필드')) {
+    return location.replace(/ 필드$/u, ' enum 값');
+  }
+
+  return `${location} enum 값`;
+}
+
+function disambiguateIdenticalComparisonTableRow(renderedRow, row, kind, comparisonContext) {
+  if (kind !== 'changed' || renderedRow.previous !== renderedRow.next) {
+    return renderedRow;
+  }
+
+  const previousRaw = stripMarkdownFormatting(row.previous);
+  const nextRaw = stripMarkdownFormatting(row.next);
+  if (!previousRaw || !nextRaw || previousRaw === nextRaw) {
+    return renderedRow;
+  }
+
+  const field = getComparisonFieldName(row, comparisonContext);
+  return {
+    ...renderedRow,
+    previous: `${field}: ${previousRaw}`,
+    next: `${field}: ${nextRaw}`,
+  };
+}
+
+function formatComparisonSideDeclaration(kind, row, comparisonContext, side) {
+  if ((side === 'previous' && kind === 'added') || (side === 'next' && kind === 'removed')) {
+    return '없음';
+  }
+
+  if (isSchemaRefComparisonRow(row)) {
+    const value = stripMarkdownFormatting(side === 'previous' ? row.previous : row.next);
+    return schemaRefName(value);
+  }
+
+  const snapshotDeclaration = formatSnapshotComparisonDeclaration(row, comparisonContext, side);
+  if (snapshotDeclaration) {
+    return snapshotDeclaration;
+  }
+
+  const summary = parseComparisonValue(side === 'previous' ? row.previous : row.next);
+  const field = getComparisonFieldName(row, comparisonContext);
+  const type = summary.type
+    ? javaTypeFromComparisonValue(summary)
+    : inferJavaTypeFromComparisonContext(row, comparisonContext);
+  const flags = [];
+
+  if (summary.required === true) {
+    flags.push('required');
+  } else if (summary.required === false) {
+    flags.push('optional');
+  }
+  if (summary.nullable) {
+    flags.push('nullable');
+  }
+
+  if (type) {
+    return `${field}: ${type}${flags.length > 0 ? ` (${flags.join(', ')})` : ''}`;
+  }
+
+  return stripMarkdownFormatting(side === 'previous' ? row.previous : row.next);
+}
+
+function formatSnapshotComparisonDeclaration(row, comparisonContext, side) {
+  const snapshot = side === 'previous'
+    ? comparisonContext?.previousSnapshot
+    : comparisonContext?.nextSnapshot;
+
+  if (!snapshot) {
+    return null;
+  }
+
+  const parameterLocation = inferParameterLocation(row);
+  const field = getComparisonFieldName(row, comparisonContext);
+  if (parameterLocation) {
+    const parameter = (snapshot?.operation?.parameters ?? []).find((candidate) =>
+      candidate?.in === parameterLocation && candidate?.name === field
+    );
+    if (parameter?.schema) {
+      return formatPreviewStyleSchemaDeclaration(
+        field,
+        parameter.schema,
+        Boolean(parameter.required),
+      );
+    }
+  }
+
+  const schemaTarget = resolveComparisonSchemaTarget(row, comparisonContext, side);
+  if (schemaTarget?.schemaName && schemaTarget?.propertyName) {
+    const schema = snapshot?.referencedSchemas?.[schemaTarget.schemaName];
+    const propertySchema = schema?.properties?.[schemaTarget.propertyName];
+    if (propertySchema) {
+      return formatPreviewStyleSchemaDeclaration(
+        schemaTarget.propertyName,
+        propertySchema,
+        new Set(schema?.required ?? []).has(schemaTarget.propertyName),
+      );
+    }
+  }
+
+  return null;
+}
+
+function resolveComparisonSchemaTarget(row, comparisonContext, side) {
+  const target = stripMarkdownFormatting(row?.target);
+  const parsedTarget =
+    parseReferencedSchemaTarget(target) ?? matchKnownSchemaTarget(target, comparisonContext);
+
+  if (!parsedTarget?.schemaName) {
+    return parsedTarget;
+  }
+
+  const snapshot = side === 'previous'
+    ? comparisonContext?.previousSnapshot
+    : comparisonContext?.nextSnapshot;
+  if (snapshot?.referencedSchemas?.[parsedTarget.schemaName]) {
+    return parsedTarget;
+  }
+
+  if (side === 'next') {
+    const nextSchemaName = comparisonContext?.schemaRenames?.get(parsedTarget.schemaName);
+    if (nextSchemaName && snapshot?.referencedSchemas?.[nextSchemaName]) {
+      return {
+        ...parsedTarget,
+        schemaName: nextSchemaName,
+      };
+    }
+  }
+
+  if (side === 'previous') {
+    for (const [previousName, nextName] of comparisonContext?.schemaRenames ?? new Map()) {
+      if (nextName === parsedTarget.schemaName && snapshot?.referencedSchemas?.[previousName]) {
+        return {
+          ...parsedTarget,
+          schemaName: previousName,
+        };
+      }
+    }
+  }
+
+  return parsedTarget;
+}
+
+function formatPreviewStyleSchemaDeclaration(name, schema, required) {
+  const type = javaTypeFromSchema(schema) ?? 'Object';
+  const flags = [required ? 'required' : 'optional'];
+  const enumValues = getSchemaEnumValues(schema);
+
+  if (isNullablePreviewSchema(schema)) {
+    flags.push('nullable');
+  }
+  if (enumValues.length > 0) {
+    flags.push(`enum: ${formatEnumValues(enumValues)}`);
+  }
+
+  return `${name}: ${type} (${flags.join(', ')})`;
 }
 
 function appendRenamedSchemaRows(rows, comparisonContext) {
@@ -1421,14 +1778,26 @@ function localizeComparisonCategory(row) {
   if (parameterLocation === 'query' || category === 'Query Parameter') {
     return '요청 Query 파라미터';
   }
+  if (category.includes('Query Parameter')) {
+    return '요청 Query 파라미터 필드';
+  }
   if (parameterLocation === 'path' || category === 'Path Parameter') {
     return '요청 Path 파라미터';
+  }
+  if (category.includes('Path Parameter')) {
+    return '요청 Path 파라미터 필드';
   }
   if (parameterLocation === 'header' || category === 'Header Parameter') {
     return '요청 Header 파라미터';
   }
+  if (category.includes('Header Parameter')) {
+    return '요청 Header 파라미터 필드';
+  }
   if (parameterLocation === 'cookie' || category === 'Cookie Parameter') {
     return '요청 Cookie 파라미터';
+  }
+  if (category.includes('Cookie Parameter')) {
+    return '요청 Cookie 파라미터 필드';
   }
   if (category.includes('Request/Response Body')) {
     return '요청/응답 Body 필드';
@@ -1486,7 +1855,7 @@ function parseParameterTarget(target) {
   return match ? match[1] : null;
 }
 
-function formatJavaStyleDeclaration(kind, row, comparisonContext) {
+function formatPreviewStyleComparisonDeclaration(kind, row, comparisonContext) {
   if (isSchemaRefComparisonRow(row)) {
     return formatSchemaRefDeclaration(kind, row);
   }
@@ -1497,7 +1866,7 @@ function formatJavaStyleDeclaration(kind, row, comparisonContext) {
     ? javaTypeFromComparisonValue(summary)
     : inferJavaTypeFromComparisonContext(row, comparisonContext);
   const comment = formatDeclarationComment(kind, row, summary);
-  const declaration = type ? `${type} ${field};${comment}` : `${field};${comment}`;
+  const declaration = type ? `${field}: ${type}${comment}` : `${field}${comment}`;
 
   return kind === 'removed' ? `~${declaration}~` : declaration;
 }
@@ -1550,7 +1919,7 @@ function getComparisonFieldName(row, comparisonContext = {}) {
 
   const normalizedTarget = target
     .replace(/^schema\./, '')
-    .replace(/\.(required|type|format|nullable|enum|items)$/u, '');
+    .replace(/(\.(required|type|format|nullable|enum|items))+$/u, '');
   const parts = normalizedTarget.split('.');
   return parts.at(-1) || 'value';
 }
@@ -1685,12 +2054,12 @@ function javaTypeFromSchema(schema) {
     return schemaRefName(schema.$ref);
   }
 
-  if (Array.isArray(schema.enum)) {
-    return 'String';
-  }
-
   if (schema.type === 'array') {
     return `List<${javaTypeFromSchema(schema.items) ?? 'Object'}>`;
+  }
+
+  if (Array.isArray(schema.enum)) {
+    return 'String';
   }
 
   const schemaTypes = Array.isArray(schema.type)
@@ -1699,6 +2068,43 @@ function javaTypeFromSchema(schema) {
   const type = schemaTypes[0];
 
   return javaTypeFromOpenApiType(type, schema.format);
+}
+
+function getSchemaEnumValues(schema) {
+  if (!schema || typeof schema !== 'object') {
+    return [];
+  }
+
+  if (Array.isArray(schema.enum)) {
+    return schema.enum;
+  }
+
+  if (schema.type === 'array' && Array.isArray(schema.items?.enum)) {
+    return schema.items.enum;
+  }
+
+  return [];
+}
+
+function getSchemaEnumValuesForTarget(schema, target) {
+  if (!schema || typeof schema !== 'object') {
+    return null;
+  }
+
+  const normalizedTarget = stripMarkdownFormatting(target);
+  if (
+    normalizedTarget.endsWith('.items.enum') ||
+    normalizedTarget.endsWith('.items')
+  ) {
+    return Array.isArray(schema.items?.enum) ? schema.items.enum : [];
+  }
+
+  const values = getSchemaEnumValues(schema);
+  return values.length > 0 ? values : null;
+}
+
+function formatEnumValues(values) {
+  return values.map((value) => String(value)).join(', ');
 }
 
 function formatDeclarationComment(kind, row, summary) {
@@ -1711,7 +2117,7 @@ function formatDeclarationComment(kind, row, summary) {
       previousSummary.type === nextSummary.type &&
       previousSummary.nullable !== nextSummary.nullable
     ) {
-      return nextSummary.nullable ? ' // nullable 추가' : ' // nullable 제거';
+      return nextSummary.nullable ? ' (nullable 추가)' : ' (nullable 제거)';
     }
 
     if (
@@ -1723,11 +2129,11 @@ function formatDeclarationComment(kind, row, summary) {
     ) {
       const previousRequired = previousSummary.required ? 'required' : 'optional';
       const nextRequired = nextSummary.required ? 'required' : 'optional';
-      return ` // ${previousRequired} → ${nextRequired}`;
+      return ` (${previousRequired} → ${nextRequired})`;
     }
 
     return previousSummary.raw && nextSummary.raw
-      ? ` // ${previousSummary.raw} → ${nextSummary.raw}`
+      ? ` (${previousSummary.raw} → ${nextSummary.raw})`
       : '';
   }
 
@@ -1741,7 +2147,7 @@ function formatDeclarationComment(kind, row, summary) {
     flags.push('nullable');
   }
 
-  return flags.length > 0 ? ` // ${flags.join(', ')}` : '';
+  return flags.length > 0 ? ` (${flags.join(', ')})` : '';
 }
 
 function stripMarkdownFormatting(value) {
@@ -2189,10 +2595,17 @@ function appendParameterObjectRows(rows, details, consumedIndexes) {
 }
 
 function appendSchemaRequiredRows(rows, details, consumedIndexes, comparisonContext) {
+  const rootObjectSchemaChanges = getSchemaRootObjectChangeNames(details);
+  const changedPropertyNames = getAddedOrRemovedSchemaPropertyNames(details);
+
   details.forEach((detail, index) => {
     const parsed = parseSchemaRequiredDetailPath(detail.path);
 
     if (!parsed || !['added', 'changed', 'removed'].includes(detail.kind)) {
+      return;
+    }
+    if (rootObjectSchemaChanges.has(parsed.schemaName)) {
+      consumedIndexes.add(index);
       return;
     }
     if (shouldSuppressRenamedSchema(parsed.schemaName, comparisonContext)) {
@@ -2212,6 +2625,10 @@ function appendSchemaRequiredRows(rows, details, consumedIndexes, comparisonCont
     const fieldNames = new Set([...previousRequired, ...nextRequired]);
 
     for (const fieldName of [...fieldNames].sort((left, right) => left.localeCompare(right))) {
+      if (changedPropertyNames.has(`${parsed.schemaName}.${fieldName}`)) {
+        continue;
+      }
+
       const wasRequired = previousRequired.has(fieldName);
       const isRequired = nextRequired.has(fieldName);
 
@@ -2229,6 +2646,38 @@ function appendSchemaRequiredRows(rows, details, consumedIndexes, comparisonCont
 
     consumedIndexes.add(index);
   });
+}
+
+function getAddedOrRemovedSchemaPropertyNames(details) {
+  const groups = new Map();
+
+  details.forEach((detail) => {
+    const parsed = parseSchemaPropertyDetailPath(detail.path);
+
+    if (!parsed || (detail.kind !== 'added' && detail.kind !== 'removed')) {
+      return;
+    }
+
+    const key = `${parsed.schemaName}.${parsed.propertyName}`;
+    const values = groups.get(key) ?? new Map();
+    values.set(parsed.fieldPath, detail.kind === 'added' ? detail.next : detail.previous);
+    groups.set(key, values);
+  });
+
+  return new Set(
+    [...groups.entries()]
+      .filter(([, values]) => hasSchemaPropertyTypeEvidence(values))
+      .map(([key]) => key),
+  );
+}
+
+function getSchemaRootObjectChangeNames(details) {
+  return new Set(
+    details
+      .filter(isSchemaRootObjectTypeChange)
+      .map((detail) => parseReferencedSchemaName(detail.path))
+      .filter(Boolean),
+  );
 }
 
 function appendSchemaPropertyObjectRows(rows, details, consumedIndexes, comparisonContext) {
@@ -2619,7 +3068,7 @@ function matchKnownSchemaTarget(target, comparisonContext = {}) {
   const normalizedTarget = stripMarkdownFormatting(target)
     .replace(/^schema\./, '')
     .replace(/^referencedSchemas\./, '')
-    .replace(/\.(required|type|format|nullable|enum|items)$/u, '');
+    .replace(/(\.(required|type|format|nullable|enum|items))+$/u, '');
   const schemaNames = getKnownSchemaNames(comparisonContext)
     .sort((left, right) => right.length - left.length);
 
@@ -2765,6 +3214,11 @@ function toTitleCase(value) {
 }
 
 function formatChangeDetail(detail) {
+  const documentationDetail = formatDocumentationChangeDetail(detail);
+  if (documentationDetail) {
+    return documentationDetail;
+  }
+
   const pathLabel = `\`${detail.path}\``;
 
   if (detail.kind === 'added') {
@@ -2776,6 +3230,31 @@ function formatChangeDetail(detail) {
   }
 
   return `${pathLabel}: ${formatDetailValue(detail.previous)} -> ${formatDetailValue(detail.next)}`;
+}
+
+function formatDocumentationChangeDetail(detail) {
+  const label = {
+    summary: '요약',
+    description: '설명',
+    operationId: 'operationId',
+    tags: '태그',
+    documentation: '문서',
+  }[detail.path];
+
+  if (!label) {
+    return null;
+  }
+
+  return `🟡 ${label} 변경: ${formatDocumentationValue(detail.previous)} → ${formatDocumentationValue(detail.next)}`;
+}
+
+function formatDocumentationValue(value) {
+  if (value === null || value === undefined || value === '') {
+    return '없음';
+  }
+
+  const compact = String(value).replace(/\s+/g, ' ').trim();
+  return compact.length > 160 ? `${compact.slice(0, 157)}...` : compact;
 }
 
 function formatDetailValue(value) {
