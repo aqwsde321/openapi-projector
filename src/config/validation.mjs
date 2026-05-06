@@ -202,6 +202,7 @@ function validateProjectConfig(projectConfig) {
   if (projectConfig.sourceUrl != null && typeof projectConfig.sourceUrl !== 'string') {
     addIssue(issues, 'sourceUrl', 'must be a string');
   }
+  validateOptionalString(issues, 'swaggerUiUrl', projectConfig.swaggerUiUrl);
 
   for (const field of PROJECT_CONFIG_PATH_FIELDS) {
     validateOptionalRelativePath(issues, field, projectConfig[field]);

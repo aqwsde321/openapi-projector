@@ -3,6 +3,9 @@ import path from 'node:path';
 
 import {
   buildEndpointCatalog,
+  choosePreferredRequestMediaType,
+  choosePreferredResponseMediaType,
+  findPrimaryResponse,
   loadProjectRules,
   loadProjectConfig,
   readJson,
@@ -29,7 +32,7 @@ const catalogCommand = {
   async run(options = {}) {
     const context = Array.isArray(options) ? {} : (options.context ?? {});
     const rootDir = context.targetRoot ?? process.cwd();
-    const { projectConfig } = await loadProjectConfig(rootDir);
+    const { projectConfig, projectConfigOverrides } = await loadProjectConfig(rootDir);
 
     const sourcePath = path.resolve(rootDir, projectConfig.sourcePath);
     const catalogJsonPath = path.resolve(rootDir, projectConfig.catalogJsonPath);
@@ -57,6 +60,13 @@ const catalogCommand = {
       previousCatalog?.version ?? null,
       projectCandidateFilesByOperation,
     );
+    const markdownChangeSummary = withEndpointPreviews(
+      changeSummary,
+      previousCatalog?.endpoints ?? [],
+      catalogEntries,
+      projectConfig,
+      projectConfigOverrides,
+    );
     await writeJson(catalogJsonPath, {
       version: CATALOG_FORMAT_VERSION,
       endpoints: catalogEntries,
@@ -65,7 +75,7 @@ const catalogCommand = {
     await writeJson(changesIndexJsonPath, changeSummary);
     await writeText(
       changesIndexMarkdownPath,
-      renderChangeMarkdown(changeSummary, {
+      renderChangeMarkdown(markdownChangeSummary, {
         rootDir,
         markdownDir: openapiRoot,
         locationLinks: {
@@ -81,7 +91,7 @@ const catalogCommand = {
       await writeJson(path.join(historyDir, `${historyFileName}.json`), changeSummary);
       await writeText(
         historyMarkdownPath,
-        renderChangeMarkdown(changeSummary, {
+        renderChangeMarkdown(markdownChangeSummary, {
           rootDir,
           markdownDir: historyDir,
         }),
@@ -278,6 +288,686 @@ function buildChangeSummary(
     contractChanged,
     docChanged,
   };
+}
+
+function withEndpointPreviews(
+  changeSummary,
+  previousEntries,
+  nextEntries,
+  projectConfig = {},
+  projectConfigOverrides = projectConfig,
+) {
+  if (changeSummary.baseline) {
+    return changeSummary;
+  }
+
+  const previousMap = new Map(previousEntries.map((entry) => [entry.id, entry]));
+  const nextMap = new Map(nextEntries.map((entry) => [entry.id, entry]));
+  const swaggerUiBaseUrl = resolveSwaggerUiBaseUrl(projectConfig, projectConfigOverrides);
+  const withSwaggerLink = (item) => {
+    const entry = nextMap.get(item.id) ?? previousMap.get(item.id);
+    const swaggerUrl = buildSwaggerOperationUrl(entry, swaggerUiBaseUrl);
+    return {
+      ...item,
+      ...(swaggerUrl ? { swaggerUrl } : {}),
+    };
+  };
+  const withContractPreview = (item) => {
+    const previousEntry = previousMap.get(item.id);
+    const nextEntry = nextMap.get(item.id);
+    const endpointPreview = buildEndpointPreview(
+      previousEntry,
+      nextEntry,
+    );
+    return {
+      ...withSwaggerLink(item),
+      ...(endpointPreview ? { endpointPreview } : {}),
+    };
+  };
+
+  return {
+    ...changeSummary,
+    added: changeSummary.added.map(withSwaggerLink),
+    removed: changeSummary.removed.map((item) => ({ ...item, removed: true })),
+    contractChanged: changeSummary.contractChanged.map(withContractPreview),
+    docChanged: changeSummary.docChanged.map(withSwaggerLink),
+  };
+}
+
+function resolveSwaggerUiBaseUrl(projectConfig = {}, projectConfigOverrides = projectConfig) {
+  const configuredSwaggerUiUrl = normalizeSwaggerUiBaseUrl(
+    projectConfigOverrides.swaggerUiUrl ?? projectConfig.swaggerUiUrl,
+  );
+  if (configuredSwaggerUiUrl) {
+    return configuredSwaggerUiUrl;
+  }
+
+  return Object.hasOwn(projectConfigOverrides, 'sourceUrl')
+    ? inferSwaggerUiBaseUrl(projectConfig.sourceUrl)
+    : null;
+}
+
+function normalizeSwaggerUiBaseUrl(rawUrl) {
+  if (typeof rawUrl !== 'string' || !rawUrl.trim()) {
+    return null;
+  }
+
+  try {
+    const url = new URL(rawUrl);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      return null;
+    }
+    url.hash = '';
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function inferSwaggerUiBaseUrl(sourceUrl) {
+  if (typeof sourceUrl !== 'string' || !sourceUrl.trim()) {
+    return null;
+  }
+
+  let url;
+  try {
+    url = new URL(sourceUrl);
+  } catch {
+    return null;
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return null;
+  }
+
+  if (url.pathname.includes('/swagger-ui/')) {
+    url.hash = '';
+    return url.toString();
+  }
+
+  if (url.pathname.endsWith('/swagger-ui.html')) {
+    url.pathname = url.pathname.replace(/\/swagger-ui\.html$/u, '/swagger-ui/index.html');
+    url.hash = '';
+    return url.toString();
+  }
+
+  const inferredPath = [
+    /\/v3\/api-docs(?:\/.*)?$/u,
+    /\/api-docs(?:\/.*)?$/u,
+    /\/openapi(?:\.json)?$/u,
+    /\/swagger(?:\.json)?$/u,
+  ].reduce(
+    (currentPath, pattern) =>
+      currentPath === url.pathname ? currentPath.replace(pattern, '/swagger-ui/index.html') : currentPath,
+    url.pathname,
+  );
+
+  if (inferredPath === url.pathname) {
+    return null;
+  }
+
+  url.pathname = inferredPath;
+  url.search = '';
+  url.hash = '';
+  return url.toString();
+}
+
+function buildSwaggerOperationUrl(entry, swaggerUiBaseUrl) {
+  if (!entry?.operationId || !swaggerUiBaseUrl) {
+    return null;
+  }
+
+  const tag = Array.isArray(entry.tags) && entry.tags.length > 0
+    ? entry.tags[0]
+    : null;
+  if (!tag) {
+    return null;
+  }
+
+  const url = new URL(swaggerUiBaseUrl);
+  url.hash = `/${encodeURIComponent(tag)}/${encodeURIComponent(entry.operationId)}`;
+  return url.toString();
+}
+
+function buildEndpointPreview(previousEntry, nextEntry) {
+  if (!previousEntry?.contractSnapshot && !nextEntry?.contractSnapshot) {
+    return null;
+  }
+
+  return buildAlignedEndpointPreview(
+    renderEndpointPreviewLines(previousEntry),
+    renderEndpointPreviewLines(nextEntry),
+  );
+}
+
+function renderEndpointPreviewLines(entry) {
+  if (!entry?.contractSnapshot) {
+    return ['없음'];
+  }
+
+  return [
+    ...renderPreviewRequestLines(entry.contractSnapshot),
+    '',
+    ...renderPreviewResponseLines(entry.contractSnapshot),
+  ];
+}
+
+function renderPreviewRequestLines(snapshot) {
+  const operation = snapshot?.operation ?? {};
+  const referencedSchemas = snapshot?.referencedSchemas ?? {};
+  const lines = ['요청'];
+  const parameters = Array.isArray(operation.parameters) ? operation.parameters : [];
+
+  appendPreviewParameterGroup(
+    lines,
+    'Path Parameters',
+    parameters.filter((parameter) => parameter?.in === 'path'),
+    referencedSchemas,
+  );
+  appendPreviewParameterGroup(
+    lines,
+    'Query Parameters',
+    parameters.filter((parameter) => parameter?.in === 'query'),
+    referencedSchemas,
+  );
+  appendPreviewParameterGroup(
+    lines,
+    'Header Parameters',
+    parameters.filter((parameter) => parameter?.in === 'header'),
+    referencedSchemas,
+  );
+  appendPreviewParameterGroup(
+    lines,
+    'Cookie Parameters',
+    parameters.filter((parameter) => parameter?.in === 'cookie'),
+    referencedSchemas,
+  );
+
+  const requestBody = operation.requestBody;
+  if (!requestBody) {
+    lines.push('- Body: 없음');
+    return lines;
+  }
+
+  const content = requestBody.content ?? {};
+  const mediaType = choosePreferredRequestMediaType(Object.keys(content))
+    ?? Object.keys(content)[0]
+    ?? null;
+  const schema = mediaType ? content[mediaType]?.schema : null;
+  lines.push(`- Body: ${schema ? formatPreviewSchemaLabel(schema) : 'unknown'}`);
+  if (mediaType) {
+    lines.push(`- Content-Type: ${mediaType}`);
+  }
+  appendPreviewSchemaFields(lines, schema, referencedSchemas);
+
+  return lines;
+}
+
+function appendPreviewParameterGroup(lines, label, parameters, referencedSchemas) {
+  if (parameters.length === 0) {
+    return;
+  }
+
+  lines.push(`- ${label}`);
+  for (const parameter of parameters) {
+    lines.push(
+      `  - ${formatPreviewFieldDeclaration(
+        parameter.name,
+        parameter.schema,
+        Boolean(parameter.required),
+        referencedSchemas,
+      )}`,
+    );
+  }
+}
+
+function renderPreviewResponseLines(snapshot) {
+  const operation = snapshot?.operation ?? {};
+  const referencedSchemas = snapshot?.referencedSchemas ?? {};
+  const lines = ['응답'];
+  const [status, response] = findPrimaryResponse(operation.responses ?? {});
+
+  if (!response) {
+    lines.push('- 없음');
+    return lines;
+  }
+
+  const content = response.content ?? {};
+  const mediaType = choosePreferredResponseMediaType(Object.keys(content))
+    ?? Object.keys(content)[0]
+    ?? null;
+  const schema = mediaType ? content[mediaType]?.schema : null;
+  const statusLabel = status ?? 'default';
+  const mediaLabel = mediaType ? ` ${mediaType}` : '';
+  lines.push(`- ${statusLabel}${mediaLabel}: ${schema ? formatPreviewSchemaLabel(schema) : 'body 없음'}`);
+  appendPreviewSchemaFields(lines, schema, referencedSchemas);
+  appendPreviewHeaders(lines, response.headers ?? {}, referencedSchemas);
+
+  return lines;
+}
+
+function appendPreviewHeaders(lines, headers, referencedSchemas) {
+  const entries = Object.entries(headers ?? {});
+  if (entries.length === 0) {
+    return;
+  }
+
+  lines.push('- Headers');
+  for (const [name, header] of entries) {
+    const content = header?.content ?? {};
+    const mediaType = choosePreferredResponseMediaType(Object.keys(content))
+      ?? Object.keys(content)[0]
+      ?? null;
+    const schema = header?.schema ?? (mediaType ? content[mediaType]?.schema : null);
+    lines.push(
+      `  - ${formatPreviewFieldDeclaration(
+        name,
+        schema,
+        Boolean(header?.required),
+        referencedSchemas,
+      )}`,
+    );
+    const fields = buildPreviewSchemaFields(schema, referencedSchemas);
+    if (fields.length > 0) {
+      lines.push('    - 필드');
+      for (const field of fields) {
+        lines.push(`      - ${field}`);
+      }
+    }
+  }
+}
+
+function appendPreviewSchemaFields(lines, schema, referencedSchemas) {
+  const fields = buildPreviewSchemaFieldEntries(schema, referencedSchemas);
+  if (fields.length === 0) {
+    return;
+  }
+
+  lines.push('- 필드');
+  for (const field of fields) {
+    lines.push(`${'  '.repeat(field.depth + 1)}- ${field.declaration}`);
+  }
+}
+
+function buildPreviewSchemaFields(schema, referencedSchemas) {
+  return buildPreviewSchemaFieldEntries(schema, referencedSchemas).map(
+    (field) => field.declaration,
+  );
+}
+
+function buildPreviewSchemaFieldEntries(
+  schema,
+  referencedSchemas,
+  depth = 0,
+  seenRefs = new Set(),
+) {
+  if (depth > 1) {
+    return [];
+  }
+
+  const resolvedSchema = resolvePreviewSchemaForFields(schema, referencedSchemas);
+  const properties = resolvedSchema?.properties ?? {};
+  const required = new Set(resolvedSchema?.required ?? []);
+
+  return Object.entries(properties).flatMap(([name, propertySchema]) => {
+    const declaration = formatPreviewFieldDeclaration(
+      name,
+      propertySchema,
+      required.has(name),
+      referencedSchemas,
+    );
+    const nestedSchema = resolvePreviewSchemaForFields(propertySchema, referencedSchemas);
+    const refName = getPreviewSchemaRefName(propertySchema);
+    const nextSeenRefs = refName ? new Set([...seenRefs, refName]) : seenRefs;
+    const nestedFields =
+      refName && seenRefs.has(refName)
+        ? []
+        : buildPreviewSchemaFieldEntries(
+            nestedSchema,
+            referencedSchemas,
+            depth + 1,
+            nextSeenRefs,
+          );
+
+    return [
+      {
+        depth,
+        declaration,
+      },
+      ...nestedFields,
+    ];
+  });
+}
+
+function resolvePreviewSchemaForFields(schema, referencedSchemas, seenRefs = new Set()) {
+  if (!schema || typeof schema !== 'object') {
+    return null;
+  }
+
+  if (typeof schema.$ref === 'string') {
+    const refName = schemaRefName(schema.$ref);
+    if (seenRefs.has(refName)) {
+      return schema;
+    }
+    return resolvePreviewSchemaForFields(
+      referencedSchemas?.[refName],
+      referencedSchemas,
+      new Set([...seenRefs, refName]),
+    );
+  }
+
+  if (schema.type === 'array') {
+    return resolvePreviewSchemaForFields(schema.items, referencedSchemas, seenRefs);
+  }
+
+  return schema;
+}
+
+function getPreviewSchemaRefName(schema) {
+  if (!schema || typeof schema !== 'object') {
+    return null;
+  }
+
+  if (typeof schema.$ref === 'string') {
+    return schemaRefName(schema.$ref);
+  }
+
+  if (schema.type === 'array') {
+    return getPreviewSchemaRefName(schema.items);
+  }
+
+  return null;
+}
+
+function formatPreviewFieldDeclaration(name, schema, required, referencedSchemas) {
+  const type = javaTypeFromPreviewSchema(schema, referencedSchemas) ?? 'Object';
+  const flags = [required ? 'required' : 'optional'];
+
+  if (isNullablePreviewSchema(schema)) {
+    flags.push('nullable');
+  }
+
+  return `${name}: ${type} (${flags.join(', ')})`;
+}
+
+function javaTypeFromPreviewSchema(schema, referencedSchemas) {
+  if (!schema || typeof schema !== 'object') {
+    return null;
+  }
+
+  if (schema.type === 'array') {
+    return `List<${javaTypeFromPreviewSchema(schema.items, referencedSchemas) ?? 'Object'}>`;
+  }
+
+  return javaTypeFromSchema(schema) ?? formatPreviewSchemaLabel(schema, referencedSchemas);
+}
+
+function formatPreviewSchemaLabel(schema) {
+  if (!schema || typeof schema !== 'object') {
+    return 'unknown';
+  }
+
+  if (typeof schema.$ref === 'string') {
+    return schemaRefName(schema.$ref);
+  }
+
+  if (schema.type === 'array') {
+    return `List<${formatPreviewSchemaLabel(schema.items)}>`;
+  }
+
+  return javaTypeFromSchema(schema) ?? 'unknown';
+}
+
+function isNullablePreviewSchema(schema) {
+  return Boolean(
+    schema?.nullable ||
+      (Array.isArray(schema?.type) && schema.type.includes('null')),
+  );
+}
+
+function buildAlignedEndpointPreview(previousLines, nextLines) {
+  const previousKeyedLines = keyEndpointPreviewLines(previousLines);
+  const nextKeyedLines = keyEndpointPreviewLines(nextLines);
+  const previousByKey = new Map(previousKeyedLines.map((line) => [line.key, line]));
+  const nextByKey = new Map(nextKeyedLines.map((line) => [line.key, line]));
+  const orderedKeys = mergePreviewLineKeys(previousKeyedLines, nextKeyedLines);
+  const rows = [];
+
+  for (const key of orderedKeys) {
+    const previousLine = previousByKey.get(key) ?? null;
+    const nextLine = nextByKey.get(key) ?? null;
+    const kind = getEndpointPreviewLineChangeKind(previousLine, nextLine);
+
+    rows.push({
+      previous: formatEndpointPreviewCellLine(previousLine?.text ?? '', kind, 'previous'),
+      next: formatEndpointPreviewCellLine(nextLine?.text ?? '', kind, 'next'),
+    });
+  }
+
+  return {
+    rows,
+  };
+}
+
+function keyEndpointPreviewLines(lines) {
+  const state = {
+    section: 'root',
+    group: null,
+    fieldScope: null,
+    fieldsGroup: null,
+    blankCount: 0,
+  };
+  const keyCounts = new Map();
+
+  return lines.map((line, index) => {
+    const baseKey = getEndpointPreviewLineKey(line, state, index);
+    const count = keyCounts.get(baseKey) ?? 0;
+    keyCounts.set(baseKey, count + 1);
+
+    return {
+      key: count === 0 ? baseKey : `${baseKey}#${count + 1}`,
+      text: line,
+    };
+  });
+}
+
+function getEndpointPreviewLineKey(line, state, index) {
+  const text = String(line ?? '');
+  const trimmed = text.trim();
+
+  if (!trimmed) {
+    state.group = null;
+    state.fieldScope = null;
+    state.fieldsGroup = null;
+    state.blankCount += 1;
+    return `blank.${state.blankCount}`;
+  }
+
+  if (trimmed === '요청' || trimmed === '응답') {
+    state.section = trimmed === '요청' ? 'request' : 'response';
+    state.group = null;
+    state.fieldScope = null;
+    state.fieldsGroup = null;
+    return state.section;
+  }
+
+  const groupKey = getPreviewGroupKey(trimmed);
+  if (groupKey) {
+    const scopedGroupKey =
+      groupKey === 'fields' && state.fieldScope
+        ? `${state.fieldScope}.fields`
+        : `${state.section}.${groupKey}`;
+    state.group = scopedGroupKey;
+    if (groupKey === 'fields') {
+      state.fieldsGroup = scopedGroupKey;
+    } else {
+      state.fieldScope = null;
+      state.fieldsGroup = null;
+    }
+    return scopedGroupKey;
+  }
+
+  if (trimmed.startsWith('- Body:')) {
+    state.group = `${state.section}.body`;
+    state.fieldScope = `${state.section}.body`;
+    state.fieldsGroup = null;
+    return `${state.section}.body`;
+  }
+  if (trimmed.startsWith('- Content-Type:')) {
+    state.group = `${state.section}.contentType`;
+    state.fieldsGroup = null;
+    return `${state.section}.contentType`;
+  }
+  if (/^- (default|[1-5][0-9]{2})(?:\s|:)/u.test(trimmed)) {
+    state.group = `${state.section}.body`;
+    state.fieldScope = `${state.section}.body`;
+    state.fieldsGroup = null;
+    return `${state.section}.primaryResponse`;
+  }
+
+  const fieldName = parsePreviewFieldName(trimmed);
+  if (fieldName) {
+    if (state.group === `${state.section}.headers`) {
+      state.fieldScope = `${state.section}.header.${fieldName}`;
+    }
+    const isNestedField = text.startsWith('    ') && state.fieldScope;
+    const group = isNestedField
+      ? `${state.fieldScope}.fields`
+      : state.fieldsGroup ?? state.group ?? `${state.section}.line`;
+    if (!isNestedField && group.endsWith('.fields')) {
+      state.fieldScope = `${group.replace(/\.fields$/u, '')}.${fieldName}`;
+    }
+    return `${group}.${fieldName}`;
+  }
+
+  return `${state.section}.line.${index}`;
+}
+
+function getPreviewGroupKey(trimmed) {
+  return {
+    '- Path Parameters': 'pathParameters',
+    '- Query Parameters': 'queryParameters',
+    '- Header Parameters': 'headerParameters',
+    '- Cookie Parameters': 'cookieParameters',
+    '- 필드': 'fields',
+    '- Headers': 'headers',
+  }[trimmed] ?? null;
+}
+
+function parsePreviewFieldName(trimmed) {
+  const match = trimmed.match(/^- ([^:;]+):/u);
+  return match ? match[1].trim() : null;
+}
+
+function mergePreviewLineKeys(previousLines, nextLines) {
+  const previousKeys = previousLines.map((line) => line.key);
+  const nextKeys = nextLines.map((line) => line.key);
+  const previousKeySet = new Set(previousKeys);
+  const nextKeySet = new Set(nextKeys);
+  const keys = [];
+  const addedKeys = new Set();
+  let previousIndex = 0;
+
+  const addKey = (key) => {
+    if (addedKeys.has(key)) {
+      return;
+    }
+    keys.push(key);
+    addedKeys.add(key);
+  };
+
+  for (const nextKey of nextKeys) {
+    while (
+      previousIndex < previousKeys.length &&
+      !nextKeySet.has(previousKeys[previousIndex])
+    ) {
+      addKey(previousKeys[previousIndex]);
+      previousIndex += 1;
+    }
+
+    if (previousKeySet.has(nextKey)) {
+      while (
+        previousIndex < previousKeys.length &&
+        previousKeys[previousIndex] !== nextKey
+      ) {
+        addKey(previousKeys[previousIndex]);
+        previousIndex += 1;
+      }
+      previousIndex += 1;
+    }
+
+    addKey(nextKey);
+  }
+
+  while (previousIndex < previousKeys.length) {
+    addKey(previousKeys[previousIndex]);
+    previousIndex += 1;
+  }
+
+  return keys;
+}
+
+function getEndpointPreviewLineChangeKind(previousLine, nextLine) {
+  const previousText = previousLine?.text ?? null;
+  const nextText = nextLine?.text ?? null;
+
+  if (previousText === nextText) {
+    return null;
+  }
+  if (!previousLine) {
+    return isHighlightableEndpointPreviewLine(nextText) ? 'added' : null;
+  }
+  if (!nextLine) {
+    return isHighlightableEndpointPreviewLine(previousText) ? 'removed' : null;
+  }
+
+  return isHighlightableEndpointPreviewLine(previousText) ||
+    isHighlightableEndpointPreviewLine(nextText)
+    ? 'changed'
+    : null;
+}
+
+function isHighlightableEndpointPreviewLine(line) {
+  const trimmed = String(line ?? '').trim();
+  return Boolean(
+    trimmed &&
+      trimmed !== '요청' &&
+      trimmed !== '응답' &&
+      !getPreviewGroupKey(trimmed),
+  );
+}
+
+function formatEndpointPreviewCellLine(line, kind, side) {
+  const text = formatEndpointPreviewTableText(line);
+  const shouldMark =
+    (kind === 'changed' && text !== '&nbsp;') ||
+    (kind === 'added' && side === 'next' && text !== '&nbsp;') ||
+    (kind === 'removed' && side === 'previous' && text !== '&nbsp;');
+
+  if (!shouldMark) {
+    return text;
+  }
+
+  const marker = {
+    added: '🟢 ',
+    changed: '🟡 ',
+    removed: '🔴 ',
+  }[kind] ?? '';
+  const markedText = `${marker}${text}`;
+
+  return kind === 'removed' ? `~~${markedText}~~` : `**${markedText}**`;
+}
+
+function formatEndpointPreviewTableText(line) {
+  const raw = String(line ?? '');
+  if (!raw) {
+    return '&nbsp;';
+  }
+
+  const leadingSpaces = raw.match(/^ */u)?.[0].length ?? 0;
+  const content = escapeMarkdownTableHtml(raw.slice(leadingSpaces))
+    .replace(/\|/g, '&#124;');
+  return `${'&nbsp;'.repeat(leadingSpaces)}${content}`;
 }
 
 function toChangeItem(entry, projectCandidateFilesByOperation = new Map()) {
@@ -488,9 +1178,11 @@ function appendSection(lines, title, items, options = {}) {
 }
 
 function appendChangeItem(lines, item, options = {}) {
-  lines.push(
-    `- [${item.method.toUpperCase()}] \`${item.path}\`${item.summary ? ` - ${item.summary}` : ''}`,
-  );
+  const swaggerLink = item.swaggerUrl
+    ? ` ${formatExternalMarkdownLink('Swagger', item.swaggerUrl)}`
+    : '';
+  const title = `[${item.method.toUpperCase()}] \`${item.path}\`${item.summary ? ` - ${item.summary}` : ''}${swaggerLink}`;
+  lines.push(`- ${item.removed ? `~~${title}~~` : title}`);
 
   const projectFileLinks = formatProjectFileLinks(item, options);
   if (projectFileLinks) {
@@ -510,12 +1202,25 @@ function appendChangeItem(lines, item, options = {}) {
     }
   }
 
-  if ((item.comparisonRows ?? []).length > 0) {
+  if ((item.comparisonRows ?? []).length > 0 && !item.endpointPreview) {
     appendComparisonList(lines, item.comparisonRows, item.comparisonDisplayRows);
   }
 
   if (item.detailsTruncated) {
     lines.push(`  - ... ${item.detailCount - (item.details?.length ?? 0)}개 변경 항목 생략`);
+  }
+
+  if (item.endpointPreview) {
+    appendEndpointPreviewTable(lines, item.endpointPreview);
+  }
+}
+
+function appendEndpointPreviewTable(lines, endpointPreview) {
+  lines.push('');
+  lines.push('| AS-IS | TO-BE |');
+  lines.push('| --- | --- |');
+  for (const row of endpointPreview.rows ?? []) {
+    lines.push(`| ${row.previous} | ${row.next} |`);
   }
 }
 
@@ -568,6 +1273,10 @@ function formatMarkdownDestination(target) {
   return `<${target.replaceAll('>', '%3E')}>`;
 }
 
+function formatExternalMarkdownLink(label, url) {
+  return `[${label}](${formatMarkdownDestination(url)})`;
+}
+
 function appendComparisonList(lines, rows, displayRows = null) {
   const renderedRows = Array.isArray(displayRows) && displayRows.length > 0
     ? displayRows
@@ -597,6 +1306,14 @@ function formatDisplayCell(value) {
     .replace(/\|/g, '/')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function escapeMarkdownTableHtml(value) {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 function buildComparisonRows(details, context = {}) {

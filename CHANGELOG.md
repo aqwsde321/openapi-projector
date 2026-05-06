@@ -4,6 +4,19 @@
 
 형식은 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)를 느슨하게 따르고, 버전은 `package.json`의 `version` 및 Git 태그와 맞춥니다.
 
+## 0.3.4 - 2026-05-06
+
+### Added
+
+- `changes.md`의 추가/문서 변경 endpoint에 선택적 Swagger UI deep link를 표시하도록 추가했습니다.
+- `swaggerUiUrl` 설정과 GitHub Actions의 `DEV_SWAGGER_UI_URL` 연동 예시를 추가했습니다.
+
+### Changed
+
+- `Contract Changed` 요약을 AS-IS/TO-BE 행 단위 비교표로 바꿔 요청/응답 구조와 변경 라인이 같은 줄에 맞춰 보이도록 개선했습니다.
+- 계약 변경 미리보기의 필드 필수 여부를 `field: Type (required)` / `field: Type (optional)` 형태로 표시하도록 정리했습니다.
+- `Added`/`Removed` 섹션은 endpoint 목록 중심으로 단순화하고, 삭제 endpoint는 전체 취소선으로 표시하도록 변경했습니다.
+
 ## 0.3.3 - 2026-05-06
 
 ### Fixed

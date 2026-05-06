@@ -36,10 +36,16 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Prepare openapi-projector config
+        env:
+          DEV_SWAGGER_UI_URL: ${{ vars.DEV_SWAGGER_UI_URL }}
         run: |
           mkdir -p openapi/config
           if [ ! -f openapi/config/project.jsonc ]; then
-            printf '{}\n' > openapi/config/project.jsonc
+            if [ -n "$DEV_SWAGGER_UI_URL" ]; then
+              printf '{\n  "swaggerUiUrl": "%s"\n}\n' "$DEV_SWAGGER_UI_URL" > openapi/config/project.jsonc
+            else
+              printf '{}\n' > openapi/config/project.jsonc
+            fi
           fi
 
       - name: Set up Node.js

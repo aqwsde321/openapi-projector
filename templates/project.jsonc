@@ -4,6 +4,10 @@
   // 실제 백엔드 주소가 다르면 해당 OpenAPI JSON URL로 바꿔야 download / refresh 가 동작합니다.
   "sourceUrl": "http://localhost:8080/v3/api-docs",
 
+  // changes.md에서 실제 Swagger UI endpoint 링크를 만들 때 사용할 Swagger UI URL입니다.
+  // 비워두면 sourceUrl에서 /swagger-ui/index.html을 추론합니다.
+  // "swaggerUiUrl": "http://localhost:8080/swagger-ui/index.html",
+
   // 다운로드한 원본 OpenAPI JSON 저장 위치입니다.
   "sourcePath": "openapi/_internal/source/openapi.json",
 

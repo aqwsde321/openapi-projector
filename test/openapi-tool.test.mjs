@@ -456,6 +456,262 @@ test(
 );
 
 test(
+  'catalog renders added endpoint Swagger UI deep links without previews',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Category API',
+        version: '1.0.0',
+      },
+      paths: {
+        '/ping': {
+          get: {
+            summary: 'Ping',
+            responses: {
+              200: {
+                description: 'OK',
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace(
+      {
+        spec,
+        projectConfigOverrides: {
+          sourceUrl: 'https://dev-api.pharmaresearch.com/v3/api-docs',
+        },
+      },
+      async (workspace) => {
+        await runInWorkspace(workspace, () => catalogCommand.run());
+
+        const nextSpec = structuredClone(spec);
+        nextSpec.paths['/categories'] = {
+          post: {
+            tags: ['101 - [BOS]카테고리 API'],
+            operationId: 'createCategory_1',
+            summary: '카테고리 생성',
+            requestBody: {
+              required: true,
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/CreateCategoryRequest',
+                  },
+                },
+              },
+            },
+            responses: {
+              200: {
+                description: 'OK',
+                content: {
+                  'application/json': {
+                    schema: {
+                      $ref: '#/components/schemas/CategoryResponse',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        };
+        nextSpec.components = {
+          schemas: {
+            CreateCategoryRequest: {
+              type: 'object',
+              required: ['name'],
+              properties: {
+                name: {
+                  type: 'string',
+                },
+                parentId: {
+                  type: 'integer',
+                  format: 'int64',
+                },
+              },
+            },
+            CategoryResponse: {
+              type: 'object',
+              required: ['id', 'name'],
+              properties: {
+                id: {
+                  type: 'integer',
+                  format: 'int64',
+                },
+                name: {
+                  type: 'string',
+                },
+              },
+            },
+          },
+        };
+
+        await writeJsonFile(
+          path.join(workspace, 'openapi/_internal/source/openapi.json'),
+          nextSpec,
+        );
+
+        await runInWorkspace(workspace, () => catalogCommand.run());
+
+        const topLevelChangesSource = await fs.readFile(
+          path.join(workspace, 'openapi/changes.md'),
+          'utf8',
+        );
+        const expectedSwaggerUrl = [
+          'https://dev-api.pharmaresearch.com/swagger-ui/index.html#/',
+          encodeURIComponent('101 - [BOS]카테고리 API'),
+          '/createCategory_1',
+        ].join('');
+
+        assert.match(
+          topLevelChangesSource,
+          new RegExp(`\\[Swagger\\]\\(<${expectedSwaggerUrl}>\\)`),
+        );
+        assert.match(topLevelChangesSource, /\[POST\] `\/categories`/);
+        assert.doesNotMatch(topLevelChangesSource, /\| AS-IS \| TO-BE \|/);
+        assert.doesNotMatch(topLevelChangesSource, /- Body: CreateCategoryRequest/);
+      },
+    );
+  },
+);
+
+test(
+  'catalog does not infer Swagger UI links from default sourceUrl in CI-style config',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'CI API',
+        version: '1.0.0',
+      },
+      paths: {
+        '/ping': {
+          get: {
+            summary: 'Ping',
+            responses: {
+              200: {
+                description: 'OK',
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await writeJsonFile(path.join(workspace, 'openapi/config/project.jsonc'), {});
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const nextSpec = structuredClone(spec);
+      nextSpec.paths['/categories'] = {
+        post: {
+          tags: ['Categories'],
+          operationId: 'createCategory',
+          summary: 'Create category',
+          responses: {
+            200: {
+              description: 'OK',
+            },
+          },
+        },
+      };
+
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.json'),
+        nextSpec,
+      );
+
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const topLevelChangesSource = await fs.readFile(
+        path.join(workspace, 'openapi/changes.md'),
+        'utf8',
+      );
+
+      assert.match(topLevelChangesSource, /\[POST\] `\/categories`/);
+      assert.doesNotMatch(topLevelChangesSource, /\[Swagger\]/);
+      assert.doesNotMatch(topLevelChangesSource, /localhost:8080\/swagger-ui/);
+    });
+  },
+);
+
+test(
+  'catalog omits Swagger UI links for removed endpoints',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Removed API',
+        version: '1.0.0',
+      },
+      paths: {
+        '/orders/{id}': {
+          delete: {
+            tags: ['Orders'],
+            operationId: 'deleteOrder',
+            summary: '주문 삭제',
+            responses: {
+              204: {
+                description: 'No Content',
+              },
+            },
+          },
+        },
+        '/ping': {
+          get: {
+            summary: 'Ping',
+            responses: {
+              200: {
+                description: 'OK',
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace(
+      {
+        spec,
+        projectConfigOverrides: {
+          sourceUrl: 'https://dev-api.pharmaresearch.com/v3/api-docs',
+        },
+      },
+      async (workspace) => {
+        await runInWorkspace(workspace, () => catalogCommand.run());
+
+        const nextSpec = structuredClone(spec);
+        delete nextSpec.paths['/orders/{id}'];
+
+        await writeJsonFile(
+          path.join(workspace, 'openapi/_internal/source/openapi.json'),
+          nextSpec,
+        );
+
+        await runInWorkspace(workspace, () => catalogCommand.run());
+
+        const topLevelChangesSource = await fs.readFile(
+          path.join(workspace, 'openapi/changes.md'),
+          'utf8',
+        );
+
+        assert.match(
+          topLevelChangesSource,
+          /## 🗑️ Removed\n\n- ~~\[DELETE\] `\/orders\/\{id\}` - 주문 삭제~~/,
+        );
+        assert.doesNotMatch(topLevelChangesSource, /deleteOrder/);
+      },
+    );
+  },
+);
+
+test(
   'catalog records Slack-friendly contract comparison rows in change history',
   { concurrency: false },
   async () => {
@@ -745,40 +1001,41 @@ test(
         historySource,
         /\[API\]\(<\.\.\/\.\.\/\.\.\/project\/src\/openapi-generated\/Users\/get-users-by-id\.api\.ts>\)/,
       );
+      assert.match(historySource, /\| AS-IS \| TO-BE \|/);
       assert.match(
         historySource,
-        /- 🟢 추가 \| 요청 Query 파라미터 \| Boolean active; \/\/ required/,
+        /\*\*🟢 &nbsp;&nbsp;- active: Boolean \(required\)\*\*/,
       );
       assert.match(
         historySource,
-        /- 🟢 추가 \| 응답 Body\/Header 필드 \| List<File> attachments;/,
+        /\*\*🟢 &nbsp;&nbsp;- attachments: List&lt;File&gt; \(optional\)\*\*/,
       );
       assert.match(
         historySource,
-        /- 🟡 변경 \| 응답 Body\/Header 필드 \| Integer email; \/\/ optional → required/,
+        /\*\*🟡 &nbsp;&nbsp;- email: String \(optional\)\*\*/,
       );
       assert.match(
         historySource,
-        /- 🟡 변경 \| 응답 Body\/Header 필드 \| Integer email; \/\/ string → integer/,
+        /\*\*🟡 &nbsp;&nbsp;- email: Integer \(required\)\*\*/,
       );
       assert.match(
         historySource,
-        /- 🟡 변경 \| 응답 Header 필드 \| Integer value; \/\/ string → integer/,
+        /\*\*🟡 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- value: String \(required\)\*\*/,
       );
       assert.match(
         historySource,
-        /- 🟡 변경 \| 응답 Header 필드 \| Integer value; \/\/ required → optional/,
+        /\*\*🟡 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- value: Integer \(optional\)\*\*/,
       );
       assert.match(
         historySource,
-        /- 🟡 변경 \| 응답 Header 필드 \| String expiresAt; \/\/ optional → required/,
+        /\*\*🟡 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- expiresAt: String \(required\)\*\*/,
       );
     });
   },
 );
 
 test(
-  'catalog renders first added query parameter as a Slack-friendly comparison row',
+  'catalog highlights first added query parameter in the contract comparison preview',
   { concurrency: false },
   async () => {
     const spec = createSimpleSpec('Get inquiry detail');
@@ -816,8 +1073,9 @@ test(
 
       assert.match(
         topLevelChangesSource,
-        /- 🟢 추가 \| 요청 Query 파라미터 \| Integer abbb; \/\/ required/,
+        /\| &nbsp; \| \*\*🟢 &nbsp;&nbsp;- abbb: Integer \(required\)\*\* \|/,
       );
+      assert.doesNotMatch(topLevelChangesSource, /<br>/);
       assert.doesNotMatch(topLevelChangesSource, /operation\.parameters` \| `\[\]`/);
       assert.doesNotMatch(topLevelChangesSource, /Compatibility Check/);
       assert.equal(topLevelChangesJson.externalDiff, undefined);
@@ -946,7 +1204,11 @@ test(
       assert.doesNotMatch(topLevelChangesSource, /String message;/);
       assert.match(
         topLevelChangesSource,
-        /JsendResponseDtoListClaimListResDto → JsendResponseDtoListPlatformOrderClaimController\.ClaimListResDto/,
+        /JsendResponseDtoListClaimListResDto/,
+      );
+      assert.match(
+        topLevelChangesSource,
+        /JsendResponseDtoListPlatformOrderClaimController\.ClaimListResDto/,
       );
     });
   },
@@ -1041,10 +1303,13 @@ test(
         'utf8',
       );
 
-      assert.match(topLevelChangesSource, /요청 Body schema/);
       assert.match(
         topLevelChangesSource,
-        /CreateOrderClaimDto → PlatformOrderClaimController\.CreateOrderClaimDto/,
+        /Body: CreateOrderClaimDto/,
+      );
+      assert.match(
+        topLevelChangesSource,
+        /Body: PlatformOrderClaimController\.CreateOrderClaimDto/,
       );
       assert.doesNotMatch(topLevelChangesSource, /required → optional/);
       assert.doesNotMatch(topLevelChangesSource, /optional → required/);
@@ -1164,9 +1429,14 @@ test(
 
       assert.match(
         topLevelChangesSource,
-        /JsendResponseDtoListClaimListResDto → JsendResponseDtoListPlatformOrderClaimController\.ClaimListResDto/,
+        /JsendResponseDtoListClaimListResDto/,
       );
-      assert.match(topLevelChangesSource, /Integer id; \/\/ string → integer/);
+      assert.match(
+        topLevelChangesSource,
+        /JsendResponseDtoListPlatformOrderClaimController\.ClaimListResDto/,
+      );
+      assert.match(topLevelChangesSource, /id: String \(optional\)/);
+      assert.match(topLevelChangesSource, /id: Integer \(optional\)/);
       assert.doesNotMatch(topLevelChangesSource, /String message;/);
       assert.doesNotMatch(topLevelChangesSource, /data;/);
       assert.doesNotMatch(topLevelChangesSource, /🔴 삭제 \| 응답 Body 필드/);
@@ -1257,9 +1527,14 @@ test(
 
       assert.match(
         topLevelChangesSource,
-        /CreateOrderClaimDto → PlatformOrderClaimController\.CreateOrderClaimDto/,
+        /Body: CreateOrderClaimDto/,
       );
-      assert.match(topLevelChangesSource, /String reason; \/\/ required → optional/);
+      assert.match(
+        topLevelChangesSource,
+        /Body: PlatformOrderClaimController\.CreateOrderClaimDto/,
+      );
+      assert.match(topLevelChangesSource, /reason: String \(required\)/);
+      assert.match(topLevelChangesSource, /reason: String \(optional\)/);
       assert.doesNotMatch(topLevelChangesSource, /optional → required/);
       assert.doesNotMatch(topLevelChangesSource, /🔴 삭제 \| 요청 Body 필드/);
       assert.doesNotMatch(topLevelChangesSource, /🟢 추가 \| 요청 Body 필드/);

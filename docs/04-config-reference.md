@@ -62,11 +62,12 @@
 | 필드 | 의미 |
 | --- | --- |
 | `sourceUrl` | OpenAPI JSON 요청 URL. 기본값은 `http://localhost:8080/v3/api-docs`이며, 로컬 백엔드 URL이 다르면 `doctor`, `prepare` 전에 수정 |
+| `swaggerUiUrl` | 선택값. `changes.md`의 endpoint별 Swagger 링크에 사용할 Swagger UI URL. 없으면 `sourceUrl`에서 `/swagger-ui/index.html`을 추론 |
 | `sourcePath` | 내려받은 OpenAPI JSON 저장 경로 |
 | `generatedSchemaPath` | review용 `schema.ts` 출력 경로 |
 | `projectGeneratedSrcDir` | `project` 후보 코드 생성 경로 |
 
-경로 설정값은 프로젝트 루트 기준 상대 경로여야 하며, `..` 경로 세그먼트나 절대 경로는 허용하지 않습니다. `sourceUrl`은 문자열 타입이어야 합니다. 빈 문자열은 설정 파일 형식으로는 허용되지만, OpenAPI JSON URL이 아니므로 `doctor`, `prepare`, `download`에서 실패합니다.
+경로 설정값은 프로젝트 루트 기준 상대 경로여야 하며, `..` 경로 세그먼트나 절대 경로는 허용하지 않습니다. `sourceUrl`과 `swaggerUiUrl`은 문자열 타입이어야 합니다. 빈 `sourceUrl`은 설정 파일 형식으로는 허용되지만, OpenAPI JSON URL이 아니므로 `doctor`, `prepare`, `download`에서 실패합니다.
 
 ### 보통 안 건드리는 값
 

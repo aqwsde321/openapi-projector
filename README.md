@@ -150,6 +150,8 @@ openapi/
 | `Contract Changed` | request body, response body, path/query/header parameter 계약이 바뀜 |
 | `Doc Changed` | summary, description, tag 같은 문서성 정보가 바뀜 |
 
+`Added`는 새 endpoint 목록과 Swagger UI 링크를 표시하고, `Removed`는 삭제된 endpoint 목록만 표시합니다. `Contract Changed`는 요청/응답 전체를 AS-IS / TO-BE 2열 Markdown 표로 보여주며 추가/변경/삭제된 줄을 표시합니다. `Doc Changed`는 문서성 변경만 짧게 표시합니다. `changes.json`에는 기존처럼 요약 데이터만 저장합니다.
+
 ## 명령을 나눠서 실행하기
 
 단계를 나눠 보고 싶으면 아래처럼 실행합니다.

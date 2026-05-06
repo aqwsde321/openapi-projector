@@ -597,9 +597,10 @@ async function loadProjectConfig(rootDir) {
     );
   }
 
+  const projectConfigOverrides = await readJson(projectConfigPath);
   const projectConfig = {
     ...defaults,
-    ...(await readJson(projectConfigPath)),
+    ...projectConfigOverrides,
   };
   assertValidProjectConfig(projectConfig);
 
@@ -607,6 +608,7 @@ async function loadProjectConfig(rootDir) {
     defaultConfigPath: DEFAULT_CONFIG_PATH,
     projectConfigPath,
     projectConfig,
+    projectConfigOverrides,
   };
 }
 
