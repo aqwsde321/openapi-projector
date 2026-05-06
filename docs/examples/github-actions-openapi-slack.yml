@@ -134,18 +134,14 @@ jobs:
           console.log(`summary=🆕 Added ${added} / 🗑️ Removed ${removed} / 🧩 Contract Changed ${contractChanged} / 📝 Doc Changed ${docChanged}`);
           NODE
 
-      - name: Upload full OpenAPI report
+      - name: Write OpenAPI report summary
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: openapi-change-report-dev
-          path: |
-            openapi/changes.md
-            openapi/changes.json
-            openapi/_internal/source/openapi.json
-            openapi/review/catalog/endpoints.json
-          if-no-files-found: ignore
+        run: |
+          if [ -f openapi/changes.md ]; then
+            cat openapi/changes.md >> "$GITHUB_STEP_SUMMARY"
+          fi
 
+      # Keep Slack before baseline update so a failed notification does not silently advance the baseline.
       - name: Send Slack report
         if: steps.changes.outputs.changed == 'true'
         env:
@@ -161,10 +157,10 @@ jobs:
           const fs = require('node:fs');
 
           const report = fs.readFileSync('openapi/changes.md', 'utf8').trim();
-          const maxReportLength = 3000;
-          const artifactText = process.env.ACTIONS_RUN_URL
-            ? `<${process.env.ACTIONS_RUN_URL}|Actions artifact>의 changes.md`
-            : 'Actions artifact의 changes.md';
+          const maxReportLength = 2500;
+          const summaryText = process.env.ACTIONS_RUN_URL
+            ? `<${process.env.ACTIONS_RUN_URL}|Actions summary>의 changes.md`
+            : 'Actions summary의 changes.md';
 
           function trimReport(text) {
             if (text.length <= maxReportLength) {
@@ -175,12 +171,12 @@ jobs:
             const lineCut = text.lastIndexOf('\n', maxReportLength);
             const cut = paragraphCut > 1000 ? paragraphCut : lineCut > 1000 ? lineCut : maxReportLength;
 
-            return `${text.slice(0, cut).trim()}\n\n...`;
+            return `${text.slice(0, cut).trim()}\n\n... (Slack 본문 길이 제한으로 일부만 표시됨)`;
           }
 
           const trimmedReport = trimReport(report);
           const payload = {
-            text: `[DEV] OpenAPI 변경 감지\n\n${trimmedReport}\n\n전체 상세는 ${artifactText} 확인`,
+            text: `[DEV] OpenAPI 변경 감지\n\n${trimmedReport}\n\n전체 상세는 ${summaryText} 확인`,
           };
 
           fs.writeFileSync('slack-payload.json', JSON.stringify(payload));
