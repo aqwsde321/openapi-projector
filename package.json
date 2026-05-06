@@ -1,6 +1,6 @@
 {
   "name": "openapi-projector",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Review-first OpenAPI DTO/API/hook candidate generator for frontend projects",
   "repository": {
     "type": "git",

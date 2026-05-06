@@ -4,6 +4,16 @@
 
 형식은 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)를 느슨하게 따르고, 버전은 `package.json`의 `version` 및 Git 태그와 맞춥니다.
 
+## 0.3.2 - 2026-05-06
+
+### Added
+
+- 백엔드 CI에서 OpenAPI 변경 리포트를 Slack으로 공지하는 GitHub Actions 예제와 적용 가이드를 추가했습니다.
+
+### Changed
+
+- `catalog` 변경 리포트의 계약 변경 상세를 Slack에서 읽기 쉬운 한 줄 변경 목록으로 개선했습니다.
+
 ## 0.3.1 - 2026-05-04
 
 ### Changed
