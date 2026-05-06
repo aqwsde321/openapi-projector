@@ -826,6 +826,130 @@ test(
 );
 
 test(
+  'catalog renders dotted schema names without broken declarations or endpoint ids',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Claims API',
+        version: '1.0.0',
+      },
+      paths: {
+        '/platform/orders/claims': {
+          get: {
+            summary: '클레임 내역 목록 조회',
+            responses: {
+              200: {
+                description: 'OK',
+                content: {
+                  'application/json': {
+                    schema: {
+                      $ref: '#/components/schemas/JsendResponseDtoListClaimListResDto',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          JsendResponseDtoListClaimListResDto: {
+            type: 'object',
+            properties: {
+              data: {
+                type: 'array',
+                items: {
+                  $ref: '#/components/schemas/ClaimListResDto',
+                },
+              },
+              message: {
+                type: 'string',
+              },
+              status: {
+                type: 'string',
+              },
+            },
+          },
+          ClaimListResDto: {
+            type: 'object',
+            properties: {
+              id: {
+                type: 'integer',
+                format: 'int64',
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const nextSpec = structuredClone(spec);
+      nextSpec.paths['/platform/orders/claims'].get.responses[200].content['application/json'].schema = {
+        $ref: '#/components/schemas/JsendResponseDtoListPlatformOrderClaimController.ClaimListResDto',
+      };
+      nextSpec.components.schemas = {
+        'JsendResponseDtoListPlatformOrderClaimController.ClaimListResDto': {
+          type: 'object',
+          properties: {
+            data: {
+              type: 'array',
+              items: {
+                $ref: '#/components/schemas/PlatformOrderClaimController.ClaimListResDto',
+              },
+            },
+            message: {
+              type: 'string',
+            },
+            status: {
+              type: 'string',
+            },
+          },
+        },
+        'PlatformOrderClaimController.ClaimListResDto': {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'integer',
+              format: 'int64',
+            },
+          },
+        },
+      };
+
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.json'),
+        nextSpec,
+      );
+
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const topLevelChangesSource = await fs.readFile(
+        path.join(workspace, 'openapi/changes.md'),
+        'utf8',
+      );
+
+      assert.match(
+        topLevelChangesSource,
+        /- \[GET\] `\/platform\/orders\/claims` - 클레임 내역 목록 조회/,
+      );
+      assert.doesNotMatch(topLevelChangesSource, /`get-platform-orders-claims` \[GET\]/);
+      assert.doesNotMatch(topLevelChangesSource, /"\];/);
+      assert.doesNotMatch(topLevelChangesSource, /Map<String, Object> .*Dto;/);
+      assert.match(
+        topLevelChangesSource,
+        /List<PlatformOrderClaimController\.ClaimListResDto> data;/,
+      );
+    });
+  },
+);
+
+test(
   'cli init uses projector local config before legacy config',
   { concurrency: false },
   async () => {

@@ -489,7 +489,7 @@ function appendSection(lines, title, items, options = {}) {
 
 function appendChangeItem(lines, item, options = {}) {
   lines.push(
-    `- \`${item.id}\` [${item.method.toUpperCase()}] \`${item.path}\`${item.summary ? ` - ${item.summary}` : ''}`,
+    `- [${item.method.toUpperCase()}] \`${item.path}\`${item.summary ? ` - ${item.summary}` : ''}`,
   );
 
   const projectFileLinks = formatProjectFileLinks(item, options);
@@ -613,7 +613,10 @@ function buildComparisonRows(details, context = {}) {
       return;
     }
 
-    rows.push(toGenericComparisonRow(detail, comparisonContext));
+    const genericRow = toGenericComparisonRow(detail, comparisonContext);
+    if (genericRow) {
+      rows.push(genericRow);
+    }
   });
 
   return rows;
@@ -727,7 +730,7 @@ function parseParameterTarget(target) {
 
 function formatJavaStyleDeclaration(kind, row, comparisonContext) {
   const summary = parseComparisonValue(kind === 'removed' ? row.previous : row.next);
-  const field = getComparisonFieldName(row);
+  const field = getComparisonFieldName(row, comparisonContext);
   const type = summary.type
     ? javaTypeFromComparisonValue(summary)
     : inferJavaTypeFromComparisonContext(row, comparisonContext);
@@ -737,16 +740,33 @@ function formatJavaStyleDeclaration(kind, row, comparisonContext) {
   return kind === 'removed' ? `~${declaration}~` : declaration;
 }
 
-function getComparisonFieldName(row) {
+function getComparisonFieldName(row, comparisonContext = {}) {
   const parameterTarget = parseParameterTarget(row?.target);
   if (parameterTarget) {
     return parameterTarget.split('.').slice(1).join('.') || parameterTarget;
   }
 
-  const target = stripMarkdownFormatting(row?.target)
+  const target = stripMarkdownFormatting(row?.target);
+  const referencedSchemaTarget = parseReferencedSchemaTarget(target);
+  if (referencedSchemaTarget?.propertyName) {
+    return referencedSchemaTarget.propertyName;
+  }
+  if (referencedSchemaTarget?.schemaName) {
+    return getSchemaDisplayName(referencedSchemaTarget.schemaName);
+  }
+
+  const knownSchemaTarget = matchKnownSchemaTarget(target, comparisonContext);
+  if (knownSchemaTarget?.propertyName) {
+    return knownSchemaTarget.propertyName;
+  }
+  if (knownSchemaTarget?.schemaName) {
+    return getSchemaDisplayName(knownSchemaTarget.schemaName);
+  }
+
+  const normalizedTarget = target
     .replace(/^schema\./, '')
     .replace(/\.(required|type|format|nullable|enum|items)$/u, '');
-  const parts = target.split('.');
+  const parts = normalizedTarget.split('.');
   return parts.at(-1) || 'value';
 }
 
@@ -851,10 +871,10 @@ function inferJavaTypeFromComparisonContext(row, comparisonContext) {
     }
   }
 
-  const target = stripMarkdownFormatting(row?.target)
-    .replace(/^schema\./, '')
-    .replace(/\.(required|type|format|nullable|enum|items)$/u, '');
-  const [schemaName, propertyName] = target.split('.');
+  const target = stripMarkdownFormatting(row?.target);
+  const schemaTarget =
+    parseReferencedSchemaTarget(target) ?? matchKnownSchemaTarget(target, comparisonContext);
+  const { schemaName, propertyName } = schemaTarget ?? {};
 
   if (!schemaName || !propertyName) {
     return null;
@@ -1228,8 +1248,22 @@ function getReferencedSchemaNames(values) {
 }
 
 function parseReferencedSchemaName(detailPath) {
+  return parseReferencedSchemaTarget(detailPath)?.schemaName ?? null;
+}
+
+function parseReferencedSchemaTarget(detailPath) {
   const segments = parseFormattedPath(detailPath);
-  return segments[0] === 'referencedSchemas' ? segments[1] : null;
+  if (segments[0] !== 'referencedSchemas' || !segments[1]) {
+    return null;
+  }
+
+  return {
+    schemaName: segments[1],
+    propertyName: segments[2] === 'properties' ? segments[3] : null,
+    fieldPath: segments[2] === 'properties'
+      ? segments.slice(4).join('.')
+      : segments.slice(2).join('.'),
+  };
 }
 
 function parseSchemaPropertyDetailPath(detailPath) {
@@ -1366,6 +1400,10 @@ function parseParameterDetailPath(detailPath) {
 }
 
 function toGenericComparisonRow(detail, comparisonContext) {
+  if (isSchemaRootObjectTypeChange(detail)) {
+    return null;
+  }
+
   const schemaProperty = parseSchemaPropertyDetailPath(detail.path);
 
   return {
@@ -1378,6 +1416,21 @@ function toGenericComparisonRow(detail, comparisonContext) {
     previous: detail.kind === 'added' ? '없음' : formatDetailValue(detail.previous),
     next: detail.kind === 'removed' ? '없음' : formatDetailValue(detail.next),
   };
+}
+
+function isSchemaRootObjectTypeChange(detail) {
+  if (detail.kind !== 'added' && detail.kind !== 'removed') {
+    return false;
+  }
+
+  const schemaTarget = parseReferencedSchemaTarget(detail.path);
+  const value = detail.kind === 'added' ? detail.next : detail.previous;
+  return Boolean(
+    schemaTarget?.schemaName &&
+      !schemaTarget.propertyName &&
+      schemaTarget.fieldPath === 'type' &&
+      value === 'object',
+  );
 }
 
 function classifyChangeDetail(detailPath, comparisonContext) {
@@ -1477,6 +1530,49 @@ function compactSchemaUsageLabels(labels) {
 
 function formatSchemaPropertyTarget({ schemaName, propertyName, fieldPath }) {
   return `${schemaName}.${propertyName}${fieldPath ? `.${fieldPath}` : ''}`;
+}
+
+function matchKnownSchemaTarget(target, comparisonContext = {}) {
+  const normalizedTarget = stripMarkdownFormatting(target)
+    .replace(/^schema\./, '')
+    .replace(/^referencedSchemas\./, '')
+    .replace(/\.(required|type|format|nullable|enum|items)$/u, '');
+  const schemaNames = getKnownSchemaNames(comparisonContext)
+    .sort((left, right) => right.length - left.length);
+
+  for (const schemaName of schemaNames) {
+    if (normalizedTarget === schemaName) {
+      return {
+        schemaName,
+        propertyName: null,
+        fieldPath: '',
+      };
+    }
+
+    if (normalizedTarget.startsWith(`${schemaName}.`)) {
+      const [propertyName, ...fieldParts] = normalizedTarget
+        .slice(schemaName.length + 1)
+        .split('.');
+      return {
+        schemaName,
+        propertyName: propertyName || null,
+        fieldPath: fieldParts.join('.'),
+      };
+    }
+  }
+
+  return null;
+}
+
+function getKnownSchemaNames(comparisonContext = {}) {
+  return [
+    ...Object.keys(comparisonContext?.previousSnapshot?.referencedSchemas ?? {}),
+    ...Object.keys(comparisonContext?.nextSnapshot?.referencedSchemas ?? {}),
+  ];
+}
+
+function getSchemaDisplayName(schemaName) {
+  return String(schemaName).split('.').at(-1) || String(schemaName);
 }
 
 function formatParameterSummary(values) {
