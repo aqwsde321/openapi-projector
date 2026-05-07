@@ -4,6 +4,14 @@
 
 형식은 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)를 느슨하게 따르고, 버전은 `package.json`의 `version` 및 Git 태그와 맞춥니다.
 
+## 0.3.6 - 2026-05-07
+
+### Changed
+
+- 루트 README를 첫 화면에서 핵심 기능, 실행 흐름, 지원 범위가 보이도록 재구성했습니다.
+- `changes.md` 출력 예시와 선택적 Slack 알림 안내를 README에 추가했습니다.
+- AI agent에게 맡기는 프롬프트를 접힌 상세 영역이 아닌 독립 섹션으로 옮겼습니다.
+
 ## 0.3.5 - 2026-05-07
 
 ### Fixed
