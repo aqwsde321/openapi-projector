@@ -4,6 +4,24 @@
 
 형식은 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)를 느슨하게 따르고, 버전은 `package.json`의 `version` 및 Git 태그와 맞춥니다.
 
+## 0.3.7 - 2026-05-07
+
+### Added
+
+- 기존 `openapi/` 작업 공간의 설정과 생성 결과를 보존하면서 안내 문서와 규칙 기본값을 갱신하는 `update` 명령을 추가했습니다.
+- `version` 및 `--version` 명령을 추가해 npx 실행 시 실제 CLI 버전을 바로 확인할 수 있게 했습니다.
+
+### Changed
+
+- 기존 작업 공간에서 `init`을 다시 실행할 때 새 project config가 기존 config를 shadow하지 않도록 막고, `update` 사용을 안내하도록 변경했습니다.
+- `project-rules.jsonc` 마이그레이션은 `review.rulesReviewed`와 수동 notes를 보존하면서 누락된 안전 기본값만 추가하도록 정리했습니다.
+- 생성 README와 주요 CLI 안내의 npx 예시를 `openapi-projector@latest` 중심으로 맞췄습니다.
+
+### Fixed
+
+- custom `projectRulesPath`를 쓰는 경우 `prepare`의 안내와 에러 메시지가 실제 rules 파일 경로를 가리키도록 수정했습니다.
+- 기존 수동 helper 설정에 분석된 다른 helper의 import kind/call style/path/symbol이 섞일 수 있는 edge case를 막았습니다.
+
 ## 0.3.6 - 2026-05-07
 
 ### Changed
