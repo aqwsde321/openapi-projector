@@ -19,7 +19,7 @@
 
 - 예시 템플릿 제공
 - 어느 프로젝트를 조작할지 결정
-- `npx --yes openapi-projector init` 실행 시 현재 프로젝트 루트에 자동 생성
+- `npx --yes openapi-projector@latest init` 실행 시 현재 프로젝트 루트에 자동 생성
 
 탐색 우선순위:
 

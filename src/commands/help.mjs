@@ -9,7 +9,9 @@ const commands = [
   ['refresh', 'download + catalog + generate'],
   ['doctor', '로컬 설정과 대상 프로젝트 준비 상태 점검'],
   ['prepare', 'init 필요 시 생성 후 refresh + rules 실행, 검토된 rules에서 project까지 실행'],
+  ['update', '기존 openapi 작업공간을 최신 CLI 형식으로 안전하게 갱신'],
   ['upgrade-docs', '기존 설정은 보존하고 openapi/README.md 안내 문서만 최신화'],
+  ['version', '현재 CLI 버전 출력'],
 ];
 
 const helpCommand = {
@@ -18,7 +20,7 @@ const helpCommand = {
     console.log('openapi-projector');
     console.log('');
     console.log('Usage:');
-    console.log('  npx --yes openapi-projector <command>');
+    console.log('  npx --yes openapi-projector@latest <command>');
     console.log('  openapi-projector <command>');
     console.log('  node ./bin/openapi-tool.mjs <command>');
     console.log('  openapi-tool <command>');
@@ -27,7 +29,7 @@ const helpCommand = {
     console.log('');
     console.log('First-time setup:');
     console.log('  1. cd <frontend-project-root>');
-    console.log('  2. npx --yes openapi-projector init');
+    console.log('  2. npx --yes openapi-projector@latest init');
     console.log('     interactive terminals can confirm, validate, or retry the default sourceUrl');
     console.log('     CI/scripts can pass --source-url explicitly or use --no-input');
     console.log('  3. read openapi/README.md or ask an AI coding agent to continue from it');
@@ -47,6 +49,7 @@ const helpCommand = {
     console.log('  - project 는 schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API 후보 코드를 생성합니다.');
     console.log('  - 실제 반영은 사람이거나 AI가 openapi/project 결과를 보고 진행합니다.');
     console.log('  - 새 프로젝트 시작은 init 명령으로 bootstrap 합니다.');
+    console.log('  - 기존 프로젝트 갱신은 update 명령으로 설정을 보존한 채 마이그레이션합니다.');
     console.log('  - 이미 init된 프로젝트의 안내 문서는 upgrade-docs 로 안전하게 최신화합니다.');
     console.log('');
     console.log('Recommended flow:');

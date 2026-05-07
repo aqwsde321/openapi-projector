@@ -10,7 +10,7 @@
 backend deploy 완료
 -> 배포된 /v3/api-docs 다운로드
 -> 이전 openapi/review/catalog/endpoints.json 복원
--> npx --yes openapi-projector catalog 실행
+-> npx --yes openapi-projector@latest catalog 실행
 -> openapi/changes.json 으로 변경 여부 판단
 -> openapi/changes.md 를 GitHub Actions summary에 기록
 -> 변경이 있으면 openapi/changes.md 요약을 Slack 전송

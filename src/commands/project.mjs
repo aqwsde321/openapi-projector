@@ -12,6 +12,7 @@ import {
   resolveGeneratedSchemaPath,
 } from '../openapi/load-spec.mjs';
 import { assertProjectRulesReviewed } from '../config/validation.mjs';
+import { getProjectRulesMissingCurrentDefaults } from './rules.mjs';
 import { renderProjectSummary, writeProjectOutputs } from '../openapi/project-generator.mjs';
 import { formatSuccess } from '../cli-format.mjs';
 
@@ -27,7 +28,21 @@ const projectCommand = {
     const { projectConfig } = await loadProjectConfig(rootDir);
     const { projectRulesPath, projectRules } = await loadProjectRules(rootDir, projectConfig);
 
-    assertProjectRulesReviewed(projectRules);
+    try {
+      assertProjectRulesReviewed(projectRules);
+    } catch (error) {
+      const missingFields = getProjectRulesMissingCurrentDefaults(projectRules);
+      if (missingFields.length > 0) {
+        throw new Error(
+          [
+            error.message,
+            `Run npx --yes openapi-projector@latest update to add current defaults.`,
+            `Then check ${toPosixPath(path.relative(rootDir, projectRulesPath))}.`,
+          ].join('\n'),
+        );
+      }
+      throw error;
+    }
 
     const sourcePath = path.resolve(rootDir, projectConfig.sourcePath);
     const generatedSchemaPath = resolveGeneratedSchemaPath(rootDir, projectConfig);
@@ -43,7 +58,7 @@ const projectCommand = {
     } catch (error) {
       if (error?.code === 'ENOENT') {
         throw new Error(
-          `Generated schema not found: ${generatedSchemaPath}\nRun npx --yes openapi-projector generate first.`,
+          `Generated schema not found: ${generatedSchemaPath}\nRun npx --yes openapi-projector@latest generate first.`,
         );
       }
       throw error;

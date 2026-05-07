@@ -80,6 +80,16 @@ npx --yes openapi-projector@latest prepare
 
 검토 후 다시 실행하면 `openapi/project/summary.md`와 `openapi/project/src/openapi-generated/` 아래 DTO/API/hook 후보가 생성됩니다.
 
+### 기존 작업 공간 업데이트
+
+이미 `openapi/` 작업 공간이 있는 프로젝트에서 최신 CLI 안내와 규칙 기본값만 갱신하려면 `init --force` 대신 `update`를 사용합니다.
+
+```bash
+npx --yes openapi-projector@latest update
+```
+
+`update`는 `openapi/config/project.jsonc`, review history, generated candidates를 보존하고 `openapi/README.md`, 로컬 설정, `project-rules.jsonc`의 안전한 기본값만 갱신합니다.
+
 <details>
 <summary>자세한 실행 흐름</summary>
 
@@ -254,6 +264,7 @@ backend deploy 완료
 | Swagger 변경 비교만 갱신 | `npx --yes openapi-projector@latest refresh` |
 | 프로젝트 규칙 분석만 실행 | `npx --yes openapi-projector@latest rules` |
 | 후보 코드 생성만 실행 | `npx --yes openapi-projector@latest project` |
+| 기존 작업 공간 안전 갱신 | `npx --yes openapi-projector@latest update` |
 | 생성 README만 최신화 | `npx --yes openapi-projector@latest upgrade-docs` |
 | 팀/CI에서 재현성 우선 | `npx --yes openapi-projector@<version> <command>` |
 | 전역 설치 사용 | `openapi-projector <command>` |

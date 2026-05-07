@@ -372,7 +372,7 @@ function assertProjectRulesReviewed(projectRules) {
     throw new Error(
       [
         'Project rules have not been reviewed.',
-        'Review openapi/review/project-rules/analysis.md and analysis.json, then update openapi/config/project-rules.jsonc.',
+        'Review openapi/review/project-rules/analysis.md and analysis.json, then edit openapi/config/project-rules.jsonc.',
         'Set review.rulesReviewed to true before generating project candidates.',
       ].join('\n'),
     );

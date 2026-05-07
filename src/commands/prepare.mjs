@@ -1,6 +1,7 @@
+import path from 'node:path';
 import { initCommand } from './init.mjs';
 import { refreshCommand } from './refresh.mjs';
-import { rulesCommand } from './rules.mjs';
+import { getProjectRulesMissingCurrentDefaults, rulesCommand } from './rules.mjs';
 import { projectCommand } from './project.mjs';
 import { loadProjectConfig, loadProjectRules } from '../core/openapi-utils.mjs';
 import { assertProjectRulesReviewed } from '../config/validation.mjs';
@@ -20,6 +21,39 @@ async function hasProjectConfig(rootDir) {
 
 function isConfiguredSourceUrl(sourceUrl) {
   return typeof sourceUrl === 'string' && sourceUrl.trim() && !sourceUrl.includes('example.com');
+}
+
+function toPosixPath(value) {
+  return value.replaceAll(path.sep, '/');
+}
+
+function toProjectRelativePath(rootDir, projectPath) {
+  return toPosixPath(path.relative(rootDir, path.resolve(rootDir, projectPath)));
+}
+
+async function warnIfProjectRulesUpdateRecommended(rootDir, projectConfig) {
+  let projectRules;
+  let projectRulesPath;
+  try {
+    ({ projectRules, projectRulesPath } = await loadProjectRules(rootDir, projectConfig));
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      return;
+    }
+    throw error;
+  }
+
+  const missingFields = getProjectRulesMissingCurrentDefaults(projectRules);
+  if (missingFields.length === 0) {
+    return;
+  }
+
+  console.log(formatWarning('project rules are missing defaults added by the current CLI.'));
+  for (const field of missingFields) {
+    console.log(`- missing: ${field}`);
+  }
+  console.log('- this run will add safe defaults');
+  console.log(`- check: ${toPosixPath(path.relative(rootDir, projectRulesPath))}`);
 }
 
 function logPrepareStep(command, description) {
@@ -58,20 +92,35 @@ const prepareCommand = {
     );
     await refreshCommand.run(options);
 
+    await warnIfProjectRulesUpdateRecommended(rootDir, projectConfig);
+
     logPrepareStep(
       'rules',
       '현재 프론트엔드 프로젝트의 API 호출 규칙을 분석해 openapi/config/project-rules.jsonc를 만듭니다.',
     );
     await rulesCommand.run(options);
 
-    const { projectRules } = await loadProjectRules(rootDir, projectConfig);
+    const { projectRules, projectRulesPath } = await loadProjectRules(rootDir, projectConfig);
     try {
       assertProjectRulesReviewed(projectRules);
     } catch (error) {
+      if (!error.message?.startsWith('Project rules have not been reviewed.')) {
+        throw error;
+      }
+
+      const relativeProjectRulesPath = toPosixPath(path.relative(rootDir, projectRulesPath));
       console.log('');
       console.log(formatWarning('project: review.rulesReviewed가 true가 아니어서 DTO/API 후보 생성을 건너뜁니다.'));
-      console.log('- update: openapi/config/project-rules.jsonc -> review.rulesReviewed=true');
-      throw error;
+      console.log(
+        `- manual: ${relativeProjectRulesPath}에서 review.rulesReviewed=true로 설정`,
+      );
+      throw new Error(
+        [
+          'Project rules have not been reviewed.',
+          `Review ${toProjectRelativePath(rootDir, projectConfig.projectRulesAnalysisPath)} and ${toProjectRelativePath(rootDir, projectConfig.projectRulesAnalysisJsonPath)}, then edit ${relativeProjectRulesPath}.`,
+          'Set review.rulesReviewed to true before generating project candidates.',
+        ].join('\n'),
+      );
     }
 
     logPrepareStep('project', '검토된 규칙으로 DTO/API 후보를 생성합니다.');

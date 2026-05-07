@@ -593,7 +593,7 @@ async function loadProjectConfig(rootDir) {
 
   if (!projectConfigPath) {
     throw new Error(
-      `Project config not found.\nRun npx --yes openapi-projector init first.\nSearched:\n- ${PROJECT_CONFIG_CANDIDATES.join('\n- ')}`,
+      `Project config not found.\nRun npx --yes openapi-projector@latest init first.\nSearched:\n- ${PROJECT_CONFIG_CANDIDATES.join('\n- ')}`,
     );
   }
 
@@ -656,7 +656,22 @@ async function initProject(rootDir, options = {}) {
 
   if (projectConfigExisted && !force) {
     throw new Error(
-      `Project config already exists: ${projectConfigTargetPath}\nRe-run with --force to reinitialize bootstrap files.`,
+      [
+        `Project config already exists: ${projectConfigTargetPath}`,
+        'For existing workspaces, run npx --yes openapi-projector@latest update.',
+        'Use init --force only to reset bootstrap files.',
+      ].join('\n'),
+    );
+  }
+
+  if (existingProjectConfig && !force) {
+    throw new Error(
+      [
+        `Project config already exists: ${existingProjectConfig.projectConfigPath}`,
+        `Creating ${projectConfigTargetPath} would change which config is used.`,
+        'For existing workspaces, run npx --yes openapi-projector@latest update.',
+        'Use init --force only to reset bootstrap files.',
+      ].join('\n'),
     );
   }
 
@@ -712,7 +727,7 @@ async function upgradeProjectDocs(rootDir) {
     throw new Error(
       [
         'OpenAPI workspace not found.',
-        'Run npx --yes openapi-projector init before upgrading generated docs.',
+        'Run npx --yes openapi-projector@latest init before upgrading generated docs.',
       ].join('\n'),
     );
   }

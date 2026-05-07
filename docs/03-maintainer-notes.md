@@ -10,7 +10,7 @@
 
 - 이 저장소 자체는 보통 결과물을 담지 않습니다.
 - 결과물은 대상 프로젝트 안의 `openapi/`에 생성됩니다.
-- 배포 빌드 단계는 없고, 사용자는 보통 `npx --yes openapi-projector ...`로 npm 패키지를 바로 실행합니다.
+- 배포 빌드 단계는 없고, 사용자는 보통 `npx --yes openapi-projector@latest ...`로 npm 패키지를 바로 실행합니다.
 - 저장소 내부 개발/검증은 `pnpm install` 후 `node ./bin/openapi-tool.mjs ...` 또는 `pnpm test`로 진행합니다.
 
 ## 핵심 엔트리포인트

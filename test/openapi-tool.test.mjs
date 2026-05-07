@@ -2115,6 +2115,8 @@ test(
       assert.match(projectReadmeSource, /## For AI Agents: Detailed Workflow/);
       assert.doesNotMatch(projectReadmeSource, /### 2\. 선택 설치: oasdiff/);
       assert.match(projectReadmeSource, /### Step 2\. AI에게 맡기거나 직접 진행/);
+      assert.match(projectReadmeSource, /### 기존 작업 공간 업데이트/);
+      assert.match(projectReadmeSource, /npx --yes openapi-projector@latest update/);
       assert.match(projectReadmeSource, /#### Option A\. AI에게 맡기기/);
       assert.match(projectReadmeSource, /#### Option B\. 직접 진행하기/);
       assert.doesNotMatch(projectReadmeSource, /oasdiff/);
@@ -2125,10 +2127,10 @@ test(
       assert.match(projectReadmeSource, /openapi\/review\/changes\/history\//);
       assert.match(projectReadmeSource, /openapi\/review\/project-rules\/analysis\.json/);
       assert.match(projectReadmeSource, /Contract Changed/);
-      assert.match(projectReadmeSource, /npx --yes openapi-projector rules/);
+      assert.match(projectReadmeSource, /npx --yes openapi-projector@latest rules/);
       assert.match(projectReadmeSource, /rg "fetchAPI\|apiClient\|request\|axios\|ky\|httpClient" src/);
       assert.match(projectReadmeSource, /openapi\/config\/project-rules\.jsonc/);
-      assert.match(projectReadmeSource, /npx --yes openapi-projector prepare/);
+      assert.match(projectReadmeSource, /npx --yes openapi-projector@latest prepare/);
       assert.match(projectReadmeSource, /## Swagger 변경 비교/);
       assert.match(projectReadmeSource, /DTO\/API 후보 생성이 필요하지 않고 Swagger 변경점만 확인할 때는 `refresh`를 단독으로 실행합니다/);
       assert.match(projectReadmeSource, /## 생성되는 파일/);
@@ -2136,7 +2138,7 @@ test(
       assert.match(projectReadmeSource, /기본값은 `http:\/\/localhost:8080\/v3\/api-docs`입니다/);
       assert.match(projectReadmeSource, /대화형 `init`에서 URL 검증이 VPN, 인증, 백엔드 미기동 때문에 실패했다면/);
       assert.doesNotMatch(projectReadmeSource, /<summary>CI\/스크립트에서 프롬프트 없이 실행하기<\/summary>/);
-      assert.doesNotMatch(projectReadmeSource, /npx --yes openapi-projector init --source-url/);
+      assert.doesNotMatch(projectReadmeSource, /npx --yes openapi-projector@latest init --source-url/);
       assert.match(
         projectReadmeSource,
         /이 문서는 `init` 이후 생성된 작업 안내서입니다/,
@@ -2144,7 +2146,7 @@ test(
       assert.match(projectReadmeSource, /먼저 볼 파일/);
       assert.match(projectReadmeSource, /실제 프로젝트 규칙과 맞으면/);
       assert.match(projectReadmeSource, /아래 명령은 프론트엔드 프로젝트 루트에서 실행해/);
-      assert.match(projectReadmeSource, /사람이 npx --yes openapi-projector prepare를 미리 실행했다면/);
+      assert.match(projectReadmeSource, /사람이 npx --yes openapi-projector@latest prepare를 미리 실행했다면/);
       assert.match(projectReadmeSource, /default `sourceUrl` is `http:\/\/localhost:8080\/v3\/api-docs`/i);
       assert.match(projectReadmeSource, /### 2\. Recommended Prepare Flow/);
       assert.match(projectReadmeSource, /`prepare`: runs `refresh -> rules -> project`/);
@@ -2661,28 +2663,31 @@ test(
 );
 
 test(
-  'cli init allows creating target config when only lower-priority config exists',
+  'cli init without force refuses to shadow an existing lower-priority config',
   { concurrency: false },
   async () => {
     const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-lower-config-'));
-    const sourceUrl = 'https://new.example.com/v3/api-docs';
+    const lowerPriorityConfigPath = path.join(workspace, 'config/project.jsonc');
+    const targetConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
+    const lowerPriorityConfigBefore = {
+      sourceUrl: 'https://old.example.com/v3/api-docs',
+      sourcePath: 'openapi/_internal/source/openapi.json',
+    };
 
     try {
-      await writeJsonFile(path.join(workspace, 'config/project.jsonc'), {
-        sourceUrl: 'https://old.example.com/v3/api-docs',
-        sourcePath: 'openapi/_internal/source/openapi.json',
-      });
+      await writeJsonFile(lowerPriorityConfigPath, lowerPriorityConfigBefore);
 
-      const { output } = await captureConsoleLog(() =>
-        runInWorkspace(workspace, () => runCli(['init', '--source-url', sourceUrl])),
+      await assert.rejects(
+        () => runInWorkspace(workspace, () =>
+          runCli(['init', '--source-url', 'https://new.example.com/v3/api-docs']),
+        ),
+        /Project config already exists: .*config\/project\.jsonc\nCreating .*openapi\/config\/project\.jsonc would change which config is used\.\nFor existing workspaces, run npx --yes openapi-projector@latest update\./,
       );
 
-      const projectConfig = await readJson(
-        path.join(workspace, 'openapi/config/project.jsonc'),
-      );
+      const lowerPriorityConfig = await readJson(lowerPriorityConfigPath);
 
-      assert.equal(projectConfig.sourceUrl, sourceUrl);
-      assert.match(output, /sourceUrl: https:\/\/new\.example\.com\/v3\/api-docs/);
+      assert.deepEqual(lowerPriorityConfig, lowerPriorityConfigBefore);
+      await assert.rejects(() => fs.access(targetConfigPath), /ENOENT/);
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
     }
@@ -2741,7 +2746,7 @@ test(
         () => runInWorkspace(workspace, () =>
           runCli(['init', '--source-url', 'https://new.example.com/v3/api-docs']),
         ),
-        /Project config already exists: .*openapi\/config\/project\.jsonc\nRe-run with --force/,
+        /Project config already exists: .*openapi\/config\/project\.jsonc\nFor existing workspaces, run npx --yes openapi-projector@latest update\.\nUse init --force only to reset bootstrap files\./,
       );
 
       const targetConfig = await readJson(targetConfigPath);
@@ -2802,11 +2807,37 @@ test(
   async () => {
     const { output } = await captureConsoleLog(() => runCli(['help']));
 
-    assert.match(output, /npx --yes openapi-projector init/);
+    assert.match(output, /npx --yes openapi-projector@latest init/);
     assert.match(output, /interactive terminals can confirm, validate, or retry the default sourceUrl/);
     assert.match(output, /CI\/scripts can pass --source-url explicitly or use --no-input/);
+    assert.match(output, /update\s+기존 openapi 작업공간을 최신 CLI 형식으로 안전하게 갱신/);
     assert.match(output, /upgrade-docs\s+기존 설정은 보존하고 openapi\/README\.md 안내 문서만 최신화/);
-    assert.doesNotMatch(output, /npx --yes openapi-projector init --source-url/);
+    assert.doesNotMatch(output, /npx --yes openapi-projector@latest init --source-url/);
+  },
+);
+
+test(
+  'cli prints package version without reading workspace config',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-version-'));
+    const packageJson = await readJson(path.join(REPO_ROOT, 'package.json'));
+
+    try {
+      await fs.writeFile(path.join(workspace, '.openapi-projector.local.jsonc'), '{ broken', 'utf8');
+
+      const dashVersion = await captureConsoleLog(() =>
+        runInWorkspace(workspace, () => runCli(['--version'])),
+      );
+      const commandVersion = await captureConsoleLog(() =>
+        runInWorkspace(workspace, () => runCli(['version'])),
+      );
+
+      assert.equal(dashVersion.output, packageJson.version);
+      assert.equal(commandVersion.output, packageJson.version);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
   },
 );
 
@@ -2825,7 +2856,7 @@ test(
 
       await assert.rejects(
         () => runInWorkspace(workspace, () => runCli(['init'])),
-        /Project config already exists: .*openapi\/config\/project\.jsonc\nRe-run with --force/,
+        /Project config already exists: .*openapi\/config\/project\.jsonc\nFor existing workspaces, run npx --yes openapi-projector@latest update\.\nUse init --force only to reset bootstrap files\./,
       );
 
       const projectConfigSource = await fs.readFile(projectConfigPath, 'utf8');
@@ -2940,6 +2971,205 @@ test(
 );
 
 test(
+  'cli update migrates existing workspace without resetting user config or generated outputs',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-update-'));
+    const projectConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
+    const projectRulesPath = path.join(workspace, 'openapi/config/project-rules.jsonc');
+    const projectReadmePath = path.join(workspace, 'openapi/README.md');
+    const projectSummaryPath = path.join(workspace, 'openapi/project/summary.md');
+    const historyPath = path.join(workspace, 'openapi/review/changes/history/old.md');
+
+    try {
+      await writeJsonFile(projectConfigPath, {
+        sourceUrl: 'https://existing.example.com/v3/api-docs',
+        sourcePath: 'custom/openapi.json',
+      });
+      await writeJsonFile(projectRulesPath, {
+        review: {
+          rulesReviewed: true,
+          notes: ['manual review kept'],
+        },
+        api: {
+          fetchApiImportPath: '@/custom/api',
+          fetchApiSymbol: 'requestClient',
+          wrapperGrouping: 'flat',
+        },
+        layout: {
+          schemaFileName: 'schema.ts',
+        },
+      });
+      await fs.writeFile(projectReadmePath, '# stale guide\n', 'utf8');
+      await fs.writeFile(path.join(workspace, '.gitignore'), 'node_modules\n', 'utf8');
+      await fs.mkdir(path.dirname(projectSummaryPath), { recursive: true });
+      await fs.writeFile(projectSummaryPath, '# generated summary\n', 'utf8');
+      await fs.mkdir(path.dirname(historyPath), { recursive: true });
+      await fs.writeFile(historyPath, '# old change history\n', 'utf8');
+
+      const beforeProjectConfig = await fs.readFile(projectConfigPath, 'utf8');
+      const { output } = await captureConsoleLog(() =>
+        runInWorkspace(workspace, () => runCli(['update'])),
+      );
+
+      const afterProjectConfig = await fs.readFile(projectConfigPath, 'utf8');
+      const projectRules = await readJson(projectRulesPath);
+      const projectReadmeSource = await fs.readFile(projectReadmePath, 'utf8');
+      const rootGitignoreSource = await fs.readFile(path.join(workspace, '.gitignore'), 'utf8');
+
+      assert.equal(afterProjectConfig, beforeProjectConfig);
+      assert.equal(await fs.readFile(projectSummaryPath, 'utf8'), '# generated summary\n');
+      assert.equal(await fs.readFile(historyPath, 'utf8'), '# old change history\n');
+      assert.match(projectReadmeSource, /# openapi-projector Workspace Guide/);
+      assert.match(projectReadmeSource, /npx --yes openapi-projector@latest prepare/);
+      assert.equal(projectRules.review.rulesReviewed, true);
+      assert.deepEqual(projectRules.review.notes, ['manual review kept']);
+      assert.equal(projectRules.api.fetchApiImportPath, '@/custom/api');
+      assert.equal(projectRules.api.fetchApiSymbol, 'requestClient');
+      assert.equal(projectRules.api.fetchApiImportKind, 'named');
+      assert.equal(projectRules.api.adapterStyle, 'url-config');
+      assert.equal(projectRules.api.wrapperGrouping, 'flat');
+      assert.equal(projectRules.api.tagFileCase, 'title');
+      assert.equal(projectRules.hooks.enabled, false);
+      assert.match(rootGitignoreSource, /\.openapi-projector\.local\.jsonc/);
+      await assert.rejects(
+        () => fs.access(path.join(workspace, 'openapi/.gitignore')),
+        /ENOENT/,
+      );
+      await assertExists(path.join(workspace, '.openapi-projector.local.jsonc'));
+      await assertExists(path.join(workspace, 'openapi/review/project-rules/analysis.md'));
+      await assertExists(path.join(workspace, 'openapi/review/project-rules/analysis.json'));
+      assert.match(output, /^✓ Updated openapi workspace metadata in /m);
+      assert.match(output, /kept project config: .*openapi\/config\/project\.jsonc/);
+      assert.match(output, /kept review history and generated candidates unchanged/);
+      assert.match(output, /Migrated project rules defaults/);
+      assert.match(output, /added api\.fetchApiImportKind: "named"/);
+      assert.match(output, /added api\.adapterStyle: "url-config"/);
+      assert.match(output, /added api\.tagFileCase: "title"/);
+      assert.match(output, /added hooks\.enabled: false/);
+      assert.match(output, /check: .*openapi\/config\/project-rules\.jsonc/);
+      assert.doesNotMatch(output, /updated review\.rulesReviewed/);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli update preserves unreviewed project rules while adding defaults',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-update-'));
+    const projectConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
+    const projectRulesPath = path.join(workspace, 'openapi/config/project-rules.jsonc');
+
+    try {
+      await writeJsonFile(projectConfigPath, {
+        sourceUrl: 'https://existing.example.com/v3/api-docs',
+        sourcePath: 'custom/openapi.json',
+      });
+      await writeJsonFile(projectRulesPath, {
+        review: {
+          rulesReviewed: false,
+          notes: ['manual review pending'],
+        },
+        api: {
+          fetchApiImportPath: '@/custom/api',
+          fetchApiSymbol: 'requestClient',
+        },
+        layout: {
+          schemaFileName: 'schema.ts',
+        },
+      });
+      await fs.mkdir(path.join(workspace, 'src/features/users'), { recursive: true });
+      await fs.writeFile(
+        path.join(workspace, 'src/features/users/api.ts'),
+        [
+          "import { request } from '@/shared/request';",
+          '',
+          "export const loadUsers = () => request({ url: '/users', method: 'GET' });",
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+
+      const { output } = await captureConsoleLog(() =>
+        runInWorkspace(workspace, () => runCli(['update'])),
+      );
+      const projectRules = await readJson(projectRulesPath);
+
+      assert.equal(projectRules.review.rulesReviewed, false);
+      assert.deepEqual(projectRules.review.notes, ['manual review pending']);
+      assert.equal(projectRules.api.fetchApiImportPath, '@/custom/api');
+      assert.equal(projectRules.api.fetchApiSymbol, 'requestClient');
+      assert.equal(projectRules.api.fetchApiImportKind, 'named');
+      assert.equal(projectRules.api.adapterStyle, 'url-config');
+      assert.equal(projectRules.api.wrapperGrouping, 'tag');
+      assert.equal(projectRules.api.tagFileCase, 'title');
+      assert.equal(projectRules.hooks.enabled, false);
+      assert.match(output, /Migrated project rules defaults/);
+      assert.match(output, /added api\.fetchApiImportKind: "named"/);
+      assert.match(output, /added api\.adapterStyle: "url-config"/);
+      assert.doesNotMatch(output, /updated review\.rulesReviewed/);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli update avoids mixing analyzed helper identity into partial manual project rules',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-update-'));
+    const projectConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
+    const projectRulesPath = path.join(workspace, 'openapi/config/project-rules.jsonc');
+
+    try {
+      await writeJsonFile(projectConfigPath, {
+        sourceUrl: 'https://existing.example.com/v3/api-docs',
+        sourcePath: 'custom/openapi.json',
+      });
+      await writeJsonFile(projectRulesPath, {
+        review: {
+          rulesReviewed: true,
+          notes: ['manual review kept'],
+        },
+        api: {
+          fetchApiImportPath: '@/custom/api',
+        },
+        layout: {
+          schemaFileName: 'schema.ts',
+        },
+      });
+      await fs.mkdir(path.join(workspace, 'src/features/users'), { recursive: true });
+      await fs.writeFile(
+        path.join(workspace, 'src/features/users/api.ts'),
+        [
+          "import { request } from '@/shared/request';",
+          '',
+          "export const loadUsers = () => request({ url: '/users', method: 'GET' });",
+          '',
+        ].join('\n'),
+        'utf8',
+      );
+
+      await runInWorkspace(workspace, () => runCli(['update']));
+      const projectRules = await readJson(projectRulesPath);
+
+      assert.equal(projectRules.review.rulesReviewed, true);
+      assert.deepEqual(projectRules.review.notes, ['manual review kept']);
+      assert.equal(projectRules.api.fetchApiImportPath, '@/custom/api');
+      assert.equal(projectRules.api.fetchApiSymbol, 'fetchAPI');
+      assert.equal(projectRules.api.fetchApiImportKind, 'named');
+      assert.equal(projectRules.api.adapterStyle, 'url-config');
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
   'cli upgrade-docs fails before init',
   { concurrency: false },
   async () => {
@@ -2952,7 +3182,7 @@ test(
 
       await assert.rejects(
         () => runInWorkspace(workspace, () => runCli(['upgrade-docs'])),
-        /OpenAPI workspace not found\.\nRun npx --yes openapi-projector init before upgrading generated docs\./,
+        /OpenAPI workspace not found\.\nRun npx --yes openapi-projector@latest init before upgrading generated docs\./,
       );
 
       const projectReadmeSource = await fs.readFile(projectReadmePath, 'utf8');
@@ -3486,6 +3716,179 @@ test(
 );
 
 test(
+  'prepare warns and keeps reviewed project rules usable when current defaults are missing',
+  { concurrency: false },
+  async () => {
+    const spec = await readFixtureJson('oas30.json');
+
+    await withWorkspace({ spec }, async (workspace) => {
+      const projectConfigPath = path.join(workspace, 'openapi/config/project.jsonc');
+      const projectConfig = await readJson(projectConfigPath);
+      await writeJsonFile(projectConfigPath, {
+        ...projectConfig,
+        sourceUrl: `data:application/json,${encodeURIComponent(JSON.stringify(spec))}`,
+      });
+      await writeJsonFile(path.join(workspace, 'openapi/config/project-rules.jsonc'), {
+        review: {
+          rulesReviewed: true,
+          notes: [],
+        },
+        api: {
+          fetchApiImportPath: '../../test-support/fetch-api',
+          fetchApiSymbol: 'fetchAPI',
+          wrapperGrouping: 'tag',
+          tagFileCase: 'title',
+        },
+        layout: {
+          schemaFileName: 'schema.ts',
+        },
+      });
+
+      const { output } = await captureConsoleLog(() =>
+        runInWorkspace(workspace, () => runCli(['prepare'])),
+      );
+      const projectRules = await readJson(
+        path.join(workspace, 'openapi/config/project-rules.jsonc'),
+      );
+
+      assert.match(output, /project rules are missing defaults added by the current CLI/);
+      assert.match(output, /missing: api\.fetchApiImportKind/);
+      assert.match(output, /missing: api\.adapterStyle/);
+      assert.match(output, /this run will add safe defaults/);
+      assert.doesNotMatch(output, /next: npx --yes openapi-projector@latest update/);
+      assert.match(output, /check: openapi\/config\/project-rules\.jsonc/);
+      assert.match(output, /added api\.fetchApiImportKind: "named"/);
+      assert.match(output, /added api\.adapterStyle: "url-config"/);
+      assert.doesNotMatch(output, /updated review\.rulesReviewed/);
+      assert.equal(projectRules.review.rulesReviewed, true);
+      assert.equal(projectRules.api.fetchApiImportKind, 'named');
+      assert.equal(projectRules.api.adapterStyle, 'url-config');
+      await assertExists(path.join(workspace, 'openapi/project/summary.md'));
+    });
+  },
+);
+
+test(
+  'prepare points missing-defaults warning at configured project rules path',
+  { concurrency: false },
+  async () => {
+    const spec = await readFixtureJson('oas30.json');
+    const projectRulesPath = 'custom/project-rules.jsonc';
+    const sourceUrl = `data:application/json,${encodeURIComponent(JSON.stringify(spec))}`;
+
+    await withWorkspace(
+      {
+        spec,
+        createRulesFile: false,
+        projectConfigOverrides: {
+          sourceUrl,
+          projectRulesPath,
+        },
+      },
+      async (workspace) => {
+        await writeJsonFile(path.join(workspace, projectRulesPath), {
+          review: {
+            rulesReviewed: true,
+            notes: [],
+          },
+          api: {
+            fetchApiImportPath: '../../test-support/fetch-api',
+            fetchApiSymbol: 'fetchAPI',
+            wrapperGrouping: 'tag',
+            tagFileCase: 'title',
+          },
+          layout: {
+            schemaFileName: 'schema.ts',
+          },
+        });
+
+        const { output } = await captureConsoleLog(() =>
+          runInWorkspace(workspace, () => runCli(['prepare'])),
+        );
+        const projectRules = await readJson(path.join(workspace, projectRulesPath));
+
+        assert.match(output, /project rules are missing defaults added by the current CLI/);
+        assert.match(output, /check: custom\/project-rules\.jsonc/);
+        assert.doesNotMatch(output, /check: openapi\/config\/project-rules\.jsonc/);
+        assert.equal(projectRules.review.rulesReviewed, true);
+        assert.equal(projectRules.api.fetchApiImportKind, 'named');
+        assert.equal(projectRules.api.adapterStyle, 'url-config');
+        await assert.rejects(
+          () => fs.access(path.join(workspace, 'openapi/config/project-rules.jsonc')),
+          /ENOENT/,
+        );
+      },
+    );
+  },
+);
+
+test(
+  'prepare points review gate warning at configured project rules path',
+  { concurrency: false },
+  async () => {
+    const spec = await readFixtureJson('oas30.json');
+    const projectRulesPath = 'custom/project-rules.jsonc';
+    const sourceUrl = `data:application/json,${encodeURIComponent(JSON.stringify(spec))}`;
+
+    await withWorkspace(
+      {
+        spec,
+        createRulesFile: false,
+        projectConfigOverrides: {
+          sourceUrl,
+          projectRulesPath,
+        },
+      },
+      async (workspace) => {
+        await writeJsonFile(path.join(workspace, projectRulesPath), {
+          review: {
+            rulesReviewed: false,
+            notes: ['manual review pending'],
+          },
+          api: {
+            fetchApiImportPath: '../../test-support/fetch-api',
+            fetchApiSymbol: 'fetchAPI',
+            fetchApiImportKind: 'named',
+            adapterStyle: 'url-config',
+            wrapperGrouping: 'tag',
+            tagFileCase: 'title',
+          },
+          hooks: {
+            enabled: false,
+            library: '@tanstack/react-query',
+            queryMethods: ['GET'],
+            mutationMethods: ['POST', 'PUT', 'PATCH', 'DELETE'],
+            queryKeyStrategy: 'path-and-params',
+            responseUnwrap: 'none',
+          },
+          layout: {
+            schemaFileName: 'schema.ts',
+          },
+        });
+
+        const { output } = await captureConsoleLog(() =>
+          assert.rejects(
+            () => runInWorkspace(workspace, () => runCli(['prepare'])),
+            (error) => {
+              assert.match(error.message, /Project rules have not been reviewed/);
+              assert.match(error.message, /edit custom\/project-rules\.jsonc/);
+              assert.doesNotMatch(error.message, /edit openapi\/config\/project-rules\.jsonc/);
+              return true;
+            },
+          ),
+        );
+
+        assert.match(
+          output,
+          /manual: custom\/project-rules\.jsonc에서 review\.rulesReviewed=true로 설정/,
+        );
+        assert.doesNotMatch(output, /manual: openapi\/config\/project-rules\.jsonc/);
+      },
+    );
+  },
+);
+
+test(
   'prepare stops before project until project rules are reviewed',
   { concurrency: false },
   async () => {
@@ -3500,10 +3903,27 @@ test(
           await runCli(['init']);
           await setProjectSourceUrl(workspace, sourceUrl);
 
-          await assert.rejects(
-            () => runCli(['prepare']),
-            /Project rules have not been reviewed/,
+          const lines = [];
+          const originalLog = console.log;
+          console.log = (...args) => {
+            lines.push(args.join(' '));
+          };
+
+          try {
+            await assert.rejects(
+              () => runCli(['prepare']),
+              /Project rules have not been reviewed/,
+            );
+          } finally {
+            console.log = originalLog;
+          }
+
+          const output = lines.join('\n');
+          assert.match(
+            output,
+            /- manual: openapi\/config\/project-rules\.jsonc에서 review\.rulesReviewed=true로 설정/,
           );
+          assert.doesNotMatch(output, /- update: openapi\/config\/project-rules\.jsonc/);
           await assert.rejects(
             () => runCli(['prepare', '--project']),
             /Project rules have not been reviewed/,
@@ -3626,7 +4046,7 @@ test(
 );
 
 test(
-  'project rejects reviewed rules without adapterStyle before cleaning generated output',
+  'project rejects reviewed rules without current defaults before cleaning generated output',
   { concurrency: false },
   async () => {
     const spec = await readFixtureJson('oas30.json');
@@ -3660,7 +4080,7 @@ test(
       async (workspace) => {
         await assert.rejects(
           () => runInWorkspace(workspace, () => projectCommand.run()),
-          /api\.adapterStyle: is required when review\.rulesReviewed is true/,
+          /Run npx --yes openapi-projector@latest update to add current defaults\./,
         );
 
         await assertExists(

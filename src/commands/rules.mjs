@@ -57,6 +57,12 @@ const DEFAULT_REVIEW_RULE_KEYS = new Set([
   'scaffoldSignature',
 ]);
 const DEFAULT_ROOT_RULE_KEYS = new Set(['api', 'hooks', 'layout', 'review']);
+const REQUIRED_REVIEWED_API_RULE_PATHS = new Set([
+  'api.fetchApiImportPath',
+  'api.fetchApiSymbol',
+  'api.fetchApiImportKind',
+  'api.adapterStyle',
+]);
 
 function findMostUsedImportPath(stats) {
   return stats[0]?.importPath ?? null;
@@ -253,31 +259,6 @@ function matchesScaffoldReviewValues(review, candidate) {
   return review.scaffoldSignature === candidate.scaffoldSignature;
 }
 
-function buildMigratedRulesDefaults(existingRules, scaffoldDefaults) {
-  const existingApi = existingRules.api ?? {};
-  const existingHooks = isPlainObject(existingRules.hooks) ? existingRules.hooks : null;
-  const hooks = existingHooks
-    ? {
-        ...existingHooks,
-        enabled: existingHooks.enabled ?? scaffoldDefaults.hooks.enabled,
-        library: existingHooks.library ?? DEFAULT_HOOK_RULES.library,
-        queryMethods: existingHooks.queryMethods ?? DEFAULT_HOOK_RULES.queryMethods,
-        mutationMethods: existingHooks.mutationMethods ?? DEFAULT_HOOK_RULES.mutationMethods,
-        queryKeyStrategy: existingHooks.queryKeyStrategy ?? DEFAULT_HOOK_RULES.queryKeyStrategy,
-        responseUnwrap: existingHooks.responseUnwrap ?? DEFAULT_HOOK_RULES.responseUnwrap,
-      }
-    : scaffoldDefaults.hooks;
-
-  return {
-    ...existingRules,
-    api: {
-      ...existingApi,
-      tagFileCase: existingApi.tagFileCase ?? DEFAULT_API_RULES.tagFileCase,
-    },
-    hooks,
-  };
-}
-
 function matchesScaffoldCandidate({ api, hooks, layout, review }, candidate) {
   return (
     matchesScaffoldApiValues(api, candidate.api) &&
@@ -406,6 +387,110 @@ function renderCandidateValue(value) {
   }
 
   return `\`${String(value)}\``;
+}
+
+function formatMigrationValue(value) {
+  return typeof value === 'string' ? JSON.stringify(value) : JSON.stringify(value);
+}
+
+function pushAddedMigration(entries, pathName, value) {
+  entries.push({
+    action: 'added',
+    path: pathName,
+    value,
+  });
+}
+
+function setDefaultIfMissing(target, key, pathName, value, entries) {
+  if (target[key] != null) {
+    return;
+  }
+
+  target[key] = value;
+  pushAddedMigration(entries, pathName, value);
+}
+
+function buildProjectRulesMigration(existingRules, scaffoldDefaults) {
+  const entries = [];
+  const existingApi = isPlainObject(existingRules.api) ? existingRules.api : {};
+  const existingHooks = isPlainObject(existingRules.hooks) ? existingRules.hooks : {};
+  const fillCompleteHelperFromAnalysis =
+    existingApi.fetchApiImportPath == null && existingApi.fetchApiSymbol == null;
+  const missingHelperDefaults = fillCompleteHelperFromAnalysis
+    ? scaffoldDefaults.api
+    : DEFAULT_API_RULES;
+  const api = { ...existingApi };
+  const hooks = { ...existingHooks };
+
+  setDefaultIfMissing(
+    api,
+    'fetchApiImportPath',
+    'api.fetchApiImportPath',
+    missingHelperDefaults.fetchApiImportPath,
+    entries,
+  );
+  setDefaultIfMissing(
+    api,
+    'fetchApiSymbol',
+    'api.fetchApiSymbol',
+    missingHelperDefaults.fetchApiSymbol,
+    entries,
+  );
+  setDefaultIfMissing(
+    api,
+    'fetchApiImportKind',
+    'api.fetchApiImportKind',
+    missingHelperDefaults.fetchApiImportKind,
+    entries,
+  );
+  setDefaultIfMissing(
+    api,
+    'adapterStyle',
+    'api.adapterStyle',
+    missingHelperDefaults.adapterStyle,
+    entries,
+  );
+  setDefaultIfMissing(
+    api,
+    'wrapperGrouping',
+    'api.wrapperGrouping',
+    DEFAULT_API_RULES.wrapperGrouping,
+    entries,
+  );
+  setDefaultIfMissing(
+    api,
+    'tagFileCase',
+    'api.tagFileCase',
+    DEFAULT_API_RULES.tagFileCase,
+    entries,
+  );
+
+  for (const [key, value] of Object.entries(scaffoldDefaults.hooks ?? DEFAULT_HOOK_RULES)) {
+    setDefaultIfMissing(hooks, key, `hooks.${key}`, value, entries);
+  }
+
+  const nextRules = {
+    ...existingRules,
+    api,
+    hooks,
+  };
+
+  return {
+    entries,
+    rules: nextRules,
+  };
+}
+
+function getProjectRulesMissingCurrentDefaults(projectRules) {
+  if (projectRules?.review?.rulesReviewed !== true) {
+    return [];
+  }
+
+  const api = isPlainObject(projectRules.api) ? projectRules.api : {};
+  return Array.from(REQUIRED_REVIEWED_API_RULE_PATHS).filter((pathName) => {
+    const key = pathName.replace(/^api\./, '');
+    return api[key] == null;
+  });
 }
 
 function renderCandidateSection(title, candidate) {
@@ -576,6 +661,7 @@ const rulesCommand = {
     let scaffoldCreated = false;
     let scaffoldRefreshed = false;
     let rulesMigrated = false;
+    let rulesMigrationEntries = [];
     if (!(await pathExists(rulesPath))) {
       scaffoldCreated = true;
       await ensureDir(path.dirname(rulesPath));
@@ -611,10 +697,12 @@ const rulesCommand = {
           await writeText(rulesPath, nextRulesSource);
         }
       } else {
-        const nextRules = buildMigratedRulesDefaults(existingRules, scaffoldDefaults);
+        const migration = buildProjectRulesMigration(existingRules, scaffoldDefaults);
+        const nextRules = migration.rules;
 
         if (JSON.stringify(existingRules) !== JSON.stringify(nextRules)) {
           rulesMigrated = true;
+          rulesMigrationEntries = migration.entries;
           await writeJson(rulesPath, nextRules);
         }
       }
@@ -628,10 +716,14 @@ const rulesCommand = {
       console.log(formatSuccess(`Refreshed project rules scaffold: ${rulesPath}`));
     } else if (rulesMigrated) {
       console.log(formatSuccess(`Migrated project rules defaults: ${rulesPath}`));
+      for (const entry of rulesMigrationEntries) {
+        console.log(`  - ${entry.action} ${entry.path}: ${formatMigrationValue(entry.value)}`);
+      }
+      console.log(`  - check: ${rulesPath}`);
     } else {
       console.log(formatSuccess(`Preserved existing project rules: ${rulesPath}`));
     }
   },
 };
 
-export { rulesCommand };
+export { getProjectRulesMissingCurrentDefaults, rulesCommand };
