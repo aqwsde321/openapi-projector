@@ -61,6 +61,9 @@ npx --yes openapi-projector@latest update
    맞지 않는 부분이 있으면 수정하고, 맞다고 판단되면 review.rulesReviewed를 true로 바꿔.
 9. review.rulesReviewed를 true로 바꾼 뒤 npx --yes openapi-projector@latest prepare를 다시 실행해.
 10. openapi/project/summary.md를 읽고 생성된 endpoint와 skipped endpoint를 요약해.
+11. openapi/project/summary.md의 Application Review 섹션에서 runtime wrapper, endpoint별 request/response DTO, params, body, media type을 확인해.
+12. 실제 앱 코드 반영 전에는 openapi/review/project-rules/analysis.md와 analysis.json의 근거를 다시 확인해.
+    generated .api.ts를 그대로 복사하지 말고 기존 프로젝트의 URL constant, Response wrapper, 기존 DTO, export style, error handling, query/cache 규칙에 맞게 조정할 부분을 먼저 정리해.
 
 아직 실제 앱 코드에는 반영하지 말고, Swagger 변경 비교 요약과 DTO/API/hook 후보 요약을 나눈 뒤 내가 어떤 endpoint를 적용할지 아래 형식으로 물어봐.
 
@@ -75,7 +78,7 @@ npx --yes openapi-projector@latest update
 사용할 실제 앱 코드 위치:
 - <예: src/features/user/api>
 
-내가 endpoint를 정하면 openapi/project/의 후보 코드를 프로젝트 컨벤션에 맞게 실제 앱 코드에 반영해.
+내가 endpoint를 정하면 Application Review와 rules 분석 근거를 다시 확인한 뒤 openapi/project/의 후보 코드를 프로젝트 컨벤션에 맞게 실제 앱 코드에 반영해.
 프로젝트에서 typecheck, lint, 관련 테스트를 사용 중이면 반영 후 실행해.
 ```
 
@@ -476,12 +479,13 @@ Do not treat `openapi/project/src/openapi-generated/` as final app code.
 
 Recommended process:
 
-1. Read `openapi/project/summary.md`.
-2. For each requested endpoint, compare the `Application Review` request/response contract with the real feature code that will call it.
-3. Pick the endpoint DTO/API candidates you actually need.
-4. Copy or adapt them into the real app source tree.
-5. Align naming, folder location, imports, error handling, response unwrapping, and client usage with existing code.
-6. If the project uses them, run typecheck, lint, and relevant tests.
+1. Read `openapi/project/summary.md`, especially the `Application Review` section.
+2. Re-check `openapi/review/project-rules/analysis.md` and `openapi/review/project-rules/analysis.json` for the API client/import/call-style evidence.
+3. For each requested endpoint, compare the `Application Review` request/response contract with the real feature code that will call it.
+4. Pick the endpoint DTO/API candidates you actually need.
+5. Copy or adapt them into the real app source tree.
+6. Align naming, folder location, URL constants, existing DTO reuse, imports, export style, error handling, response unwrapping, and client usage with existing code.
+7. If the project uses them, run typecheck, lint, and relevant tests.
 
 If the user only needs DTOs, copy or adapt only the `.dto.ts` candidates and ignore the generated `.api.ts` wrappers. Still review `openapi/project/summary.md` first so skipped or unsupported endpoints are not missed.
 
