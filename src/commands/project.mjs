@@ -20,6 +20,23 @@ function toPosixPath(value) {
   return value.replaceAll(path.sep, '/');
 }
 
+function resolveProjectRulesAnalysisPaths(rootDir, projectConfig) {
+  const analysisPath = path.resolve(
+    rootDir,
+    projectConfig.projectRulesAnalysisPath ?? 'openapi/review/project-rules/analysis.md',
+  );
+  const analysisJsonPath = path.resolve(
+    rootDir,
+    projectConfig.projectRulesAnalysisJsonPath ??
+      path.join(path.dirname(analysisPath), 'analysis.json'),
+  );
+
+  return {
+    analysisPath,
+    analysisJsonPath,
+  };
+}
+
 const projectCommand = {
   name: 'project',
   async run(options = {}) {
@@ -50,6 +67,7 @@ const projectCommand = {
     const projectRootDir = path.resolve(projectGeneratedSrcDir, '..', '..');
     const projectManifestPath = path.join(projectRootDir, 'manifest.json');
     const projectSummaryPath = path.join(projectRootDir, 'summary.md');
+    const { analysisPath, analysisJsonPath } = resolveProjectRulesAnalysisPaths(rootDir, projectConfig);
     const spec = await loadSupportedOpenApiSpec(sourcePath);
 
     let schemaContents;
@@ -74,6 +92,8 @@ const projectCommand = {
       projectGeneratedSrcDir,
       projectSummaryPath,
       projectRulesPath: toPosixPath(path.relative(rootDir, projectRulesPath)),
+      projectRulesAnalysisPath: toPosixPath(path.relative(rootDir, analysisPath)),
+      projectRulesAnalysisJsonPath: toPosixPath(path.relative(rootDir, analysisJsonPath)),
       generatedSchemaPath: toPosixPath(path.relative(rootDir, generatedSchemaPath)),
       apiRules: projectRules.api ?? {},
       hookRules: projectRules.hooks ?? {},
@@ -89,4 +109,4 @@ const projectCommand = {
   },
 };
 
-export { projectCommand };
+export { projectCommand, resolveProjectRulesAnalysisPaths };

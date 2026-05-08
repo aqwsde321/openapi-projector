@@ -100,6 +100,8 @@ function renderProjectSummary(manifest) {
     `- Generated at: ${manifest.generatedAt}`,
     `- Source OpenAPI: ${manifest.sourcePath}`,
     `- Project rules: ${manifest.projectRulesPath}`,
+    `- Project rules analysis: ${manifest.projectRulesAnalysisPath}`,
+    `- Project rules analysis JSON: ${manifest.projectRulesAnalysisJsonPath}`,
     `- Review schema: ${manifest.generatedSchemaPath}`,
     `- Total endpoints: ${manifest.totalEndpoints}`,
     `- Generated endpoints: ${manifest.generatedEndpoints}`,
@@ -120,6 +122,12 @@ function renderProjectSummary(manifest) {
     lines.push('## Application Review');
     lines.push('');
     lines.push('Use this section before copying generated candidates into the app.');
+    lines.push(
+      'Do not copy generated API files as-is. Re-check the project rules analysis and the real feature code before applying candidates.',
+    );
+    lines.push(
+      'Adapt URL constants, existing DTO reuse, export style, error handling, response unwrapping, and query/cache conventions to match the app.',
+    );
     lines.push('');
     lines.push('### Runtime Wrapper');
     lines.push('');

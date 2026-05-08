@@ -3783,6 +3783,8 @@ test(
         projectConfigOverrides: {
           sourceUrl,
           projectRulesPath,
+          projectRulesAnalysisPath: null,
+          projectRulesAnalysisJsonPath: null,
         },
       },
       async (workspace) => {
@@ -3871,6 +3873,10 @@ test(
             () => runInWorkspace(workspace, () => runCli(['prepare'])),
             (error) => {
               assert.match(error.message, /Project rules have not been reviewed/);
+              assert.match(
+                error.message,
+                /Review openapi\/review\/project-rules\/analysis\.md and openapi\/review\/project-rules\/analysis\.json/,
+              );
               assert.match(error.message, /edit custom\/project-rules\.jsonc/);
               assert.doesNotMatch(error.message, /edit openapi\/config\/project-rules\.jsonc/);
               return true;
@@ -4146,54 +4152,111 @@ test(
       },
     ];
 
-    await withWorkspace({ spec, extraFiles }, async (workspace) => {
-      await runInWorkspace(workspace, () => generateCommand.run());
-      await runInWorkspace(workspace, () => projectCommand.run());
+    await withWorkspace(
+      {
+        spec,
+        extraFiles,
+        projectConfigOverrides: {
+          projectRulesAnalysisPath: 'custom/review/rules.md',
+          projectRulesAnalysisJsonPath: 'custom/review/rules.json',
+        },
+      },
+      async (workspace) => {
+        await runInWorkspace(workspace, () => generateCommand.run());
+        await runInWorkspace(workspace, () => projectCommand.run());
 
-      const generatedRoot = path.join(workspace, 'openapi/project/src/openapi-generated');
-      const defaultDtoPath = path.join(generatedRoot, 'default/get-health-status.dto.ts');
-      const profilesDtoPath = path.join(generatedRoot, 'Profiles/update-profile.dto.ts');
-      const defaultApiPath = path.join(generatedRoot, 'default/get-health-status.api.ts');
-      const profilesApiPath = path.join(generatedRoot, 'Profiles/update-profile.api.ts');
-      const manifestPath = path.join(workspace, 'openapi/project/manifest.json');
-      await assertExists(path.join(generatedRoot, 'schema.ts'));
-      await assertExists(defaultDtoPath);
-      await assertExists(profilesDtoPath);
-      await assertExists(defaultApiPath);
-      await assertExists(profilesApiPath);
-      await assert.rejects(() => fs.access(path.join(generatedRoot, 'default/index.ts')), /ENOENT/);
-      await assert.rejects(() => fs.access(path.join(generatedRoot, 'Profiles/index.ts')), /ENOENT/);
-      await assert.rejects(() => fs.access(path.join(generatedRoot, 'index.ts')), /ENOENT/);
-      await assertExists(manifestPath);
+        const generatedRoot = path.join(workspace, 'openapi/project/src/openapi-generated');
+        const defaultDtoPath = path.join(generatedRoot, 'default/get-health-status.dto.ts');
+        const profilesDtoPath = path.join(generatedRoot, 'Profiles/update-profile.dto.ts');
+        const defaultApiPath = path.join(generatedRoot, 'default/get-health-status.api.ts');
+        const profilesApiPath = path.join(generatedRoot, 'Profiles/update-profile.api.ts');
+        const manifestPath = path.join(workspace, 'openapi/project/manifest.json');
+        const summaryPath = path.join(workspace, 'openapi/project/summary.md');
+        await assertExists(path.join(generatedRoot, 'schema.ts'));
+        await assertExists(defaultDtoPath);
+        await assertExists(profilesDtoPath);
+        await assertExists(defaultApiPath);
+        await assertExists(profilesApiPath);
+        await assert.rejects(() => fs.access(path.join(generatedRoot, 'default/index.ts')), /ENOENT/);
+        await assert.rejects(() => fs.access(path.join(generatedRoot, 'Profiles/index.ts')), /ENOENT/);
+        await assert.rejects(() => fs.access(path.join(generatedRoot, 'index.ts')), /ENOENT/);
+        await assertExists(manifestPath);
 
-      const defaultApiSource = await fs.readFile(defaultApiPath, 'utf8');
-      const defaultDtoSource = await fs.readFile(defaultDtoPath, 'utf8');
-      const profilesApiSource = await fs.readFile(profilesApiPath, 'utf8');
-      const profilesDtoSource = await fs.readFile(profilesDtoPath, 'utf8');
-      const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
-      assert.match(defaultApiSource, /export const getHealthStatus = async/);
-      assert.match(defaultApiSource, /from '\.\/get-health-status\.dto'/);
-      assert.match(defaultApiSource, /from '\.\.\/\.\.\/test-support\/fetch-api'/);
-      assert.match(defaultDtoSource, /export interface GetHealthStatusResponseDto \{/);
-      assert.match(defaultDtoSource, /message\?: string \| null;/);
-      assert.match(profilesApiSource, /export const updateProfile = async/);
-      assert.match(profilesApiSource, /from '\.\/update-profile\.dto'/);
-      assert.match(profilesApiSource, /method: "PATCH"/);
-      assert.match(profilesApiSource, /`\/profiles\/\$\{encodeURIComponent\(String\(id\)\)\}`/);
-      assert.match(profilesDtoSource, /bio\?: string \| null;/);
-      assert.doesNotMatch(defaultDtoSource, /unknown/);
-      assert.doesNotMatch(profilesDtoSource, /unknown/);
-      assert.equal(manifest.projectGeneratedSrcDir, 'openapi/project/src/openapi-generated');
-      assert.equal('suggestedTargetSrcDir' in manifest, false);
-      assert.ok(manifest.files.every((entry) => !('target' in entry)));
+        const defaultApiSource = await fs.readFile(defaultApiPath, 'utf8');
+        const defaultDtoSource = await fs.readFile(defaultDtoPath, 'utf8');
+        const profilesApiSource = await fs.readFile(profilesApiPath, 'utf8');
+        const profilesDtoSource = await fs.readFile(profilesDtoPath, 'utf8');
+        const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
+        const summarySource = await fs.readFile(summaryPath, 'utf8');
+        assert.match(defaultApiSource, /export const getHealthStatus = async/);
+        assert.match(defaultApiSource, /from '\.\/get-health-status\.dto'/);
+        assert.match(defaultApiSource, /from '\.\.\/\.\.\/test-support\/fetch-api'/);
+        assert.match(defaultDtoSource, /export interface GetHealthStatusResponseDto \{/);
+        assert.match(defaultDtoSource, /message\?: string \| null;/);
+        assert.match(profilesApiSource, /export const updateProfile = async/);
+        assert.match(profilesApiSource, /from '\.\/update-profile\.dto'/);
+        assert.match(profilesApiSource, /method: "PATCH"/);
+        assert.match(profilesApiSource, /`\/profiles\/\$\{encodeURIComponent\(String\(id\)\)\}`/);
+        assert.match(profilesDtoSource, /bio\?: string \| null;/);
+        assert.doesNotMatch(defaultDtoSource, /unknown/);
+        assert.doesNotMatch(profilesDtoSource, /unknown/);
+        assert.equal(manifest.projectGeneratedSrcDir, 'openapi/project/src/openapi-generated');
+        assert.equal(manifest.projectRulesAnalysisPath, 'custom/review/rules.md');
+        assert.equal(manifest.projectRulesAnalysisJsonPath, 'custom/review/rules.json');
+        assert.match(summarySource, /Project rules analysis: custom\/review\/rules\.md/);
+        assert.match(summarySource, /Project rules analysis JSON: custom\/review\/rules\.json/);
+        assert.equal('suggestedTargetSrcDir' in manifest, false);
+        assert.ok(manifest.files.every((entry) => !('target' in entry)));
 
-      await execFileAsync(process.execPath, [
-        TSC_CLI,
-        '--noEmit',
-        '-p',
-        path.join(workspace, 'openapi/project/src/tsconfig.json'),
-      ]);
-    });
+        await execFileAsync(process.execPath, [
+          TSC_CLI,
+          '--noEmit',
+          '-p',
+          path.join(workspace, 'openapi/project/src/tsconfig.json'),
+        ]);
+      },
+    );
+  },
+);
+
+test(
+  'project falls back when optional project rules analysis paths are null',
+  { concurrency: false },
+  async () => {
+    const spec = await readFixtureJson('oas31.json');
+
+    await withWorkspace(
+      {
+        spec,
+        projectConfigOverrides: {
+          projectRulesAnalysisPath: null,
+          projectRulesAnalysisJsonPath: null,
+        },
+      },
+      async (workspace) => {
+        await runInWorkspace(workspace, () => generateCommand.run());
+        await runInWorkspace(workspace, () => projectCommand.run());
+
+        const manifest = JSON.parse(
+          await fs.readFile(path.join(workspace, 'openapi/project/manifest.json'), 'utf8'),
+        );
+        const summarySource = await fs.readFile(
+          path.join(workspace, 'openapi/project/summary.md'),
+          'utf8',
+        );
+
+        assert.equal(manifest.projectRulesAnalysisPath, 'openapi/review/project-rules/analysis.md');
+        assert.equal(
+          manifest.projectRulesAnalysisJsonPath,
+          'openapi/review/project-rules/analysis.json',
+        );
+        assert.match(summarySource, /Project rules analysis: openapi\/review\/project-rules\/analysis\.md/);
+        assert.match(
+          summarySource,
+          /Project rules analysis JSON: openapi\/review\/project-rules\/analysis\.json/,
+        );
+      },
+    );
   },
 );
 

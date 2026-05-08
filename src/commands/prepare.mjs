@@ -2,7 +2,7 @@ import path from 'node:path';
 import { initCommand } from './init.mjs';
 import { refreshCommand } from './refresh.mjs';
 import { getProjectRulesMissingCurrentDefaults, rulesCommand } from './rules.mjs';
-import { projectCommand } from './project.mjs';
+import { projectCommand, resolveProjectRulesAnalysisPaths } from './project.mjs';
 import { loadProjectConfig, loadProjectRules } from '../core/openapi-utils.mjs';
 import { assertProjectRulesReviewed } from '../config/validation.mjs';
 import { formatSuccess, formatWarning } from '../cli-format.mjs';
@@ -109,6 +109,7 @@ const prepareCommand = {
       }
 
       const relativeProjectRulesPath = toPosixPath(path.relative(rootDir, projectRulesPath));
+      const { analysisPath, analysisJsonPath } = resolveProjectRulesAnalysisPaths(rootDir, projectConfig);
       console.log('');
       console.log(formatWarning('project: review.rulesReviewed가 true가 아니어서 DTO/API 후보 생성을 건너뜁니다.'));
       console.log(
@@ -117,7 +118,7 @@ const prepareCommand = {
       throw new Error(
         [
           'Project rules have not been reviewed.',
-          `Review ${toProjectRelativePath(rootDir, projectConfig.projectRulesAnalysisPath)} and ${toProjectRelativePath(rootDir, projectConfig.projectRulesAnalysisJsonPath)}, then edit ${relativeProjectRulesPath}.`,
+          `Review ${toProjectRelativePath(rootDir, analysisPath)} and ${toProjectRelativePath(rootDir, analysisJsonPath)}, then edit ${relativeProjectRulesPath}.`,
           'Set review.rulesReviewed to true before generating project candidates.',
         ].join('\n'),
       );
