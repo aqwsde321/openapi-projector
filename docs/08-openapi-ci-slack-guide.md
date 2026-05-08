@@ -13,11 +13,11 @@ backend deploy 완료
 -> npx --yes openapi-projector@latest catalog 실행
 -> openapi/changes.json 으로 변경 여부 판단
 -> openapi/changes.md 를 GitHub Actions summary에 기록
--> 변경이 있으면 openapi/changes.md 요약을 Slack 전송
+-> 변경이 있으면 openapi/changes.json 기반 변경 건수와 상세 링크를 Slack 전송
 -> 갱신된 endpoints.json 을 다음 기준선으로 저장
 ```
 
-`openapi-projector`는 `catalog` 단계에서 `openapi/changes.md`와 `openapi/changes.json`을 만듭니다. Slack 공지는 이 산출물을 GitHub Actions에서 전송합니다. npm 배포나 CLI 기능 추가는 필요하지 않습니다.
+`openapi-projector`는 `catalog` 단계에서 `openapi/changes.md`와 `openapi/changes.json`을 만듭니다. GitHub Actions는 `changes.json`으로 변경 건수를 계산해 Slack에 보내고, 전체 `changes.md`는 Actions summary에 남깁니다. npm 배포나 CLI 기능 추가는 필요하지 않습니다.
 
 ## 최소 설정
 
@@ -119,15 +119,20 @@ const shouldNotify = changes.baseline !== true && count > 0;
 
 ## Slack 메시지
 
-초기 운영은 `openapi/changes.md` 내용을 그대로 보내는 방식으로 시작합니다. 예제 workflow는 Slack 메시지 제목과 상세 링크 문구를 고려해 본문을 약 2,500자에서 자르고 `... (Slack 본문 길이 제한으로 일부만 표시됨)` 문구를 붙입니다. 전체 `changes.md`는 GitHub Actions summary에 남깁니다.
+예제 workflow는 Slack attachment의 `color`로 왼쪽 컬러 라인을 표시하고, 본문은 변경 건수만 글머리기호로 보냅니다. 전체 `changes.md`는 GitHub Actions summary에 남깁니다.
 
-권장 제목:
+권장 메시지:
 
 ```text
-[DEV] OpenAPI 변경 감지
+[DEV] OpenAPI 변경 감지 | 엔드포인트 기준
+- 추가 0건
+- 삭제 0건
+- 계약 변경 22건
+- 문서 변경 1건
+🔎 상세
 ```
 
-변경 건수는 `changes.md` 본문의 `Change Summary`에 표시됩니다.
+`상세` 링크는 해당 GitHub Actions 실행 화면으로 연결되며, summary에서 전체 `changes.md`를 확인합니다.
 
 주요 섹션:
 
@@ -162,7 +167,7 @@ Slack 전송 step은 baseline 갱신보다 먼저 실행합니다. 변경이 감
 - 배포 직후 `/v3/api-docs`가 아직 갱신되지 않았을 수 있으므로 retry를 둡니다.
 - `/healthz`처럼 배포 커밋을 확인할 수 있는 endpoint가 있다면, `/v3/api-docs` 다운로드 전에 해당 커밋이 배포됐는지 확인하는 단계를 추가합니다.
 - 환경별 workflow concurrency를 설정해 baseline push 충돌을 줄입니다.
-- Slack 본문은 길이 제한 때문에 잘릴 수 있습니다. 전체 `openapi/changes.md`는 GitHub Actions summary에서 확인합니다.
+- Slack 본문은 변경 건수와 Actions 상세 링크만 담습니다. 전체 `openapi/changes.md`는 GitHub Actions summary에서 확인합니다.
 - GitHub Actions summary는 step당 1MiB 제한이 있으므로, 리포트가 그보다 커지면 별도 artifact 보관을 다시 검토합니다.
 - `openapi-projector` 리포트는 팀 공지용입니다. breaking/compatible 판정을 엄밀하게 해서 배포를 막는 용도는 아닙니다.
 - 배포 차단이 필요해지면 별도 job에서 `oasdiff breaking` 같은 검사를 추가합니다.

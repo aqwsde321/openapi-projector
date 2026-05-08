@@ -137,7 +137,10 @@ jobs:
           const shouldNotify = changes.baseline !== true && count > 0;
 
           console.log(`changed=${shouldNotify}`);
-          console.log(`summary=🆕 Added ${added} / 🗑️ Removed ${removed} / 🧩 Contract Changed ${contractChanged} / 📝 Doc Changed ${docChanged}`);
+          console.log(`added=${added}`);
+          console.log(`removed=${removed}`);
+          console.log(`contract_changed=${contractChanged}`);
+          console.log(`doc_changed=${docChanged}`);
           NODE
 
       - name: Write OpenAPI report summary
@@ -152,6 +155,10 @@ jobs:
         if: steps.changes.outputs.changed == 'true'
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          ADDED_COUNT: ${{ steps.changes.outputs.added }}
+          REMOVED_COUNT: ${{ steps.changes.outputs.removed }}
+          CONTRACT_CHANGED_COUNT: ${{ steps.changes.outputs.contract_changed }}
+          DOC_CHANGED_COUNT: ${{ steps.changes.outputs.doc_changed }}
           ACTIONS_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ -z "$SLACK_WEBHOOK_URL" ]; then
@@ -162,27 +169,33 @@ jobs:
           node <<'NODE'
           const fs = require('node:fs');
 
-          const report = fs.readFileSync('openapi/changes.md', 'utf8').trim();
-          const maxReportLength = 2500;
-          const summaryText = process.env.ACTIONS_RUN_URL
-            ? `<${process.env.ACTIONS_RUN_URL}|Actions summary>의 changes.md`
-            : 'Actions summary의 changes.md';
-
-          function trimReport(text) {
-            if (text.length <= maxReportLength) {
-              return text;
-            }
-
-            const paragraphCut = text.lastIndexOf('\n\n', maxReportLength);
-            const lineCut = text.lastIndexOf('\n', maxReportLength);
-            const cut = paragraphCut > 1000 ? paragraphCut : lineCut > 1000 ? lineCut : maxReportLength;
-
-            return `${text.slice(0, cut).trim()}\n\n... (Slack 본문 길이 제한으로 일부만 표시됨)`;
-          }
-
-          const trimmedReport = trimReport(report);
+          const detailLink = process.env.ACTIONS_RUN_URL
+            ? `<${process.env.ACTIONS_RUN_URL}|:mag_right: 상세>`
+            : ':mag_right: 상세';
+          const summaryLines = [
+            '*[DEV] OpenAPI 변경 감지* | 엔드포인트 기준',
+            `- 추가 ${process.env.ADDED_COUNT}건`,
+            `- 삭제 ${process.env.REMOVED_COUNT}건`,
+            `- 계약 변경 ${process.env.CONTRACT_CHANGED_COUNT}건`,
+            `- 문서 변경 ${process.env.DOC_CHANGED_COUNT}건`,
+            detailLink,
+          ];
           const payload = {
-            text: `[DEV] OpenAPI 변경 감지\n\n${trimmedReport}\n\n전체 상세는 ${summaryText} 확인`,
+            text: '[DEV] OpenAPI 변경 감지',
+            attachments: [
+              {
+                color: '#1677FF',
+                blocks: [
+                  {
+                    type: 'section',
+                    text: {
+                      type: 'mrkdwn',
+                      text: summaryLines.join('\n'),
+                    },
+                  },
+                ],
+              },
+            ],
           };
 
           fs.writeFileSync('slack-payload.json', JSON.stringify(payload));
