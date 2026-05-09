@@ -12,29 +12,13 @@ import {
   resolveGeneratedSchemaPath,
 } from '../openapi/load-spec.mjs';
 import { assertProjectRulesReviewed } from '../config/validation.mjs';
+import { resolveProjectRulesAnalysisPaths } from '../config/project-paths.mjs';
 import { getProjectRulesMissingCurrentDefaults } from './rules.mjs';
 import { renderProjectSummary, writeProjectOutputs } from '../openapi/project-generator.mjs';
 import { formatSuccess } from '../cli-format.mjs';
 
 function toPosixPath(value) {
   return value.replaceAll(path.sep, '/');
-}
-
-function resolveProjectRulesAnalysisPaths(rootDir, projectConfig) {
-  const analysisPath = path.resolve(
-    rootDir,
-    projectConfig.projectRulesAnalysisPath ?? 'openapi/review/project-rules/analysis.md',
-  );
-  const analysisJsonPath = path.resolve(
-    rootDir,
-    projectConfig.projectRulesAnalysisJsonPath ??
-      path.join(path.dirname(analysisPath), 'analysis.json'),
-  );
-
-  return {
-    analysisPath,
-    analysisJsonPath,
-  };
 }
 
 const projectCommand = {
@@ -44,9 +28,17 @@ const projectCommand = {
     const rootDir = context.targetRoot ?? process.cwd();
     const { projectConfig } = await loadProjectConfig(rootDir);
     const { projectRulesPath, projectRules } = await loadProjectRules(rootDir, projectConfig);
+    const { analysisPath, analysisJsonPath } = resolveProjectRulesAnalysisPaths(rootDir, projectConfig);
+    const relativeProjectRulesPath = toPosixPath(path.relative(rootDir, projectRulesPath));
+    const relativeAnalysisPath = toPosixPath(path.relative(rootDir, analysisPath));
+    const relativeAnalysisJsonPath = toPosixPath(path.relative(rootDir, analysisJsonPath));
 
     try {
-      assertProjectRulesReviewed(projectRules);
+      assertProjectRulesReviewed(projectRules, {
+        projectRulesPath: relativeProjectRulesPath,
+        projectRulesAnalysisPath: relativeAnalysisPath,
+        projectRulesAnalysisJsonPath: relativeAnalysisJsonPath,
+      });
     } catch (error) {
       const missingFields = getProjectRulesMissingCurrentDefaults(projectRules);
       if (missingFields.length > 0) {
@@ -54,7 +46,7 @@ const projectCommand = {
           [
             error.message,
             `Run npx --yes openapi-projector@latest update to add current defaults.`,
-            `Then check ${toPosixPath(path.relative(rootDir, projectRulesPath))}.`,
+            `Then check ${relativeProjectRulesPath}.`,
           ].join('\n'),
         );
       }
@@ -67,7 +59,6 @@ const projectCommand = {
     const projectRootDir = path.resolve(projectGeneratedSrcDir, '..', '..');
     const projectManifestPath = path.join(projectRootDir, 'manifest.json');
     const projectSummaryPath = path.join(projectRootDir, 'summary.md');
-    const { analysisPath, analysisJsonPath } = resolveProjectRulesAnalysisPaths(rootDir, projectConfig);
     const spec = await loadSupportedOpenApiSpec(sourcePath);
 
     let schemaContents;
@@ -91,9 +82,9 @@ const projectCommand = {
       schemaContents,
       projectGeneratedSrcDir,
       projectSummaryPath,
-      projectRulesPath: toPosixPath(path.relative(rootDir, projectRulesPath)),
-      projectRulesAnalysisPath: toPosixPath(path.relative(rootDir, analysisPath)),
-      projectRulesAnalysisJsonPath: toPosixPath(path.relative(rootDir, analysisJsonPath)),
+      projectRulesPath: relativeProjectRulesPath,
+      projectRulesAnalysisPath: relativeAnalysisPath,
+      projectRulesAnalysisJsonPath: relativeAnalysisJsonPath,
       generatedSchemaPath: toPosixPath(path.relative(rootDir, generatedSchemaPath)),
       apiRules: projectRules.api ?? {},
       hookRules: projectRules.hooks ?? {},

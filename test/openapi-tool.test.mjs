@@ -3502,6 +3502,10 @@ test(
     await withWorkspace(
       {
         spec,
+        projectConfigOverrides: {
+          projectRulesAnalysisPath: 'custom/review/rules.md',
+          projectRulesAnalysisJsonPath: 'custom/review/rules.json',
+        },
         rules: {
           review: {
             rulesReviewed: false,
@@ -3540,6 +3544,11 @@ test(
 
         assert.equal(result.ok, false);
         assert.match(output, /Project rules are valid but not reviewed/);
+        assert.match(
+          output,
+          /Review custom\/review\/rules\.md and custom\/review\/rules\.json, then edit openapi\/config\/project-rules\.jsonc/,
+        );
+        assert.doesNotMatch(output, /Review openapi\/review\/project-rules\/analysis\.md/);
         assert.match(output, /review\.rulesReviewed to true/);
         assert.match(output, /Result: fix failed checks before continuing/);
       },
@@ -4018,6 +4027,10 @@ test(
     await withWorkspace(
       {
         spec,
+        projectConfigOverrides: {
+          projectRulesAnalysisPath: 'custom/review/rules.md',
+          projectRulesAnalysisJsonPath: 'custom/review/rules.json',
+        },
         rules: {
           review: {
             rulesReviewed: false,
@@ -4039,7 +4052,15 @@ test(
       async (workspace) => {
         await assert.rejects(
           () => runInWorkspace(workspace, () => projectCommand.run()),
-          /Project rules have not been reviewed/,
+          (error) => {
+            assert.match(error.message, /Project rules have not been reviewed/);
+            assert.match(
+              error.message,
+              /Review custom\/review\/rules\.md and custom\/review\/rules\.json, then edit openapi\/config\/project-rules\.jsonc/,
+            );
+            assert.doesNotMatch(error.message, /Review openapi\/review\/project-rules\/analysis\.md/);
+            return true;
+          },
         );
 
         await assert.rejects(

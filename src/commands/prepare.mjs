@@ -2,9 +2,10 @@ import path from 'node:path';
 import { initCommand } from './init.mjs';
 import { refreshCommand } from './refresh.mjs';
 import { getProjectRulesMissingCurrentDefaults, rulesCommand } from './rules.mjs';
-import { projectCommand, resolveProjectRulesAnalysisPaths } from './project.mjs';
+import { projectCommand } from './project.mjs';
 import { loadProjectConfig, loadProjectRules } from '../core/openapi-utils.mjs';
 import { assertProjectRulesReviewed } from '../config/validation.mjs';
+import { resolveProjectRulesAnalysisPaths } from '../config/project-paths.mjs';
 import { formatSuccess, formatWarning } from '../cli-format.mjs';
 
 async function hasProjectConfig(rootDir) {
@@ -101,15 +102,21 @@ const prepareCommand = {
     await rulesCommand.run(options);
 
     const { projectRules, projectRulesPath } = await loadProjectRules(rootDir, projectConfig);
+    const relativeProjectRulesPath = toPosixPath(path.relative(rootDir, projectRulesPath));
+    const { analysisPath, analysisJsonPath } = resolveProjectRulesAnalysisPaths(rootDir, projectConfig);
+    const relativeAnalysisPath = toProjectRelativePath(rootDir, analysisPath);
+    const relativeAnalysisJsonPath = toProjectRelativePath(rootDir, analysisJsonPath);
     try {
-      assertProjectRulesReviewed(projectRules);
+      assertProjectRulesReviewed(projectRules, {
+        projectRulesPath: relativeProjectRulesPath,
+        projectRulesAnalysisPath: relativeAnalysisPath,
+        projectRulesAnalysisJsonPath: relativeAnalysisJsonPath,
+      });
     } catch (error) {
       if (!error.message?.startsWith('Project rules have not been reviewed.')) {
         throw error;
       }
 
-      const relativeProjectRulesPath = toPosixPath(path.relative(rootDir, projectRulesPath));
-      const { analysisPath, analysisJsonPath } = resolveProjectRulesAnalysisPaths(rootDir, projectConfig);
       console.log('');
       console.log(formatWarning('project: review.rulesReviewed가 true가 아니어서 DTO/API 후보 생성을 건너뜁니다.'));
       console.log(
@@ -118,7 +125,7 @@ const prepareCommand = {
       throw new Error(
         [
           'Project rules have not been reviewed.',
-          `Review ${toProjectRelativePath(rootDir, analysisPath)} and ${toProjectRelativePath(rootDir, analysisJsonPath)}, then edit ${relativeProjectRulesPath}.`,
+          `Review ${relativeAnalysisPath} and ${relativeAnalysisJsonPath}, then edit ${relativeProjectRulesPath}.`,
           'Set review.rulesReviewed to true before generating project candidates.',
         ].join('\n'),
       );

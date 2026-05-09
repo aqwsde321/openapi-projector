@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { ensureDir, loadProjectConfig, readJson, writeJson, writeText } from '../core/openapi-utils.mjs';
+import { resolveProjectRulesAnalysisPaths } from '../config/project-paths.mjs';
 import {
   UNKNOWN_API_HELPER_CALL_STYLE_WARNING_MESSAGE,
   UNSUPPORTED_API_HELPER_IMPORT_KIND_WARNING_MESSAGE,
@@ -618,18 +619,7 @@ const rulesCommand = {
     const context = Array.isArray(options) ? {} : (options.context ?? {});
     const rootDir = context.targetRoot ?? process.cwd();
     const { projectConfig } = await loadProjectConfig(rootDir);
-    const analysisPath = path.resolve(
-      rootDir,
-      projectConfig.projectRulesAnalysisPath ?? 'openapi/review/project-rules/analysis.md',
-    );
-    const analysisJsonPath = path.resolve(
-      rootDir,
-      projectConfig.projectRulesAnalysisJsonPath ??
-        path.join(
-          path.dirname(projectConfig.projectRulesAnalysisPath ?? 'openapi/review/project-rules/analysis.md'),
-          'analysis.json',
-        ),
-    );
+    const { analysisPath, analysisJsonPath } = resolveProjectRulesAnalysisPaths(rootDir, projectConfig);
     const rulesPath = path.resolve(
       rootDir,
       projectConfig.projectRulesPath ?? 'openapi/config/project-rules.jsonc',

@@ -7,9 +7,11 @@ import {
   readJson,
 } from '../core/openapi-utils.mjs';
 import {
+  formatProjectRulesReviewInstruction,
   formatValidationIssues,
   validateProjectRules,
 } from '../config/validation.mjs';
+import { resolveProjectRulesAnalysisPaths } from '../config/project-paths.mjs';
 import { loadSupportedOpenApiSpec } from '../openapi/load-spec.mjs';
 import { failureMark, successMark, warningMark } from '../cli-format.mjs';
 
@@ -82,7 +84,7 @@ const doctorCommand = {
         } else if (projectRules.review?.rulesReviewed !== true) {
           fail(`Existing project rules are valid but not reviewed: ${toRelative(rootDir, rulesPath)}`);
           lines.push(
-            '  Next: review openapi/review/project-rules/analysis.md and analysis.json, then set review.rulesReviewed to true.',
+            `  Next: ${formatProjectRulesReviewInstruction()} Then set review.rulesReviewed to true.`,
           );
         } else {
           pass(`Existing project rules are valid: ${toRelative(rootDir, rulesPath)}`);
@@ -239,6 +241,7 @@ const doctorCommand = {
 
     try {
       const { projectRulesPath, projectRules } = await loadProjectRules(rootDir, projectConfig);
+      const { analysisPath, analysisJsonPath } = resolveProjectRulesAnalysisPaths(rootDir, projectConfig);
       const rulesIssues = validateProjectRules(projectRules);
       if (rulesIssues.length > 0) {
         const rulesError = formatValidationIssues(rulesIssues);
@@ -246,7 +249,11 @@ const doctorCommand = {
       } else if (projectRules.review?.rulesReviewed !== true) {
         fail(`Project rules are valid but not reviewed: ${toRelative(rootDir, projectRulesPath)}`);
         lines.push(
-          '  Next: review openapi/review/project-rules/analysis.md and analysis.json, then set review.rulesReviewed to true.',
+          `  Next: ${formatProjectRulesReviewInstruction({
+            projectRulesPath: toRelative(rootDir, projectRulesPath),
+            projectRulesAnalysisPath: toRelative(rootDir, analysisPath),
+            projectRulesAnalysisJsonPath: toRelative(rootDir, analysisJsonPath),
+          })} Then set review.rulesReviewed to true.`,
         );
       } else {
         pass(`Project rules are valid: ${toRelative(rootDir, projectRulesPath)}`);

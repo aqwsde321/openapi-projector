@@ -1,3 +1,9 @@
+import {
+  DEFAULT_PROJECT_RULES_ANALYSIS_JSON_PATH,
+  DEFAULT_PROJECT_RULES_ANALYSIS_PATH,
+  DEFAULT_PROJECT_RULES_PATH,
+} from './project-paths.mjs';
+
 const SUPPORTED_ADAPTER_STYLES = new Set(['url-config', 'request-object']);
 const SUPPORTED_FETCH_API_IMPORT_KINDS = new Set(['named', 'default']);
 const SUPPORTED_HOOK_LIBRARIES = new Set(['@tanstack/react-query']);
@@ -357,6 +363,28 @@ function formatValidationIssues(issues) {
   return issues.map((issue) => `${issue.path}: ${issue.message}`).join('; ');
 }
 
+function normalizeInstructionPath(value, fallback) {
+  return typeof value === 'string' && value.trim() ? value : fallback;
+}
+
+function formatProjectRulesReviewInstruction({
+  projectRulesPath = DEFAULT_PROJECT_RULES_PATH,
+  projectRulesAnalysisPath = DEFAULT_PROJECT_RULES_ANALYSIS_PATH,
+  projectRulesAnalysisJsonPath = DEFAULT_PROJECT_RULES_ANALYSIS_JSON_PATH,
+} = {}) {
+  const analysisPath = normalizeInstructionPath(
+    projectRulesAnalysisPath,
+    DEFAULT_PROJECT_RULES_ANALYSIS_PATH,
+  );
+  const analysisJsonPath = normalizeInstructionPath(
+    projectRulesAnalysisJsonPath,
+    DEFAULT_PROJECT_RULES_ANALYSIS_JSON_PATH,
+  );
+  const rulesPath = normalizeInstructionPath(projectRulesPath, DEFAULT_PROJECT_RULES_PATH);
+
+  return `Review ${analysisPath} and ${analysisJsonPath}, then edit ${rulesPath}.`;
+}
+
 function assertValidProjectRules(projectRules) {
   const issues = validateProjectRules(projectRules);
 
@@ -365,14 +393,14 @@ function assertValidProjectRules(projectRules) {
   }
 }
 
-function assertProjectRulesReviewed(projectRules) {
+function assertProjectRulesReviewed(projectRules, reviewInstructionOptions = {}) {
   assertValidProjectRules(projectRules);
 
   if (!isPlainObject(projectRules.review) || projectRules.review.rulesReviewed !== true) {
     throw new Error(
       [
         'Project rules have not been reviewed.',
-        'Review openapi/review/project-rules/analysis.md and analysis.json, then edit openapi/config/project-rules.jsonc.',
+        formatProjectRulesReviewInstruction(reviewInstructionOptions),
         'Set review.rulesReviewed to true before generating project candidates.',
       ].join('\n'),
     );
@@ -391,6 +419,7 @@ export {
   assertProjectRulesReviewed,
   assertValidProjectConfig,
   assertValidProjectRules,
+  formatProjectRulesReviewInstruction,
   formatValidationIssues,
   validateProjectConfig,
   validateProjectRules,
