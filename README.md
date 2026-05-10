@@ -219,7 +219,7 @@ openapi/
 | `openapi/changes.md` | 사람이 먼저 여는 최신 Swagger/OpenAPI 변경 비교 요약 |
 | `openapi/changes.json` | 최신 변경 비교의 machine-readable JSON |
 | `openapi/review/changes/history/` | 변경이 감지된 refresh 시점별 비교 스냅샷 |
-| `openapi/config/project.jsonc` | OpenAPI JSON URL과 산출물 경로 설정 |
+| `openapi/config/project.jsonc` | OpenAPI JSON URL과 산출물 경로 설정. 보통 `sourceUrl`, 필요하면 `swaggerUiUrl`만 수정 |
 | `openapi/config/project-rules.jsonc` | 프로젝트 API client/import/call style/hook 규칙 |
 | `openapi/review/project-rules/analysis.md` | 프로젝트 API client/import/call style 분석 결과 |
 | `openapi/review/project-rules/analysis.json` | AI와 자동화가 참고할 수 있는 분석 evidence |
@@ -284,6 +284,7 @@ backend deploy 완료
    최신 여부가 불확실하면 아래 명령을 다시 실행해.
 4. openapi/config/project.jsonc의 sourceUrl이 Swagger UI 페이지가 아니라 OpenAPI JSON URL인지 확인해.
    sourceUrl이 비어 있거나 잘못되어 있으면 나에게 올바른 OpenAPI JSON URL을 물어봐.
+   산출물 경로 필드는 도구가 관리하므로 임의로 바꾸지 마. 코드 스타일과 API client 규칙은 project-rules.jsonc에서만 검토해.
 5. npx --yes openapi-projector@latest doctor --check-url을 실행해.
 6. npx --yes openapi-projector@latest prepare를 실행하고 openapi/changes.md를 확인해.
    Added, Removed, Contract Changed, Doc Changed를 endpoint별로 먼저 요약해서 나에게 알려줘.

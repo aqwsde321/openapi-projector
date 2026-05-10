@@ -2130,6 +2130,8 @@ test(
       assert.match(projectReadmeSource, /npx --yes openapi-projector@latest rules/);
       assert.match(projectReadmeSource, /rg "fetchAPI\|apiClient\|request\|axios\|ky\|httpClient" src/);
       assert.match(projectReadmeSource, /openapi\/config\/project-rules\.jsonc/);
+      assert.match(projectReadmeSource, /산출물 경로 필드는 도구가 관리하므로 임의로 바꾸지 마/);
+      assert.match(projectReadmeSource, /Do not change them to force code style or app placement/);
       assert.match(projectReadmeSource, /npx --yes openapi-projector@latest prepare/);
       assert.match(projectReadmeSource, /## Swagger 변경 비교/);
       assert.match(projectReadmeSource, /DTO\/API 후보 생성이 필요하지 않고 Swagger 변경점만 확인할 때는 `refresh`를 단독으로 실행합니다/);
@@ -2957,6 +2959,8 @@ test(
       assert.match(projectReadmeSource, /Option A\. AI에게 맡기기/);
       assert.match(projectReadmeSource, /Option B\. 직접 진행하기/);
       assert.match(projectReadmeSource, /Swagger 변경 비교/);
+      assert.match(projectReadmeSource, /산출물 경로 필드는 도구가 관리하므로 임의로 바꾸지 마/);
+      assert.match(projectReadmeSource, /Do not edit `openapi\/config\/project\.jsonc` artifact paths while adapting rules/);
       assert.doesNotMatch(projectReadmeSource, /### 6\. Git 관리/);
       assert.doesNotMatch(projectReadmeSource, /npx --yes openapi-projector@latest upgrade-docs/);
       assert.doesNotMatch(projectReadmeSource, /# stale guide/);
@@ -3022,6 +3026,8 @@ test(
       assert.equal(await fs.readFile(historyPath, 'utf8'), '# old change history\n');
       assert.match(projectReadmeSource, /# openapi-projector Workspace Guide/);
       assert.match(projectReadmeSource, /npx --yes openapi-projector@latest prepare/);
+      assert.match(projectReadmeSource, /산출물 경로 필드는 도구가 관리하므로 임의로 바꾸지 마/);
+      assert.match(projectReadmeSource, /Do not edit `openapi\/config\/project\.jsonc` artifact paths while adapting rules/);
       assert.equal(projectRules.review.rulesReviewed, true);
       assert.deepEqual(projectRules.review.notes, ['manual review kept']);
       assert.equal(projectRules.api.fetchApiImportPath, '@/custom/api');

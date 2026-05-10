@@ -51,6 +51,7 @@ npx --yes openapi-projector@latest update
    최신 여부가 불확실하면 아래 명령을 다시 실행해.
 4. openapi/config/project.jsonc의 sourceUrl이 Swagger UI 페이지가 아니라 OpenAPI JSON URL인지 확인해.
    sourceUrl이 비어 있거나 잘못되어 있으면 나에게 올바른 OpenAPI JSON URL을 물어봐.
+   산출물 경로 필드는 도구가 관리하므로 임의로 바꾸지 마. 코드 스타일과 API client 규칙은 project-rules.jsonc에서만 검토해.
 5. npx --yes openapi-projector@latest doctor --check-url을 실행해.
 6. npx --yes openapi-projector@latest prepare를 실행하고 openapi/changes.md를 확인해.
    Added, Removed, Contract Changed, Doc Changed를 endpoint별로 먼저 요약해서 나에게 알려줘.
@@ -207,7 +208,7 @@ openapi/
 | 파일 | 볼 내용 |
 | --- | --- |
 | `openapi/README.md` | 지금 읽고 있는 작업 안내서입니다. 빠른 시작과 AI agent용 상세 지침을 포함합니다. |
-| `openapi/config/project.jsonc` | OpenAPI JSON URL과 산출물 경로 설정입니다. `sourceUrl`을 먼저 확인합니다. |
+| `openapi/config/project.jsonc` | OpenAPI JSON URL과 산출물 경로 설정입니다. 보통 `sourceUrl`, 필요하면 `swaggerUiUrl`만 확인합니다. |
 | `openapi/config/project-rules.jsonc` | API client/import/call style 규칙 초안입니다. `rules` 실행 후 실제 프로젝트와 맞는지 검토합니다. |
 | `openapi/changes.md` | 사람이 먼저 여는 최신 Swagger/OpenAPI 변경 비교 |
 | `openapi/changes.json` | AI와 자동화가 읽기 쉬운 최신 변경 비교 |
@@ -242,6 +243,7 @@ Rules:
 - The default `sourceUrl` is `http://localhost:8080/v3/api-docs`. Keep it only when the local backend exposes OpenAPI JSON there.
 - If `sourceUrl` is empty, `doctor` and `prepare` should fail.
 - The URL should be reachable with a plain local `GET` request. If the Swagger/OpenAPI endpoint requires cookies, tokens, VPN-only browser state, or custom headers, prepare a reachable OpenAPI JSON URL before running `doctor --check-url`.
+- Treat generated artifact path fields such as `sourcePath`, `docsDir`, `generatedSchemaPath`, `projectRulesAnalysisPath`, `projectRulesAnalysisJsonPath`, and `projectGeneratedSrcDir` as tool-managed. Do not change them to force code style or app placement. Use `openapi/config/project-rules.jsonc` and the real app source for convention decisions.
 
 If this workspace has already been initialized, update `openapi/config/project.jsonc` instead of re-running `init`.
 
@@ -318,6 +320,7 @@ After running `npx --yes openapi-projector@latest rules`, read both files:
 - `openapi/config/project-rules.jsonc`
 
 Then inspect the real project source before editing `project-rules.jsonc`.
+Do not edit `openapi/config/project.jsonc` artifact paths while adapting rules. Use analysis evidence to adjust only `project-rules.jsonc` and the eventual app code placement.
 
 `analysis.md` is for human review. `analysis.json` preserves the same evidence in a machine-readable format for AI agents, tests, and future automation.
 
@@ -499,7 +502,7 @@ If the user only needs DTOs, copy or adapt only the `.dto.ts` candidates and ign
 
 Manual edits should usually go into:
 
-- `openapi/config/project.jsonc`
+- `openapi/config/project.jsonc` only for `sourceUrl`, `swaggerUiUrl`, or a deliberate workspace path change
 - `openapi/config/project-rules.jsonc`
 - Real app source files outside `openapi/`
 

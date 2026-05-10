@@ -69,6 +69,8 @@
 
 경로 설정값은 프로젝트 루트 기준 상대 경로여야 하며, `..` 경로 세그먼트나 절대 경로는 허용하지 않습니다. `sourceUrl`과 `swaggerUiUrl`은 문자열 타입이어야 합니다. 빈 `sourceUrl`은 설정 파일 형식으로는 허용되지만, OpenAPI JSON URL이 아니므로 `doctor`, `prepare`, `download`에서 실패합니다.
 
+`sourcePath`, `generatedSchemaPath`, `projectGeneratedSrcDir` 같은 산출물 경로는 workspace/review/generated 파일 위치를 정하는 값입니다. AI agent나 사람이 프로젝트 코드 스타일, API client 규칙, 실제 앱 배치를 맞추기 위해 바꾸는 대상이 아닙니다. 그런 규칙은 `openapi/config/project-rules.jsonc`와 실제 앱 소스에서 검토하고 수정합니다.
+
 ### 보통 안 건드리는 값
 
 - `catalogJsonPath`
