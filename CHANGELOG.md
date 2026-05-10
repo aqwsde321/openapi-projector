@@ -4,6 +4,18 @@
 
 형식은 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)를 느슨하게 따르고, 버전은 `package.json`의 `version` 및 Git 태그와 맞춥니다.
 
+## Unreleased
+
+### Changed
+
+- 생성 README와 루트 README의 AI agent 지침을 보강해, 실제 앱 코드 반영 전에 `project-rules` 분석 근거와 기존 프로젝트 코드를 다시 확인하도록 안내했습니다.
+- `project` 후보 요약과 manifest에 `project-rules` 분석 문서 경로를 기록해 AI와 사람이 적용 전에 읽어야 할 근거 파일을 더 명확히 찾을 수 있게 했습니다.
+- `project.jsonc`의 산출물 경로 필드는 코드 스타일이나 앱 배치 조정용으로 임의 수정하지 말고, API client/import/call style 규칙은 `project-rules.jsonc`에서 검토하도록 문서화했습니다.
+
+### Fixed
+
+- custom `projectRulesAnalysisPath` 또는 `projectRulesAnalysisJsonPath`를 쓰는 경우 `doctor`, `prepare`, `project`의 review gate 안내가 실제 analysis 경로를 가리키도록 수정했습니다.
+
 ## 0.3.7 - 2026-05-07
 
 ### Added
