@@ -123,10 +123,10 @@ OpenAPI 스펙만으로 결정 가능한 정보를 사용해 아래 산출물을
 
 ## 현재 제품 상태
 
-현재 저장소는 위 목표를 향한 standalone CLI prototype 단계입니다.
+현재 저장소는 npm으로 배포되는 review-first MVP CLI 단계입니다.
 
 - 1단계는 상당 부분 구현됨
-- 2단계는 특정 프로젝트 구조를 가정한 분석기 수준으로 구현됨
-- 3단계는 `schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API + manifest/summary` 흐름까지 구현됐으나 지원 범위는 MVP 수준임
+- 2단계는 TypeScript 프론트엔드 프로젝트의 API helper/import/call style을 heuristic 기반으로 분석하는 수준까지 구현됨
+- 3단계는 `schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API + 선택적 React Query hook + manifest/summary` 흐름까지 구현됐으나 지원 범위는 MVP 수준임
 
-즉 방향은 맞지만, 아직 “범용 프로젝트 적응형 생성기”까지는 완성되지 않았습니다.
+즉 핵심 경로는 배포 가능한 상태지만, 아직 “범용 프로젝트 적응형 생성기”까지는 완성되지 않았습니다.
