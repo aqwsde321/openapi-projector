@@ -4,6 +4,17 @@
 
 형식은 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)를 느슨하게 따르고, 버전은 `package.json`의 `version` 및 Git 태그와 맞춥니다.
 
+## 0.3.9 - 2026-05-18
+
+### Added
+
+- 릴리즈 전후 호환성 검증을 자동화하는 `pnpm run smoke:release` 유지보수 스크립트를 추가했습니다.
+
+### Fixed
+
+- 응답 Body 전용 DTO의 `required` 배열만 바뀐 경우 `Contract Changed` 오탐으로 표시하지 않도록 수정했습니다.
+- 응답 Body 필드 비교와 전체 AS-IS/TO-BE 미리보기에서 프론트 적용에 혼동을 주는 `optional`/`required` 표시를 제거했습니다.
+
 ## 0.3.8 - 2026-05-10
 
 ### Changed

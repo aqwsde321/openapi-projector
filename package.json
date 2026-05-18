@@ -1,6 +1,6 @@
 {
   "name": "openapi-projector",
-  "version": "0.3.8",
+  "version": "0.3.9",
   "description": "Review-first OpenAPI DTO/API/hook candidate generator for frontend projects",
   "repository": {
     "type": "git",
@@ -21,6 +21,7 @@
     "CHANGELOG.md",
     "config",
     "docs",
+    "scripts",
     "src",
     "templates",
     "README.md"
@@ -53,6 +54,7 @@
     "openapi:prepare": "node ./bin/openapi-tool.mjs prepare",
     "openapi:update": "node ./bin/openapi-tool.mjs update",
     "openapi:upgrade-docs": "node ./bin/openapi-tool.mjs upgrade-docs",
+    "smoke:release": "node ./scripts/release-smoke.mjs",
     "test": "node --test"
   },
   "dependencies": {

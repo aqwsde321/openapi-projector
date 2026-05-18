@@ -109,6 +109,7 @@ npm pack --dry-run
 node ./bin/openapi-tool.mjs --version
 pnpm test
 npm pack --dry-run
+pnpm run smoke:release
 
 git tag vX.Y.Z
 git push origin main --tags
@@ -116,12 +117,13 @@ git push origin main --tags
 
 `.github/workflows/publish.yml`은 태그의 `v`를 제외한 값과 `package.json`의 `version`이 같을 때만 `pnpm test`, `npm pack --dry-run`, `npm publish`를 실행합니다.
 
-기존 작업 공간 호환성이 걸린 변경이면 배포 전 아래도 확인합니다.
+`pnpm run smoke:release`는 temp workspace에서 아래를 자동 확인합니다.
 
 - 직전 태그의 CLI로 temp workspace를 `init`
 - 현재 checkout CLI로 같은 workspace에 `update`
 - 기존 `sourceUrl`, `review.rulesReviewed`, 생성 후보가 보존되는지 확인
 - `review.rulesReviewed=false` 상태에서 `prepare`가 review gate에서 멈추는지 확인
+- 현재 checkout CLI로 `init -> refresh -> generate -> rules -> prepare -> update -> doctor --check-url` 흐름 확인
 
 태그 push 후에는 GitHub Actions `Publish` 성공을 확인하고 npm registry 기준으로 배포 반영을 검증합니다.
 
@@ -131,18 +133,10 @@ npm view openapi-projector dist-tags --json
 npx --yes openapi-projector@latest --version
 ```
 
-릴리즈 smoke test는 repo가 아닌 빈 temp workspace에서 npm 배포본으로 실행합니다.
+릴리즈 smoke test도 repo가 아닌 빈 temp workspace에서 npm 배포본으로 다시 실행합니다.
 
 ```bash
-npx --yes openapi-projector@latest init --source-url <OpenAPI JSON URL> --no-input
-npx --yes openapi-projector@latest refresh
-npx --yes openapi-projector@latest generate
-npx --yes openapi-projector@latest rules
-npx --yes openapi-projector@latest prepare
-# review gate 확인 후 openapi/config/project-rules.jsonc 의 review.rulesReviewed=true 설정
-npx --yes openapi-projector@latest prepare
-npx --yes openapi-projector@latest update
-npx --yes openapi-projector@latest doctor --check-url
+pnpm run smoke:release -- --package openapi-projector@latest
 ```
 
 ### 4. bootstrap 시나리오
