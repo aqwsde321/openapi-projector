@@ -1029,15 +1029,15 @@ test(
       );
       assert.match(
         historySource,
-        /\*\*🟢 &nbsp;&nbsp;- attachments: List&lt;File&gt; \(optional\)\*\*/,
+        /\*\*🟢 &nbsp;&nbsp;- attachments: List&lt;File&gt;\*\*/,
       );
       assert.match(
         historySource,
-        /\*\*🟡 &nbsp;&nbsp;- email: String \(optional\)\*\*/,
+        /\*\*🟡 &nbsp;&nbsp;- email: String\*\*/,
       );
       assert.match(
         historySource,
-        /\*\*🟡 &nbsp;&nbsp;- email: Integer \(required\)\*\*/,
+        /\*\*🟡 &nbsp;&nbsp;- email: Integer\*\*/,
       );
       assert.match(
         historySource,
@@ -1101,6 +1101,178 @@ test(
       assert.doesNotMatch(topLevelChangesSource, /operation\.parameters` \| `\[\]`/);
       assert.doesNotMatch(topLevelChangesSource, /Compatibility Check/);
       assert.equal(topLevelChangesJson.externalDiff, undefined);
+    });
+  },
+);
+
+test(
+  'catalog ignores response body required-only noise for unchanged detail endpoints',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Notification API',
+        version: '1.0.0',
+      },
+      paths: {
+        '/bos/notifications/case-settings': {
+          post: {
+            summary: '알림 템플릿 등록 Swagger',
+            requestBody: {
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/CreateCaseSettingRequest',
+                  },
+                },
+              },
+            },
+            responses: {
+              200: {
+                description: 'OK',
+              },
+            },
+          },
+          put: {
+            summary: '알림 템플릿 수정 Swagger',
+            requestBody: {
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/UpdateCaseSettingRequest',
+                  },
+                },
+              },
+            },
+            responses: {
+              200: {
+                description: 'OK',
+              },
+            },
+          },
+        },
+        '/bos/notifications/case-settings/detail': {
+          get: {
+            summary: '알림 템플릿 상세 조회 Swagger',
+            responses: {
+              200: {
+                description: 'OK',
+                content: {
+                  'application/json': {
+                    schema: {
+                      $ref: '#/components/schemas/CaseSettingDetailResponse',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          CreateCaseSettingRequest: {
+            type: 'object',
+            properties: {
+              targetItems: {
+                type: 'array',
+                items: {
+                  $ref: '#/components/schemas/CreateTargetItem',
+                },
+              },
+            },
+          },
+          UpdateCaseSettingRequest: {
+            type: 'object',
+            properties: {
+              targetItems: {
+                type: 'array',
+                items: {
+                  $ref: '#/components/schemas/UpdateTargetItem',
+                },
+              },
+            },
+          },
+          CaseSettingDetailResponse: {
+            type: 'object',
+            properties: {
+              targetItems: {
+                type: 'array',
+                items: {
+                  $ref: '#/components/schemas/DetailTargetItem',
+                },
+              },
+            },
+          },
+          CreateTargetItem: {
+            type: 'object',
+            properties: {
+              channel: {
+                type: 'string',
+                enum: ['SMS', 'ALIMTALK', 'EMAIL'],
+              },
+            },
+          },
+          UpdateTargetItem: {
+            type: 'object',
+            properties: {
+              channel: {
+                type: 'string',
+                enum: ['SMS', 'ALIMTALK', 'EMAIL'],
+              },
+            },
+          },
+          DetailTargetItem: {
+            type: 'object',
+            properties: {
+              channel: {
+                type: 'string',
+                enum: ['SMS', 'ALIMTALK', 'EMAIL'],
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const nextSpec = structuredClone(spec);
+      nextSpec.components.schemas.CreateTargetItem.required = ['channel'];
+      nextSpec.components.schemas.UpdateTargetItem.required = ['channel'];
+      nextSpec.components.schemas.DetailTargetItem.required = ['channel'];
+
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.json'),
+        nextSpec,
+      );
+
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const topLevelChangesSource = await fs.readFile(
+        path.join(workspace, 'openapi/changes.md'),
+        'utf8',
+      );
+      const topLevelChangesJson = await readJson(path.join(workspace, 'openapi/changes.json'));
+      const changedEndpoints = topLevelChangesJson.contractChanged
+        .map((item) => `${item.method} ${item.path}`)
+        .sort();
+
+      assert.deepEqual(changedEndpoints, [
+        'post /bos/notifications/case-settings',
+        'put /bos/notifications/case-settings',
+      ]);
+      assert.doesNotMatch(
+        topLevelChangesSource,
+        /\[GET\] `\/bos\/notifications\/case-settings\/detail`/,
+      );
+      assert.match(
+        topLevelChangesSource,
+        /\| 🟡 변경 \| 요청 Body 필드 \| `channel: String \(optional, enum: SMS, ALIMTALK, EMAIL\)` \| `channel: String \(required, enum: SMS, ALIMTALK, EMAIL\)` \|/,
+      );
+      assert.doesNotMatch(topLevelChangesSource, /응답 Body 필드.*channel.*required/);
     });
   },
 );
@@ -1253,7 +1425,7 @@ test(
       );
       assert.doesNotMatch(
         topLevelChangesSource,
-        /\| 🟡 변경 \| 응답 Body 필드 \| `claimStatus: String \(optional\)` \| `claimStatus: String \(optional\)` \|/,
+        /\| 🟡 변경 \| 응답 Body 필드 \| `claimStatus: String` \| `claimStatus: String` \|/,
       );
       assert.doesNotMatch(topLevelChangesSource, /enum: WAITING, APPROVED/);
       assert.doesNotMatch(topLevelChangesSource, /itemTypes: \["SINGLE","SET"\]/);
@@ -1808,8 +1980,8 @@ test(
         topLevelChangesSource,
         /JsendResponseDtoListPlatformOrderClaimController\.ClaimListResDto/,
       );
-      assert.match(topLevelChangesSource, /id: String \(optional\)/);
-      assert.match(topLevelChangesSource, /id: Integer \(optional\)/);
+      assert.match(topLevelChangesSource, /id: String/);
+      assert.match(topLevelChangesSource, /id: Integer/);
       assert.doesNotMatch(topLevelChangesSource, /String message;/);
       assert.doesNotMatch(topLevelChangesSource, /data;/);
       assert.doesNotMatch(topLevelChangesSource, /🔴 삭제 \| 응답 Body 필드/);

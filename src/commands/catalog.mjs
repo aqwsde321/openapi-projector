@@ -262,9 +262,18 @@ function buildChangeSummary(
     }
 
     if (previous.contractFingerprint !== entry.contractFingerprint) {
-      contractChanged.push(
-        toContractChangeItem(previous, entry, projectCandidateFilesByOperation),
+      const contractChangeItem = toContractChangeItem(
+        previous,
+        entry,
+        projectCandidateFilesByOperation,
       );
+      if (contractChangeItem) {
+        contractChanged.push(contractChangeItem);
+        continue;
+      }
+      if (hasDocFieldChanges(previous, entry)) {
+        docChanged.push(toDocChangeItem(previous, entry, projectCandidateFilesByOperation));
+      }
       continue;
     }
 
@@ -545,7 +554,9 @@ function renderPreviewResponseLines(snapshot) {
   const statusLabel = status ?? 'default';
   const mediaLabel = mediaType && mediaType !== '*/*' ? ` ${mediaType}` : '';
   lines.push(`- ${statusLabel}${mediaLabel}: ${schema ? formatPreviewSchemaLabel(schema) : 'body 없음'}`);
-  appendPreviewSchemaFields(lines, schema, referencedSchemas);
+  appendPreviewSchemaFields(lines, schema, referencedSchemas, {
+    includeRequiredFlag: false,
+  });
   appendPreviewHeaders(lines, response.headers ?? {}, referencedSchemas);
 
   return lines;
@@ -582,8 +593,8 @@ function appendPreviewHeaders(lines, headers, referencedSchemas) {
   }
 }
 
-function appendPreviewSchemaFields(lines, schema, referencedSchemas) {
-  const fields = buildPreviewSchemaFieldEntries(schema, referencedSchemas);
+function appendPreviewSchemaFields(lines, schema, referencedSchemas, options = {}) {
+  const fields = buildPreviewSchemaFieldEntries(schema, referencedSchemas, options);
   if (fields.length === 0) {
     return;
   }
@@ -603,6 +614,7 @@ function buildPreviewSchemaFields(schema, referencedSchemas) {
 function buildPreviewSchemaFieldEntries(
   schema,
   referencedSchemas,
+  options = {},
   depth = 0,
   seenRefs = new Set(),
 ) {
@@ -620,6 +632,7 @@ function buildPreviewSchemaFieldEntries(
       propertySchema,
       required.has(name),
       referencedSchemas,
+      options,
     );
     const nestedSchema = resolvePreviewSchemaForFields(propertySchema, referencedSchemas);
     const refName = getPreviewSchemaRefName(propertySchema);
@@ -630,6 +643,7 @@ function buildPreviewSchemaFieldEntries(
         : buildPreviewSchemaFieldEntries(
             nestedSchema,
             referencedSchemas,
+            options,
             depth + 1,
             nextSeenRefs,
           );
@@ -684,15 +698,17 @@ function getPreviewSchemaRefName(schema) {
   return null;
 }
 
-function formatPreviewFieldDeclaration(name, schema, required, referencedSchemas) {
+function formatPreviewFieldDeclaration(name, schema, required, referencedSchemas, options = {}) {
   const type = javaTypeFromPreviewSchema(schema, referencedSchemas) ?? 'Object';
-  const flags = [required ? 'required' : 'optional'];
+  const flags = options.includeRequiredFlag === false
+    ? []
+    : [required ? 'required' : 'optional'];
 
   if (isNullablePreviewSchema(schema)) {
     flags.push('nullable');
   }
 
-  return `${name}: ${type} (${flags.join(', ')})`;
+  return flags.length > 0 ? `${name}: ${type} (${flags.join(', ')})` : `${name}: ${type}`;
 }
 
 function javaTypeFromPreviewSchema(schema, referencedSchemas) {
@@ -1012,9 +1028,19 @@ function toContractChangeItem(
     previousEntry.contractSnapshot,
     nextEntry.contractSnapshot,
   );
+  const comparisonContext = buildComparisonContext({
+    previousSnapshot: previousEntry.contractSnapshot,
+    nextSnapshot: nextEntry.contractSnapshot,
+  });
+  const reportableDetails = allDetails.filter((detail) =>
+    !shouldSuppressContractDetail(detail, comparisonContext)
+  );
+  if (allDetails.length > 0 && reportableDetails.length === 0) {
+    return null;
+  }
   const details =
-    allDetails.length > 0
-      ? allDetails
+    reportableDetails.length > 0
+      ? reportableDetails
       : [
           {
             kind: 'changed',
@@ -1024,10 +1050,6 @@ function toContractChangeItem(
           },
         ];
 
-  const comparisonContext = {
-    previousSnapshot: previousEntry.contractSnapshot,
-    nextSnapshot: nextEntry.contractSnapshot,
-  };
   const comparisonRows = buildComparisonRows(
     details.slice(0, MAX_CHANGE_DETAILS),
     comparisonContext,
@@ -1043,6 +1065,14 @@ function toContractChangeItem(
     comparisonTableRows,
     comparisonDisplayRows: buildComparisonDisplayRows(comparisonRows, comparisonContext),
   };
+}
+
+function shouldSuppressContractDetail(detail, comparisonContext) {
+  const requiredTarget = parseSchemaRequiredDetailPath(detail.path);
+  return Boolean(
+    requiredTarget &&
+      isResponseBodyOnlySchema(requiredTarget.schemaName, comparisonContext),
+  );
 }
 
 function toDocChangeItem(
@@ -1083,6 +1113,15 @@ function buildDocChangeDetails(previousEntry, nextEntry) {
   }
 
   return details;
+}
+
+function hasDocFieldChanges(previousEntry, nextEntry) {
+  return (
+    previousEntry.summary !== nextEntry.summary ||
+    previousEntry.description !== nextEntry.description ||
+    previousEntry.operationId !== nextEntry.operationId ||
+    (previousEntry.tags?.join(', ') ?? '') !== (nextEntry.tags?.join(', ') ?? '')
+  );
 }
 
 function appendFieldChange(details, pathName, previousValue, nextValue) {
@@ -1650,6 +1689,12 @@ function formatSnapshotComparisonDeclaration(row, comparisonContext, side) {
         schemaTarget.propertyName,
         propertySchema,
         new Set(schema?.required ?? []).has(schemaTarget.propertyName),
+        {
+          includeRequiredFlag: !isResponseBodyOnlySchema(
+            schemaTarget.schemaName,
+            comparisonContext,
+          ),
+        },
       );
     }
   }
@@ -1697,9 +1742,11 @@ function resolveComparisonSchemaTarget(row, comparisonContext, side) {
   return parsedTarget;
 }
 
-function formatPreviewStyleSchemaDeclaration(name, schema, required) {
+function formatPreviewStyleSchemaDeclaration(name, schema, required, options = {}) {
   const type = javaTypeFromSchema(schema) ?? 'Object';
-  const flags = [required ? 'required' : 'optional'];
+  const flags = options.includeRequiredFlag === false
+    ? []
+    : [required ? 'required' : 'optional'];
   const enumValues = getSchemaEnumValues(schema);
 
   if (isNullablePreviewSchema(schema)) {
@@ -1709,7 +1756,7 @@ function formatPreviewStyleSchemaDeclaration(name, schema, required) {
     flags.push(`enum: ${formatEnumValues(enumValues)}`);
   }
 
-  return `${name}: ${type} (${flags.join(', ')})`;
+  return flags.length > 0 ? `${name}: ${type} (${flags.join(', ')})` : `${name}: ${type}`;
 }
 
 function appendRenamedSchemaRows(rows, comparisonContext) {
@@ -3040,6 +3087,11 @@ function getSchemaUsageLabel(schemaName, comparisonContext) {
   }
 
   return 'Schema';
+}
+
+function isResponseBodyOnlySchema(schemaName, comparisonContext = {}) {
+  const usages = comparisonContext?.schemaUsageByName?.get(schemaName) ?? new Set();
+  return usages.size === 1 && usages.has('Response Body');
 }
 
 function compactSchemaUsageLabels(labels) {

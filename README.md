@@ -180,7 +180,7 @@ openapi/
 >   | 변경 | 위치 | AS-IS | TO-BE |
 >   | --- | --- | --- | --- |
 >   | 🟢 추가 | 요청 Body 필드 | 없음 | `displayName: String (optional)` |
->   | 🔴 삭제 | 응답 Body 필드 | `avatarUrl: String (optional)` | 없음 |
+>   | 🔴 삭제 | 응답 Body 필드 | `avatarUrl: String` | 없음 |
 >   | 🟡 변경 | 요청 Body schema | `UpdateProfileRequest` | `ProfileUpdateRequest` |
 >   | 🟡 변경 | 요청 Body 필드 | `nickname: String (optional)` | `nickname: String (required)` |
 >
