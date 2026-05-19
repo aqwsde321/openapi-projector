@@ -28,6 +28,17 @@ const PROJECT_CONFIG_CANDIDATES = [
   'config/project.jsonc',
 ];
 const PROJECT_CONFIG_TARGET_CANDIDATE = 'openapi/config/project.jsonc';
+const DOC_ONLY_FIELD_KEYS = new Set([
+  'summary',
+  'description',
+  'operationId',
+  'tags',
+  'externalDocs',
+  'example',
+  'examples',
+  'title',
+  'deprecated',
+]);
 
 function isNonBlankString(value) {
   return typeof value === 'string' && value.trim();
@@ -420,11 +431,15 @@ function buildEndpointCatalog(spec) {
         operation,
       );
       const contractSnapshot = stripDocOnlyFields(resolvedSnapshot);
+      const docSnapshot = extractDocOnlyFields({ operation: resolvedSnapshot.operation });
       const rawFingerprint = createHash('sha256')
         .update(stableStringify(resolvedSnapshot))
         .digest('hex');
       const contractFingerprint = createHash('sha256')
         .update(stableStringify(contractSnapshot))
+        .digest('hex');
+      const docFingerprint = createHash('sha256')
+        .update(stableStringify(docSnapshot))
         .digest('hex');
 
       entries.push({
@@ -437,7 +452,9 @@ function buildEndpointCatalog(spec) {
         tags: Array.isArray(operation.tags) ? operation.tags : [],
         rawFingerprint,
         contractFingerprint,
+        docFingerprint,
         contractSnapshot,
+        docSnapshot,
       });
     }
   }
@@ -530,17 +547,7 @@ function stripDocOnlyFields(value) {
   const stripped = {};
 
   for (const [key, child] of Object.entries(value)) {
-    if (
-      key === 'summary' ||
-      key === 'description' ||
-      key === 'operationId' ||
-      key === 'tags' ||
-      key === 'externalDocs' ||
-      key === 'example' ||
-      key === 'examples' ||
-      key === 'title' ||
-      key === 'deprecated'
-    ) {
+    if (DOC_ONLY_FIELD_KEYS.has(key)) {
       continue;
     }
 
@@ -548,6 +555,33 @@ function stripDocOnlyFields(value) {
   }
 
   return stripped;
+}
+
+function extractDocOnlyFields(value) {
+  if (Array.isArray(value)) {
+    const extractedItems = value.map((item) => extractDocOnlyFields(item));
+    return extractedItems.some((item) => item !== null) ? extractedItems : null;
+  }
+
+  if (!value || typeof value !== 'object') {
+    return null;
+  }
+
+  const extracted = {};
+
+  for (const [key, child] of Object.entries(value)) {
+    if (DOC_ONLY_FIELD_KEYS.has(key)) {
+      extracted[key] = child;
+      continue;
+    }
+
+    const childDocs = extractDocOnlyFields(child);
+    if (childDocs !== null) {
+      extracted[key] = childDocs;
+    }
+  }
+
+  return Object.keys(extracted).length > 0 ? extracted : null;
 }
 
 function escapeMarkdownTableCell(value) {

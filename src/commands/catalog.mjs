@@ -20,6 +20,23 @@ import { formatSuccess } from '../cli-format.mjs';
 
 const CATALOG_FORMAT_VERSION = 2;
 const MAX_CHANGE_DETAILS = 60;
+const DOCUMENTATION_FIELD_LABELS = {
+  summary: '요약',
+  description: '설명',
+  operationId: 'operationId',
+  tags: '태그',
+  externalDocs: '외부 문서',
+  example: '예시',
+  examples: '예시',
+  title: '제목',
+  deprecated: 'deprecated',
+};
+const TOP_LEVEL_OPERATION_DOC_PATHS = new Set([
+  'operation.summary',
+  'operation.description',
+  'operation.operationId',
+  'operation.tags',
+]);
 const OPENAPI_GITIGNORE_ENTRIES = [
   'changes.md',
   'changes.json',
@@ -271,13 +288,13 @@ function buildChangeSummary(
         contractChanged.push(contractChangeItem);
         continue;
       }
-      if (hasDocFieldChanges(previous, entry)) {
+      if (hasDocChanged(previous, entry)) {
         docChanged.push(toDocChangeItem(previous, entry, projectCandidateFilesByOperation));
       }
       continue;
     }
 
-    if (previous.rawFingerprint !== entry.rawFingerprint) {
+    if (hasDocChanged(previous, entry)) {
       docChanged.push(toDocChangeItem(previous, entry, projectCandidateFilesByOperation));
     }
   }
@@ -1103,16 +1120,59 @@ function buildDocChangeDetails(previousEntry, nextEntry) {
     nextEntry.tags?.join(', ') ?? '',
   );
 
+  if (hasDocSnapshots(previousEntry, nextEntry)) {
+    details.push(
+      ...diffDocSnapshots(previousEntry.docSnapshot, nextEntry.docSnapshot)
+        .filter((detail) => !TOP_LEVEL_OPERATION_DOC_PATHS.has(detail.path)),
+    );
+  }
+
   if (details.length === 0) {
     details.push({
       kind: 'changed',
       path: 'documentation',
-      previous: previousEntry.rawFingerprint,
-      next: nextEntry.rawFingerprint,
+      previous: null,
+      next: null,
+      message: hasDocSnapshots(previousEntry, nextEntry)
+        ? '문서 내용이 변경됐지만 표시 가능한 문서 필드를 찾지 못했습니다.'
+        : '문서 세부 항목이 변경됐지만 이전 catalog에 문서 snapshot이 없어 상세 비교할 수 없습니다. 이번 refresh 이후부터 상세 항목으로 표시됩니다.',
     });
   }
 
   return details;
+}
+
+function hasDocSnapshots(previousEntry, nextEntry) {
+  return (
+    Object.hasOwn(previousEntry, 'docSnapshot') &&
+    Object.hasOwn(nextEntry, 'docSnapshot')
+  );
+}
+
+function hasDocChanged(previousEntry, nextEntry) {
+  if (hasDocSnapshots(previousEntry, nextEntry)) {
+    return (
+      stableStringify(normalizeDiffValue(previousEntry.docSnapshot)) !==
+      stableStringify(normalizeDiffValue(nextEntry.docSnapshot))
+    );
+  }
+
+  if (
+    typeof previousEntry.docFingerprint === 'string' &&
+    typeof nextEntry.docFingerprint === 'string'
+  ) {
+    return previousEntry.docFingerprint !== nextEntry.docFingerprint;
+  }
+
+  return hasDocFieldChanges(previousEntry, nextEntry);
+}
+
+function diffDocSnapshots(previousSnapshot, nextSnapshot) {
+  return diffValues(
+    normalizeDiffValue(previousSnapshot),
+    normalizeDiffValue(nextSnapshot),
+    [],
+  );
 }
 
 function hasDocFieldChanges(previousEntry, nextEntry) {
@@ -3285,13 +3345,11 @@ function formatChangeDetail(detail) {
 }
 
 function formatDocumentationChangeDetail(detail) {
-  const label = {
-    summary: '요약',
-    description: '설명',
-    operationId: 'operationId',
-    tags: '태그',
-    documentation: '문서',
-  }[detail.path];
+  if (detail.path === 'documentation' && detail.message) {
+    return `🟡 문서 변경: ${detail.message}`;
+  }
+
+  const label = formatDocumentationPathLabel(detail.path);
 
   if (!label) {
     return null;
@@ -3305,8 +3363,78 @@ function formatDocumentationValue(value) {
     return '없음';
   }
 
-  const compact = String(value).replace(/\s+/g, ' ').trim();
+  const raw = typeof value === 'string' ? value : JSON.stringify(value);
+  const compact = String(raw).replace(/\s+/g, ' ').trim();
   return compact.length > 160 ? `${compact.slice(0, 157)}...` : compact;
+}
+
+function formatDocumentationPathLabel(detailPath) {
+  if (DOCUMENTATION_FIELD_LABELS[detailPath]) {
+    return DOCUMENTATION_FIELD_LABELS[detailPath];
+  }
+
+  const pathSegments = parseFormattedPath(detailPath);
+  const fieldLabel = DOCUMENTATION_FIELD_LABELS[pathSegments.at(-1)];
+
+  if (!fieldLabel) {
+    return null;
+  }
+
+  if (pathSegments[0] === 'operation') {
+    return formatOperationDocumentationPathLabel(pathSegments, fieldLabel);
+  }
+
+  if (['requestBody', 'responses', 'parameters'].includes(pathSegments[0])) {
+    return formatOperationDocumentationPathLabel(['operation', ...pathSegments], fieldLabel);
+  }
+
+  if (pathSegments[0] === 'referencedSchemas') {
+    return formatSchemaDocumentationPathLabel(pathSegments, fieldLabel);
+  }
+
+  return `문서 ${fieldLabel}`;
+}
+
+function formatOperationDocumentationPathLabel(pathSegments, fieldLabel) {
+  const section = pathSegments[1];
+
+  if (section === 'requestBody') {
+    return `요청 Body ${fieldLabel}`;
+  }
+
+  if (section === 'responses' && pathSegments[2]) {
+    return `응답 ${pathSegments[2]} ${fieldLabel}`;
+  }
+
+  if (section === 'parameters') {
+    const parameterIndex = Number(pathSegments[2]);
+    const parameterLabel = Number.isInteger(parameterIndex)
+      ? `#${parameterIndex + 1}`
+      : pathSegments[2];
+    return `파라미터 ${parameterLabel} ${fieldLabel}`;
+  }
+
+  return `문서 ${fieldLabel}`;
+}
+
+function formatSchemaDocumentationPathLabel(pathSegments, fieldLabel) {
+  const schemaName = pathSegments[1] ?? 'Unknown';
+  const propertyPath = extractSchemaPropertyPath(pathSegments.slice(2, -1));
+  const schemaTarget = propertyPath ? `${schemaName}.${propertyPath}` : schemaName;
+  return `Schema ${schemaTarget} ${fieldLabel}`;
+}
+
+function extractSchemaPropertyPath(pathSegments) {
+  const properties = [];
+
+  for (let index = 0; index < pathSegments.length; index += 1) {
+    if (pathSegments[index] === 'properties' && pathSegments[index + 1]) {
+      properties.push(pathSegments[index + 1]);
+      index += 1;
+    }
+  }
+
+  return properties.join('.');
 }
 
 function formatDetailValue(value) {

@@ -1278,6 +1278,192 @@ test(
 );
 
 test(
+  'catalog renders doc-only snapshot changes without exposing raw fingerprints',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Doc Change API',
+        version: '1.0.0',
+      },
+      paths: {
+        '/users/{id}': {
+          get: {
+            summary: 'Get user',
+            responses: {
+              200: {
+                description: 'OK',
+                content: {
+                  'application/json': {
+                    schema: {
+                      $ref: '#/components/schemas/User',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          User: {
+            type: 'object',
+            properties: {
+              name: {
+                type: 'string',
+                description: 'Name',
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const nextSpec = structuredClone(spec);
+      nextSpec.paths['/users/{id}'].get.responses[200].description = 'Success';
+      nextSpec.components.schemas.User.properties.name.description = 'Full name';
+
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.json'),
+        nextSpec,
+      );
+
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const topLevelChangesSource = await fs.readFile(
+        path.join(workspace, 'openapi/changes.md'),
+        'utf8',
+      );
+      const topLevelChangesJson = await readJson(path.join(workspace, 'openapi/changes.json'));
+
+      assert.equal(topLevelChangesJson.contractChanged.length, 0);
+      assert.equal(topLevelChangesJson.docChanged.length, 1);
+      assert.match(topLevelChangesSource, /🟡 응답 200 설명 변경: OK → Success/);
+      assert.doesNotMatch(topLevelChangesSource, /Schema User\.name 설명 변경/);
+      assert.doesNotMatch(topLevelChangesSource, /[a-f0-9]{64} → [a-f0-9]{64}/);
+    });
+  },
+);
+
+test(
+  'catalog ignores referenced schema documentation-only changes',
+  { concurrency: false },
+  async () => {
+    const spec = {
+      openapi: '3.0.3',
+      info: {
+        title: 'Schema Doc Change API',
+        version: '1.0.0',
+      },
+      paths: {
+        '/users/{id}': {
+          get: {
+            summary: 'Get user',
+            responses: {
+              200: {
+                description: 'OK',
+                content: {
+                  'application/json': {
+                    schema: {
+                      $ref: '#/components/schemas/User',
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      components: {
+        schemas: {
+          User: {
+            type: 'object',
+            properties: {
+              name: {
+                type: 'string',
+                description: 'Name',
+              },
+            },
+          },
+        },
+      },
+    };
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const nextSpec = structuredClone(spec);
+      nextSpec.components.schemas.User.properties.name.description = 'Full name';
+
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.json'),
+        nextSpec,
+      );
+
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const topLevelChangesSource = await fs.readFile(
+        path.join(workspace, 'openapi/changes.md'),
+        'utf8',
+      );
+      const topLevelChangesJson = await readJson(path.join(workspace, 'openapi/changes.json'));
+
+      assert.equal(topLevelChangesJson.contractChanged.length, 0);
+      assert.equal(topLevelChangesJson.docChanged.length, 0);
+      assert.doesNotMatch(topLevelChangesSource, /\[GET\] `\/users\/\{id\}`/);
+      assert.doesNotMatch(topLevelChangesSource, /[a-f0-9]{64} → [a-f0-9]{64}/);
+    });
+  },
+);
+
+test(
+  'catalog ignores legacy raw fingerprint noise without exposing hashes',
+  { concurrency: false },
+  async () => {
+    const spec = createSimpleSpec('Get ping');
+
+    await withWorkspace({ spec }, async (workspace) => {
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const catalogPath = path.join(workspace, 'openapi/review/catalog/endpoints.json');
+      const catalog = await readJson(catalogPath);
+      await writeJsonFile(catalogPath, {
+        ...catalog,
+        endpoints: catalog.endpoints.map(({ docFingerprint, docSnapshot, ...endpoint }) => endpoint),
+      });
+
+      const nextSpec = structuredClone(spec);
+      nextSpec.paths['/ping'].get.responses[200].content[
+        'application/json'
+      ].schema.properties.ok.description = 'OK flag';
+
+      await writeJsonFile(
+        path.join(workspace, 'openapi/_internal/source/openapi.json'),
+        nextSpec,
+      );
+
+      await runInWorkspace(workspace, () => catalogCommand.run());
+
+      const topLevelChangesSource = await fs.readFile(
+        path.join(workspace, 'openapi/changes.md'),
+        'utf8',
+      );
+      const topLevelChangesJson = await readJson(path.join(workspace, 'openapi/changes.json'));
+
+      assert.equal(topLevelChangesJson.contractChanged.length, 0);
+      assert.equal(topLevelChangesJson.docChanged.length, 0);
+      assert.doesNotMatch(topLevelChangesSource, /\[GET\] `\/ping`/);
+      assert.doesNotMatch(topLevelChangesSource, /[a-f0-9]{64} → [a-f0-9]{64}/);
+    });
+  },
+);
+
+test(
   'catalog renders enum-only contract changes with distinct comparison cells',
   { concurrency: false },
   async () => {
