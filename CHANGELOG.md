@@ -4,6 +4,13 @@
 
 형식은 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)를 느슨하게 따르고, 버전은 `package.json`의 `version` 및 Git 태그와 맞춥니다.
 
+## 0.3.10 - 2026-05-19
+
+### Fixed
+
+- 참조 schema의 설명, 제목, 예시 같은 문서 전용 변경이 해당 schema를 쓰는 endpoint 전체의 `Doc Changed` 오탐으로 표시되지 않도록 수정했습니다.
+- endpoint 문서 변경 상세에 내부 fingerprint 해시가 노출되지 않고 사람이 읽을 수 있는 문서 필드 변경만 표시되도록 정리했습니다.
+
 ## 0.3.9 - 2026-05-18
 
 ### Added
