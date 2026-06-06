@@ -1,5 +1,8 @@
 # openapi-projector
 
+[![npm version](https://img.shields.io/npm/v/openapi-projector?label=npm)](https://www.npmjs.com/package/openapi-projector)
+[![Publish](https://github.com/aqwsde321/openapi-projector/actions/workflows/publish.yml/badge.svg)](https://github.com/aqwsde321/openapi-projector/actions/workflows/publish.yml)
+
 `openapi-projector`는 Swagger/OpenAPI 변경점을 먼저 검토하고, TypeScript DTO/API/React Query hook 후보를 프로젝트 컨벤션에 맞춰 별도 작업 공간에 생성하는 review-first CLI입니다.
 
 앱 `src/`를 바로 수정하지 않고, 프론트엔드 프로젝트의 `openapi/` 작업 공간에 변경 비교, 분석 결과, 후보 코드를 쌓습니다. 이후 개발자나 AI agent가 필요한 endpoint만 골라 반영합니다.
