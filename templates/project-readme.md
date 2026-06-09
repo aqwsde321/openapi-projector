@@ -1,10 +1,50 @@
-# openapi-projector Workspace Guide
+# openapi-projector Agent Guide
 
 이 `openapi/` 디렉터리는 `openapi-projector init`이 만든 작업 공간입니다.
 
 Swagger/OpenAPI 변경 비교와 DTO/API/hook 후보 생성을 실제 앱 코드와 분리해 둡니다.
 
-사람은 빠른 시작만 보면 됩니다. AI coding agent는 아래의 접힌 상세 지침까지 읽고 작업합니다.
+이 문서는 AI coding agent가 매 작업 시작 시 읽는 프로젝트별 작업 지침입니다. 사람에게 보여줄 소개와 복사용 프롬프트는 루트 `README.md`를 기준으로 합니다.
+
+사람이 직접 진행할 때만 [빠른 시작](#빠른-시작)을 보면 됩니다.
+
+## 목차
+
+1. [AI agent 작업 지침](#ai-agent-작업-지침) - AI가 매 작업 시작 시 따라야 할 기준
+2. [빠른 시작](#빠른-시작) - 사람이 직접 진행할 때 필요한 최소 흐름
+3. [Swagger 변경 비교](#swagger-변경-비교) - `changes.md`와 변경 구분
+4. [명령을 나눠서 실행하기](#명령을-나눠서-실행하기) - `doctor`, `refresh`, `rules`, `project`
+5. [생성되는 파일](#생성되는-파일) - `openapi/` 작업 공간 구조
+6. [For AI Agents: Detailed Workflow](#for-ai-agents-detailed-workflow) - 세부 판단 기준
+
+## AI agent 작업 지침
+
+작업 기준:
+
+- 프론트엔드 프로젝트 루트는 `package.json`이 있는 앱 루트입니다.
+- 모든 `openapi-projector` 명령은 프론트엔드 프로젝트 루트에서 실행합니다.
+- `openapi/config/project.jsonc`의 산출물 경로 필드는 도구가 관리합니다. 코드 스타일, API client 규칙, 앱 배치 조정은 `openapi/config/project-rules.jsonc`에서만 검토합니다.
+- generated `.api.ts`를 그대로 실제 앱 코드에 복사하지 않습니다. 항상 실제 프로젝트의 API client, URL constant, response wrapper, DTO/export style, error handling, query/cache 규칙에 맞게 조정합니다.
+- 사용자가 endpoint를 이미 지정했다면 적용 직전 `prepare`로 최신 Swagger/OpenAPI를 받아 후보를 갱신한 뒤 그 endpoint를 적용합니다. endpoint가 없다면 prepare 결과를 근거로 적용할 endpoint를 물어봅니다.
+- `prepare`가 URL, 백엔드, 인증, 네트워크 문제로 실패하면 기존 `openapi/project/` 후보가 있을 때만 마지막 성공 후보 기준으로 진행하고, 사용자에게 오래된 후보일 수 있음을 알립니다. 기존 후보도 없으면 적용하지 않고 실패 원인을 보고합니다.
+- CLI가 `update`, `upgrade-docs`, 또는 `install-skill --force`를 권장하더라도 자동으로 덮어쓰지 않습니다. 어떤 파일/스킬이 갱신되는지 설명하고 사용자 동의를 받은 뒤 실행합니다.
+
+진행 순서:
+
+1. `openapi/config/project.jsonc`의 `sourceUrl`이 OpenAPI JSON URL인지 확인합니다.
+2. `npx --yes openapi-projector@latest doctor --check-url`을 실행합니다.
+3. `npx --yes openapi-projector@latest prepare`를 실행합니다.
+4. prepare가 rules 검토 단계에서 멈추면 아래 파일을 읽고 실제 프로젝트 코드와 대조합니다.
+   - `openapi/review/project-rules/analysis.md`
+   - `openapi/review/project-rules/analysis.json`
+   - `openapi/config/project-rules.jsonc`
+5. rules는 실제 프로젝트의 API client, import 경로, request 호출 방식, response wrapper, React Query 사용 근거로 확인합니다.
+6. rules가 맞지 않으면 `openapi/config/project-rules.jsonc`를 최소 수정합니다. 근거 없이 추측으로 바꾸지 않습니다.
+7. rules가 확인되면 `review.rulesReviewed=true`로 바꾸고 `npx --yes openapi-projector@latest prepare`를 다시 실행합니다.
+8. `openapi/changes.md`와 `openapi/project/summary.md`는 내부 근거로 읽고, 사용자에게는 실제 앱 반영에 영향이 있는 중요 변경이나 리스크만 짧게 보고합니다.
+9. 명령 실행 중 최신 기본값/안내문 업데이트가 필요하다는 메시지가 나오면 자동 실행하지 말고 사용자에게 물어봅니다. 동의하면 `npx --yes openapi-projector@latest update` 또는 필요한 업데이트 명령을 실행한 뒤 이어서 진행합니다.
+10. endpoint 적용 시 `openapi/project/src/openapi-generated/`의 후보를 참고하되, 실제 앱 코드에는 프로젝트 컨벤션에 맞게 옮깁니다.
+11. 반영 후 프로젝트에서 쓰는 typecheck, lint, 관련 테스트 중 가장 좁은 검증을 실행합니다.
 
 ## 빠른 시작
 
@@ -34,62 +74,7 @@ npx --yes openapi-projector@latest update
 
 이 명령은 `openapi/config/project.jsonc`, review history, generated candidates를 보존하고 생성 안내문, 로컬 설정, `project-rules.jsonc`의 안전한 기본값만 갱신합니다.
 
-### Step 2. AI에게 맡기거나 직접 진행
-
-아래 둘 중 하나로 진행합니다.
-
-#### Option A. AI에게 맡기기
-
-프론트엔드 프로젝트에서 사용하는 AI coding agent에게 아래 프롬프트를 그대로 붙여넣으세요.
-
-```text
-이 프론트엔드 프로젝트에 openapi-projector를 적용해줘.
-
-1. 먼저 openapi/README.md를 읽어.
-2. 아래 명령은 프론트엔드 프로젝트 루트에서 실행해.
-3. 사람이 npx --yes openapi-projector@latest prepare를 미리 실행했다면 openapi/changes.md를 가장 먼저 확인해.
-   최신 여부가 불확실하면 아래 명령을 다시 실행해.
-4. openapi/config/project.jsonc의 sourceUrl이 Swagger UI 페이지가 아니라 OpenAPI JSON URL인지 확인해.
-   sourceUrl이 비어 있거나 잘못되어 있으면 나에게 올바른 OpenAPI JSON URL을 물어봐.
-   산출물 경로 필드는 도구가 관리하므로 임의로 바꾸지 마. 코드 스타일과 API client 규칙은 project-rules.jsonc에서만 검토해.
-5. npx --yes openapi-projector@latest doctor --check-url을 실행해.
-6. npx --yes openapi-projector@latest prepare를 실행하고 openapi/changes.md를 확인해.
-   Added, Removed, Contract Changed, Doc Changed를 endpoint별로 먼저 요약해서 나에게 알려줘.
-7. prepare가 rules 검토 단계에서 멈췄다면 openapi/review/project-rules/analysis.md와 analysis.json을 읽고,
-   실제 프로젝트의 API client, import 경로, request 호출 방식을 확인해.
-8. rules가 만든 openapi/config/project-rules.jsonc 초안이 프로젝트 컨벤션과 맞는지 확인해.
-   React Query를 쓰는 프로젝트라면 hooks.enabled가 true로 자동 제안됐는지도 확인해.
-   맞지 않는 부분이 있으면 수정하고, 맞다고 판단되면 review.rulesReviewed를 true로 바꿔.
-9. review.rulesReviewed를 true로 바꾼 뒤 npx --yes openapi-projector@latest prepare를 다시 실행해.
-10. openapi/project/summary.md를 읽고 생성된 endpoint와 skipped endpoint를 요약해.
-11. openapi/project/summary.md의 Application Review 섹션에서 runtime wrapper, endpoint별 request/response DTO, params, body, media type을 확인해.
-12. 실제 앱 코드 반영 전에는 openapi/review/project-rules/analysis.md와 analysis.json의 근거를 다시 확인해.
-    generated .api.ts를 그대로 복사하지 말고 기존 프로젝트의 URL constant, Response wrapper, 기존 DTO, export style, error handling, query/cache 규칙에 맞게 조정할 부분을 먼저 정리해.
-
-아직 실제 앱 코드에는 반영하지 말고, Swagger 변경 비교 요약과 DTO/API/hook 후보 요약을 나눈 뒤 내가 어떤 endpoint를 적용할지 아래 형식으로 물어봐.
-
-적용할 endpoint:
-- <METHOD> <PATH> 또는 operationId
-
-반영 범위:
-- DTO만
-- DTO + API wrapper
-- DTO + API wrapper + React Query hook
-
-사용할 실제 앱 코드 위치:
-- <예: src/features/user/api>
-
-내가 endpoint를 정하면 Application Review와 rules 분석 근거를 다시 확인한 뒤 openapi/project/의 후보 코드를 프로젝트 컨벤션에 맞게 실제 앱 코드에 반영해.
-프로젝트에서 typecheck, lint, 관련 테스트를 사용 중이면 반영 후 실행해.
-```
-
-API wrapper까지 필요하면 위 프롬프트 그대로 쓰면 됩니다. DTO만 필요하면 아래 문장을 추가하세요.
-
-```text
-API wrapper는 반영하지 말고, 요청한 endpoint의 .dto.ts 후보만 실제 앱 코드 구조에 맞게 옮겨줘.
-```
-
-#### Option B. 직접 진행하기
+### Step 2. 직접 진행하기
 
 아래 명령을 실행합니다.
 
@@ -207,7 +192,7 @@ openapi/
 
 | 파일 | 볼 내용 |
 | --- | --- |
-| `openapi/README.md` | 지금 읽고 있는 작업 안내서입니다. 빠른 시작과 AI agent용 상세 지침을 포함합니다. |
+| `openapi/README.md` | 지금 읽고 있는 AI agent 작업 지침입니다. 사람이 직접 진행할 때 필요한 빠른 시작도 포함합니다. |
 | `openapi/config/project.jsonc` | OpenAPI JSON URL과 산출물 경로 설정입니다. 보통 `sourceUrl`, 필요하면 `swaggerUiUrl`만 확인합니다. |
 | `openapi/config/project-rules.jsonc` | API client/import/call style 규칙 초안입니다. `rules` 실행 후 실제 프로젝트와 맞는지 검토합니다. |
 | `openapi/changes.md` | 사람이 먼저 여는 최신 Swagger/OpenAPI 변경 비교 |

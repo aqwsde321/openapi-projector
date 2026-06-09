@@ -2460,23 +2460,33 @@ test(
         projectConfigSource,
         /"projectRulesAnalysisJsonPath": "openapi\/review\/project-rules\/analysis\.json"/,
       );
-      assert.match(projectReadmeSource, /# openapi-projector Workspace Guide/);
+      assert.match(projectReadmeSource, /# openapi-projector Agent Guide/);
       assert.doesNotMatch(projectReadmeSource, /## 명령 실행 기준/);
       assert.doesNotMatch(projectReadmeSource, /최신 CLI 기능 강제 사용/);
       assert.doesNotMatch(projectReadmeSource, /openapi-projector@<version>/);
       assert.doesNotMatch(projectReadmeSource, /전역 설치 사용/);
       assert.doesNotMatch(projectReadmeSource, /명령 실행 방식/);
       assert.match(projectReadmeSource, /## 빠른 시작/);
+      assert.match(projectReadmeSource, /## AI agent 작업 지침/);
+      assert.match(projectReadmeSource, /AI coding agent가 매 작업 시작 시 읽는 프로젝트별 작업 지침/);
+      assert.match(projectReadmeSource, /generated `\.api\.ts`를 그대로 실제 앱 코드에 복사하지 않습니다/);
+      assert.match(projectReadmeSource, /사용자가 endpoint를 이미 지정했다면 적용 직전 `prepare`로 최신 Swagger\/OpenAPI를 받아 후보를 갱신한 뒤 그 endpoint를 적용합니다/);
+      assert.match(projectReadmeSource, /마지막 성공 후보 기준으로 진행하고, 사용자에게 오래된 후보일 수 있음을 알립니다/);
+      assert.match(projectReadmeSource, /CLI가 `update`, `upgrade-docs`, 또는 `install-skill --force`를 권장하더라도 자동으로 덮어쓰지 않습니다/);
+      assert.doesNotMatch(projectReadmeSource, /## 시작 방법 선택/);
+      assert.doesNotMatch(projectReadmeSource, /## AI agent로 맡기기/);
       assert.match(projectReadmeSource, /<details>/);
       assert.doesNotMatch(projectReadmeSource, /<summary>AI에게 붙여넣을 프롬프트<\/summary>/);
       assert.match(projectReadmeSource, /<summary>AI Agents: Detailed Workflow<\/summary>/);
       assert.match(projectReadmeSource, /## For AI Agents: Detailed Workflow/);
       assert.doesNotMatch(projectReadmeSource, /### 2\. 선택 설치: oasdiff/);
-      assert.match(projectReadmeSource, /### Step 2\. AI에게 맡기거나 직접 진행/);
+      assert.match(projectReadmeSource, /### Step 2\. 직접 진행하기/);
       assert.match(projectReadmeSource, /### 기존 작업 공간 업데이트/);
       assert.match(projectReadmeSource, /npx --yes openapi-projector@latest update/);
-      assert.match(projectReadmeSource, /#### Option A\. AI에게 맡기기/);
-      assert.match(projectReadmeSource, /#### Option B\. 직접 진행하기/);
+      assert.doesNotMatch(projectReadmeSource, /### Codex agent용 프롬프트/);
+      assert.doesNotMatch(projectReadmeSource, /### Codex 스킬 없이 또는 다른 AI agent용 프롬프트/);
+      assert.doesNotMatch(projectReadmeSource, /Option A\. 직접 진행하기/);
+      assert.doesNotMatch(projectReadmeSource, /이 프론트엔드 프로젝트에 openapi-projector Codex 스킬을 사용해줘/);
       assert.doesNotMatch(projectReadmeSource, /oasdiff/);
       assert.doesNotMatch(projectReadmeSource, /Compatibility Check/);
       assert.doesNotMatch(projectReadmeSource, /brew install oasdiff/);
@@ -2488,7 +2498,7 @@ test(
       assert.match(projectReadmeSource, /npx --yes openapi-projector@latest rules/);
       assert.match(projectReadmeSource, /rg "fetchAPI\|apiClient\|request\|axios\|ky\|httpClient" src/);
       assert.match(projectReadmeSource, /openapi\/config\/project-rules\.jsonc/);
-      assert.match(projectReadmeSource, /산출물 경로 필드는 도구가 관리하므로 임의로 바꾸지 마/);
+      assert.match(projectReadmeSource, /산출물 경로 필드는 도구가 관리합니다/);
       assert.match(projectReadmeSource, /Do not change them to force code style or app placement/);
       assert.match(projectReadmeSource, /npx --yes openapi-projector@latest prepare/);
       assert.match(projectReadmeSource, /## Swagger 변경 비교/);
@@ -2505,8 +2515,11 @@ test(
       );
       assert.match(projectReadmeSource, /먼저 볼 파일/);
       assert.match(projectReadmeSource, /실제 프로젝트 규칙과 맞으면/);
-      assert.match(projectReadmeSource, /아래 명령은 프론트엔드 프로젝트 루트에서 실행해/);
-      assert.match(projectReadmeSource, /사람이 npx --yes openapi-projector@latest prepare를 미리 실행했다면/);
+      assert.match(projectReadmeSource, /프론트엔드 프로젝트 루트는 `package\.json`이 있는 앱 루트입니다/);
+      assert.match(projectReadmeSource, /모든 `openapi-projector` 명령은 프론트엔드 프로젝트 루트에서 실행합니다/);
+      assert.doesNotMatch(projectReadmeSource, /openapi-projector Codex 스킬을 사용해줘/);
+      assert.doesNotMatch(projectReadmeSource, /npx --yes openapi-projector@latest install-skill --yes/);
+      assert.doesNotMatch(projectReadmeSource, /사람이 npx --yes openapi-projector@latest prepare를 미리 실행했다면/);
       assert.match(projectReadmeSource, /default `sourceUrl` is `http:\/\/localhost:8080\/v3\/api-docs`/i);
       assert.match(projectReadmeSource, /### 2\. Recommended Prepare Flow/);
       assert.match(projectReadmeSource, /`prepare`: runs `refresh -> rules -> project`/);
@@ -2516,12 +2529,12 @@ test(
       assert.match(projectReadmeSource, /`refresh`: Swagger\/OpenAPI를 내려받고 이전 버전과 비교해 `openapi\/changes\.md`를 만듭니다/);
       assert.match(projectReadmeSource, /`rules`: 현재 프론트엔드 프로젝트의 API 호출 규칙과 React Query 사용 여부를 분석해 `openapi\/config\/project-rules\.jsonc`를 만듭니다/);
       assert.match(projectReadmeSource, /`project`: 검토된 규칙으로 DTO\/API 후보와 선택적 React Query hook 후보를 생성합니다/);
-      assert.match(projectReadmeSource, /hooks\.enabled가 true로 자동 제안/);
+      assert.match(projectReadmeSource, /React Query 사용 근거로 확인/);
       assert.match(projectReadmeSource, /처음 실행하면 `rules` 검토 단계에서 멈추는 것이 정상입니다/);
       assert.match(projectReadmeSource, /`review\.rulesReviewed`를 `true`로 바꿉니다/);
       assert.match(projectReadmeSource, /`openapi\/review\/project-rules\/analysis\.md`와/);
-      assert.match(projectReadmeSource, /prepare가 rules 검토 단계에서 멈췄다면/);
-      assert.match(projectReadmeSource, /API wrapper까지 필요하면 위 프롬프트 그대로 쓰면 됩니다/);
+      assert.match(projectReadmeSource, /prepare가 rules 검토 단계에서 멈추면/);
+      assert.doesNotMatch(projectReadmeSource, /API wrapper까지 필요하면 위 프롬프트 그대로 쓰면 됩니다/);
       assert.match(output, /--- sourceUrl config ---/);
       assert.match(output, /sourceUrl: http:\/\/localhost:8080\/v3\/api-docs/);
       assert.match(output, /edit sourceUrl later: .*openapi[\\/]config[\\/]project\.jsonc \(field: sourceUrl\)/);
@@ -3172,6 +3185,8 @@ test(
     assert.match(output, /CI\/scripts can pass --source-url explicitly or use --no-input/);
     assert.match(output, /update\s+기존 openapi 작업공간을 최신 CLI 형식으로 안전하게 갱신/);
     assert.match(output, /upgrade-docs\s+기존 설정은 보존하고 openapi\/README\.md 안내 문서만 최신화/);
+    assert.match(output, /install-skill\s+Codex용 openapi-projector 스킬 설치/);
+    assert.match(output, /npx --yes openapi-projector@latest install-skill --yes/);
     assert.doesNotMatch(output, /npx --yes openapi-projector@latest init --source-url/);
   },
 );
@@ -3195,6 +3210,62 @@ test(
 
       assert.equal(dashVersion.output, packageJson.version);
       assert.equal(commandVersion.output, packageJson.version);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli install-skill copies the bundled Codex skill to a custom target directory',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-skill-'));
+    const targetDir = path.join(workspace, 'codex-skills/openapi-projector');
+
+    try {
+      const { output } = await captureConsoleLog(() =>
+        runCli(['install-skill', '--target-dir', targetDir, '--yes']),
+      );
+      const installedSkill = await fs.readFile(path.join(targetDir, 'SKILL.md'), 'utf8');
+
+      assert.match(output, /Installed openapi-projector skill for Codex/);
+      assert.match(installedSkill, /name: openapi-projector/);
+      assert.match(installedSkill, /\$openapi-projector POST \/login 적용/);
+      assert.match(installedSkill, /\$openapi-projector 룰 새로 적용하고 POST \/login 적용/);
+      assert.match(installedSkill, /use the last successful `openapi\/project\/` candidates/);
+      assert.match(installedSkill, /install-skill --yes --force/);
+      assert.match(installedSkill, /ask the user before running it/);
+      assert.match(installedSkill, /Default apply behavior/);
+    } finally {
+      await fs.rm(workspace, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'cli install-skill does not read workspace config',
+  { concurrency: false },
+  async () => {
+    const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'openapi-projector-skill-config-'));
+    const targetDir = path.join(workspace, 'codex-skills/openapi-projector');
+
+    try {
+      await fs.writeFile(path.join(workspace, '.openapi-projector.local.jsonc'), '{ broken', 'utf8');
+
+      const { output } = await captureConsoleLog(() =>
+        runInWorkspace(workspace, () =>
+          runCli(['install-skill', '--target-dir', targetDir, '--yes']),
+        ),
+      );
+
+      assert.match(output, /Installed openapi-projector skill for Codex/);
+      assert.equal(
+        await fs.readFile(path.join(targetDir, 'SKILL.md'), 'utf8').then((source) =>
+          source.includes('name: openapi-projector'),
+        ),
+        true,
+      );
     } finally {
       await fs.rm(workspace, { recursive: true, force: true });
     }
@@ -3266,7 +3337,7 @@ test(
       assert.match(projectRulesSource, /"rulesReviewed": false/);
       assert.match(projectRulesSource, /"fetchApiImportPath": "@\/shared\/api"/);
       assert.match(projectRulesSource, /"fetchApiImportKind": "named"/);
-      assert.match(projectReadmeSource, /# openapi-projector Workspace Guide/);
+      assert.match(projectReadmeSource, /# openapi-projector Agent Guide/);
       assert.match(projectReadmeSource, /## 빠른 시작/);
       assert.match(projectReadmeSource, /<details>/);
       assert.doesNotMatch(projectReadmeSource, /<summary>AI에게 붙여넣을 프롬프트<\/summary>/);
@@ -3313,11 +3384,17 @@ test(
 
       assert.equal(afterProjectConfig, beforeProjectConfig);
       assert.equal(afterProjectRules, beforeProjectRules);
-      assert.match(projectReadmeSource, /# openapi-projector Workspace Guide/);
-      assert.match(projectReadmeSource, /Option A\. AI에게 맡기기/);
-      assert.match(projectReadmeSource, /Option B\. 직접 진행하기/);
+      assert.match(projectReadmeSource, /# openapi-projector Agent Guide/);
+      assert.match(projectReadmeSource, /## AI agent 작업 지침/);
+      assert.match(projectReadmeSource, /### Step 2\. 직접 진행하기/);
+      assert.doesNotMatch(projectReadmeSource, /### Codex agent용 프롬프트/);
+      assert.doesNotMatch(projectReadmeSource, /### Codex 스킬 없이 또는 다른 AI agent용 프롬프트/);
+      assert.doesNotMatch(projectReadmeSource, /이 프론트엔드 프로젝트에 openapi-projector Codex 스킬을 사용해줘/);
+      assert.match(projectReadmeSource, /사용자가 endpoint를 이미 지정했다면 적용 직전 `prepare`로 최신 Swagger\/OpenAPI를 받아 후보를 갱신한 뒤 그 endpoint를 적용합니다/);
+      assert.match(projectReadmeSource, /마지막 성공 후보 기준으로 진행하고, 사용자에게 오래된 후보일 수 있음을 알립니다/);
+      assert.match(projectReadmeSource, /CLI가 `update`, `upgrade-docs`, 또는 `install-skill --force`를 권장하더라도 자동으로 덮어쓰지 않습니다/);
       assert.match(projectReadmeSource, /Swagger 변경 비교/);
-      assert.match(projectReadmeSource, /산출물 경로 필드는 도구가 관리하므로 임의로 바꾸지 마/);
+      assert.match(projectReadmeSource, /산출물 경로 필드는 도구가 관리합니다/);
       assert.match(projectReadmeSource, /Do not edit `openapi\/config\/project\.jsonc` artifact paths while adapting rules/);
       assert.doesNotMatch(projectReadmeSource, /### 6\. Git 관리/);
       assert.doesNotMatch(projectReadmeSource, /npx --yes openapi-projector@latest upgrade-docs/);
@@ -3382,9 +3459,9 @@ test(
       assert.equal(afterProjectConfig, beforeProjectConfig);
       assert.equal(await fs.readFile(projectSummaryPath, 'utf8'), '# generated summary\n');
       assert.equal(await fs.readFile(historyPath, 'utf8'), '# old change history\n');
-      assert.match(projectReadmeSource, /# openapi-projector Workspace Guide/);
+      assert.match(projectReadmeSource, /# openapi-projector Agent Guide/);
       assert.match(projectReadmeSource, /npx --yes openapi-projector@latest prepare/);
-      assert.match(projectReadmeSource, /산출물 경로 필드는 도구가 관리하므로 임의로 바꾸지 마/);
+      assert.match(projectReadmeSource, /산출물 경로 필드는 도구가 관리합니다/);
       assert.match(projectReadmeSource, /Do not edit `openapi\/config\/project\.jsonc` artifact paths while adapting rules/);
       assert.equal(projectRules.review.rulesReviewed, true);
       assert.deepEqual(projectRules.review.notes, ['manual review kept']);

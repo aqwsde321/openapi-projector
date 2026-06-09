@@ -11,6 +11,7 @@ const commands = [
   ['prepare', 'init 필요 시 생성 후 refresh + rules 실행, 검토된 rules에서 project까지 실행'],
   ['update', '기존 openapi 작업공간을 최신 CLI 형식으로 안전하게 갱신'],
   ['upgrade-docs', '기존 설정은 보존하고 openapi/README.md 안내 문서만 최신화'],
+  ['install-skill', 'Codex용 openapi-projector 스킬 설치'],
   ['version', '현재 CLI 버전 출력'],
 ];
 
@@ -33,10 +34,12 @@ const helpCommand = {
     console.log('     interactive terminals can confirm, validate, or retry the default sourceUrl');
     console.log('     CI/scripts can pass --source-url explicitly or use --no-input');
     console.log('  3. read openapi/README.md or ask an AI coding agent to continue from it');
+    console.log('  Optional Codex skill:');
+    console.log('     npx --yes openapi-projector@latest install-skill --yes');
     console.log('');
     console.log('Commands:');
     for (const [name, description] of commands) {
-      console.log(`  ${name.padEnd(10, ' ')} ${description}`);
+      console.log(`  ${name.padEnd(14, ' ')} ${description}`);
     }
     console.log('');
     console.log('Execution model:');

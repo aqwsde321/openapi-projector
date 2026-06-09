@@ -1,0 +1,7 @@
+interface:
+  display_name: "openapi-projector"
+  short_description: "Swagger 변경 확인과 선택 endpoint DTO/API/hook 적용"
+  default_prompt: "Use $openapi-projector to prepare this frontend project, review OpenAPI changes, and apply the selected endpoint using the project's existing API conventions."
+
+policy:
+  allow_implicit_invocation: true

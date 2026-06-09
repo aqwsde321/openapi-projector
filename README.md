@@ -9,6 +9,22 @@
 
 `openapi-projector`의 중심은 코드 생성보다 Swagger 변경 검토와 안전한 반영 준비입니다.
 
+## 시작 방법 선택
+
+- [AI agent로 시작하기](#ai-agent로-사용하기): Codex 스킬 또는 다른 AI agent용 프롬프트를 복사해서 사용합니다.
+- [직접 설치해서 시작하기](#빠른-시작): 프론트엔드 프로젝트에서 `init`, `prepare`, rules 검토를 직접 실행합니다.
+- [기존 작업 공간 업데이트](#기존-작업-공간-업데이트): 이미 `openapi/`가 있는 프로젝트의 안내와 기본값만 갱신합니다.
+
+## 목차
+
+1. [AI agent로 사용하기](#ai-agent로-사용하기) - Codex / 일반 AI agent용 프롬프트
+2. [빠른 시작](#빠른-시작) - 직접 설치와 `prepare` 흐름
+3. [한눈에 보기](#한눈에-보기) - 전체 작업 순서
+4. [핵심 기능](#핵심-기능) - 지원 기능 요약
+5. [지원 범위](#지원-범위) - 입력 형식과 의도한 사용 범위
+6. [문서](#문서) - 상세 문서 링크
+7. [기여자](#기여자) - 프로젝트 기여자
+
 ## 한눈에 보기
 
 ```text
@@ -43,6 +59,94 @@ init -> prepare -> review rules -> prepare -> apply selected endpoints
 - TypeScript 프론트엔드 프로젝트의 기존 API client를 사용하는 후보 코드를 만듭니다.
 - YAML, OpenAPI 2.0, 모든 프레임워크 컨벤션을 자동으로 맞추는 범용 codegen은 목표가 아닙니다.
 - 앱 코드 반영은 `openapi/project/` 후보를 검토한 뒤 별도로 진행합니다.
+
+## AI agent로 사용하기
+
+AI agent에게 맡길 때는 사용하는 에이전트에 따라 아래 둘 중 하나를 그대로 붙여넣습니다. 사람이 직접 진행할 때는 [빠른 시작](#빠른-시작)으로 이동하면 됩니다.
+
+### Codex agent용 프롬프트
+
+Codex를 사용한다면 아래 프롬프트를 그대로 붙여넣습니다. Codex agent가 `openapi-projector` 스킬을 사용할 수 있으면 스킬로 진행하고, 아직 설치되어 있지 않으면 먼저 설치 여부를 물어봅니다.
+
+```text
+이 프론트엔드 프로젝트에 openapi-projector Codex 스킬을 사용해줘.
+
+1. 먼저 현재 작업 위치가 프론트엔드 프로젝트 루트 경로인지 확인해.
+   프론트엔드 프로젝트 루트 경로는 package.json이 있는 앱 프로젝트 루트야.
+2. `$openapi-projector` 스킬을 사용할 수 있는지 확인해.
+   사용할 수 없다면 나에게 설치할지 먼저 물어보고, 내가 동의하면 프론트엔드 프로젝트 루트에서 `npx --yes openapi-projector@latest install-skill --yes`를 실행해.
+   이 명령은 Codex 스킬만 설치하고, 프로젝트의 openapi/ 작업공간은 만들지 않아.
+   스킬이나 openapi/ 작업공간 업데이트가 필요하다는 안내가 나오면 자동으로 덮어쓰지 말고, 어떤 파일/스킬이 갱신되는지 설명한 뒤 나에게 먼저 물어봐.
+3. openapi/README.md가 있으면 먼저 읽어.
+   없으면 프론트엔드 프로젝트 루트에서 `npx --yes openapi-projector@latest init`을 실행한 뒤 생성된 openapi/README.md를 읽어.
+4. `$openapi-projector prepare` 흐름으로 Swagger 변경 비교, rules 확인, 후보 생성을 진행해.
+5. rules는 실제 프로젝트의 API client, import 경로, request 호출 방식, response wrapper, React Query 사용 근거로 확인하고, 맞지 않으면 project-rules.jsonc를 최소 수정해.
+6. prepare 결과는 내부 근거로 확인하고, 사용자에게는 실제 앱 반영에 영향을 줄 수 있는 중요 변경이나 리스크만 짧게 알려줘.
+7. 내가 endpoint를 아직 지정하지 않았다면 적용할 endpoint를 `<METHOD> <PATH>` 또는 operationId 형식으로 물어봐.
+
+내가 endpoint를 지정하면 `$openapi-projector <METHOD> <PATH> 적용` 흐름으로 실제 프로젝트 컨벤션에 맞게 반영해.
+내가 처음 요청에 endpoint를 이미 같이 적었다면 다시 묻지 말고 그 endpoint를 바로 적용해.
+기본 반영 범위는 선택한 endpoint의 DTO + API wrapper야.
+React Query hook은 프로젝트가 이미 hook 패턴을 쓰고 project-rules.jsonc에서 hook 생성이 켜져 있을 때만 함께 반영해.
+```
+
+endpoint를 바로 지정할 때는 짧게 요청하면 됩니다.
+
+```text
+$openapi-projector POST /login 적용
+$openapi-projector 룰 새로 적용하고 POST /login 적용
+```
+
+### Codex 스킬 없이 또는 다른 AI agent용 프롬프트
+
+Codex 스킬을 쓰지 않거나 다른 AI coding agent를 쓴다면 아래 프롬프트를 붙여넣습니다.
+
+```text
+이 프론트엔드 프로젝트에 openapi-projector를 적용해줘.
+
+1. 먼저 현재 작업 위치가 프론트엔드 프로젝트 루트 경로인지 확인해.
+   프론트엔드 프로젝트 루트 경로는 package.json이 있는 앱 프로젝트 루트야.
+2. 프론트엔드 프로젝트 루트 경로에 openapi/README.md가 있으면 먼저 읽어.
+   없으면 그 루트 경로에서 npx --yes openapi-projector@latest init을 실행한 뒤 생성된 openapi/README.md를 읽어.
+3. 이후 명령은 모두 프론트엔드 프로젝트 루트 경로에서 실행해.
+4. npx --yes openapi-projector@latest prepare가 이미 실행되어 있다면 openapi/changes.md를 가장 먼저 확인해.
+   최신 여부가 불확실하면 아래 명령을 다시 실행해.
+5. openapi/config/project.jsonc의 sourceUrl이 Swagger UI 페이지가 아니라 OpenAPI JSON URL인지 확인해.
+   sourceUrl이 비어 있거나 잘못되어 있으면 나에게 올바른 OpenAPI JSON URL을 물어봐.
+   산출물 경로 필드는 도구가 관리하므로 임의로 바꾸지 마. 코드 스타일과 API client 규칙은 project-rules.jsonc에서만 검토해.
+6. npx --yes openapi-projector@latest doctor --check-url을 실행해.
+7. npx --yes openapi-projector@latest prepare를 실행하고 openapi/changes.md를 확인해.
+   Added, Removed, Contract Changed, Doc Changed를 endpoint별로 먼저 요약해서 나에게 알려줘.
+8. prepare가 rules 검토 단계에서 멈췄다면 openapi/review/project-rules/analysis.md와 analysis.json을 읽고,
+   실제 프로젝트의 API client, import 경로, request 호출 방식을 확인해.
+9. rules가 만든 openapi/config/project-rules.jsonc 초안이 프로젝트 컨벤션과 맞는지 확인해.
+   React Query를 쓰는 프로젝트라면 hooks.enabled가 true로 자동 제안됐는지도 확인해.
+   필요하면 수정하고, 확인되면 review.rulesReviewed를 true로 바꿔.
+10. 명령 실행 중 update, upgrade-docs, install-skill --force 같은 업데이트 안내가 나오면 자동으로 덮어쓰지 말고 어떤 파일/스킬이 갱신되는지 설명한 뒤 나에게 먼저 물어봐.
+11. review.rulesReviewed를 true로 바꾼 뒤 npx --yes openapi-projector@latest prepare를 다시 실행해.
+12. openapi/project/summary.md를 읽고 생성된 endpoint와 skipped endpoint를 요약해.
+13. openapi/project/summary.md의 Application Review 섹션에서 runtime wrapper, endpoint별 request/response DTO, params, body, media type을 확인해.
+14. 실제 앱 코드 반영 전에는 openapi/review/project-rules/analysis.md와 analysis.json의 근거를 다시 확인해.
+    generated .api.ts를 그대로 복사하지 말고 기존 프로젝트의 URL constant, Response wrapper, 기존 DTO, export style, error handling, query/cache 규칙에 맞게 조정할 부분을 먼저 정리해.
+
+아직 실제 앱 코드에는 반영하지 말고, Swagger 변경 비교 요약과 DTO/API/hook 후보 요약을 나눈 뒤 내가 어떤 endpoint를 적용할지 아래 형식으로 물어봐.
+
+적용할 endpoint:
+- <METHOD> <PATH> 또는 operationId
+
+반영 범위:
+- DTO만
+- DTO + API wrapper
+- DTO + API wrapper + React Query hook
+
+사용할 실제 앱 코드 위치:
+- <예: src/features/user/api>
+
+내가 endpoint를 정하면 Application Review와 rules 분석 근거를 다시 확인한 뒤 openapi/project/의 후보 코드를 프로젝트 컨벤션에 맞게 실제 앱 코드에 반영해.
+프로젝트에서 typecheck, lint, 관련 테스트를 사용 중이면 반영 후 실행해.
+```
+
+DTO만 필요하면 프롬프트 마지막에 `API wrapper는 반영하지 말고, 요청한 endpoint의 .dto.ts 후보만 실제 앱 코드 구조에 맞게 옮겨줘.`를 추가합니다.
 
 ## 빠른 시작
 
@@ -218,7 +322,7 @@ openapi/
 
 | 파일 | 용도 |
 | --- | --- |
-| `openapi/README.md` | 대상 프로젝트에서 읽는 작업 안내서와 AI agent용 상세 지침 |
+| `openapi/README.md` | 대상 프로젝트에 생성되는 AI agent 작업 지침 |
 | `openapi/changes.md` | 사람이 먼저 여는 최신 Swagger/OpenAPI 변경 비교 요약 |
 | `openapi/changes.json` | 최신 변경 비교의 machine-readable JSON |
 | `openapi/review/changes/history/` | 변경이 감지된 refresh 시점별 비교 스냅샷 |
@@ -269,61 +373,13 @@ backend deploy 완료
 | 후보 코드 생성만 실행 | `npx --yes openapi-projector@latest project` |
 | 기존 작업 공간 안전 갱신 | `npx --yes openapi-projector@latest update` |
 | 생성 README만 최신화 | `npx --yes openapi-projector@latest upgrade-docs` |
+| Codex 스킬 설치 | `npx --yes openapi-projector@latest install-skill --yes` |
 | 팀/CI에서 재현성 우선 | `npx --yes openapi-projector@<version> <command>` |
 | 전역 설치 사용 | `openapi-projector <command>` |
 
 `npx --yes openapi-projector <command>`는 npm 캐시나 태그 상태에 따라 최신 배포본이 아닐 수 있습니다. 새 기능을 확인할 때는 `@latest`를 권장합니다.
 
 </details>
-
-## AI agent에게 맡기는 프롬프트
-
-```text
-이 프론트엔드 프로젝트에 openapi-projector를 적용해줘.
-
-1. 먼저 openapi/README.md를 읽어.
-2. 아래 명령은 프론트엔드 프로젝트 루트에서 실행해.
-3. npx --yes openapi-projector@latest prepare가 이미 실행되어 있다면 openapi/changes.md를 가장 먼저 확인해.
-   최신 여부가 불확실하면 아래 명령을 다시 실행해.
-4. openapi/config/project.jsonc의 sourceUrl이 Swagger UI 페이지가 아니라 OpenAPI JSON URL인지 확인해.
-   sourceUrl이 비어 있거나 잘못되어 있으면 나에게 올바른 OpenAPI JSON URL을 물어봐.
-   산출물 경로 필드는 도구가 관리하므로 임의로 바꾸지 마. 코드 스타일과 API client 규칙은 project-rules.jsonc에서만 검토해.
-5. npx --yes openapi-projector@latest doctor --check-url을 실행해.
-6. npx --yes openapi-projector@latest prepare를 실행하고 openapi/changes.md를 확인해.
-   Added, Removed, Contract Changed, Doc Changed를 endpoint별로 먼저 요약해서 나에게 알려줘.
-7. prepare가 rules 검토 단계에서 멈췄다면 openapi/review/project-rules/analysis.md와 analysis.json을 읽고,
-   실제 프로젝트의 API client, import 경로, request 호출 방식을 확인해.
-8. rules가 만든 openapi/config/project-rules.jsonc 초안이 프로젝트 컨벤션과 맞는지 확인해.
-   React Query를 쓰는 프로젝트라면 hooks.enabled가 true로 자동 제안됐는지도 확인해.
-   필요하면 수정하고, 확인되면 review.rulesReviewed를 true로 바꿔.
-9. review.rulesReviewed를 true로 바꾼 뒤 npx --yes openapi-projector@latest prepare를 다시 실행해.
-10. openapi/project/summary.md를 읽고 생성된 endpoint와 skipped endpoint를 요약해.
-11. openapi/project/summary.md의 Application Review 섹션에서 runtime wrapper, endpoint별 request/response DTO, params, body, media type을 확인해.
-12. 실제 앱 코드 반영 전에는 openapi/review/project-rules/analysis.md와 analysis.json의 근거를 다시 확인해.
-    generated .api.ts를 그대로 복사하지 말고 기존 프로젝트의 URL constant, Response wrapper, 기존 DTO, export style, error handling, query/cache 규칙에 맞게 조정할 부분을 먼저 정리해.
-
-아직 실제 앱 코드에는 반영하지 말고, Swagger 변경 비교 요약과 DTO/API/hook 후보 요약을 나눈 뒤 내가 어떤 endpoint를 적용할지 아래 형식으로 물어봐.
-
-적용할 endpoint:
-- <METHOD> <PATH> 또는 operationId
-
-반영 범위:
-- DTO만
-- DTO + API wrapper
-- DTO + API wrapper + React Query hook
-
-사용할 실제 앱 코드 위치:
-- <예: src/features/user/api>
-
-내가 endpoint를 정하면 Application Review와 rules 분석 근거를 다시 확인한 뒤 openapi/project/의 후보 코드를 프로젝트 컨벤션에 맞게 실제 앱 코드에 반영해.
-프로젝트에서 typecheck, lint, 관련 테스트를 사용 중이면 반영 후 실행해.
-```
-
-DTO만 필요하면 아래 문장을 추가합니다.
-
-```text
-API wrapper는 반영하지 말고, 요청한 endpoint의 .dto.ts 후보만 실제 앱 코드 구조에 맞게 옮겨줘.
-```
 
 ## 문서
 

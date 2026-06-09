@@ -15,6 +15,7 @@ import { prepareCommand } from './commands/prepare.mjs';
 import { upgradeDocsCommand } from './commands/upgrade-docs.mjs';
 import { updateCommand } from './commands/update.mjs';
 import { versionCommand } from './commands/version.mjs';
+import { installSkillCommand } from './commands/install-skill.mjs';
 
 const commandMap = new Map([
   ['help', helpCommand],
@@ -29,6 +30,7 @@ const commandMap = new Map([
   ['prepare', prepareCommand],
   ['update', updateCommand],
   ['upgrade-docs', upgradeDocsCommand],
+  ['install-skill', installSkillCommand],
   ['version', versionCommand],
   ['--version', versionCommand],
 ]);
@@ -99,7 +101,12 @@ async function runCli(argv) {
     return;
   }
 
-  if (commandName === 'help' || commandName === 'version' || commandName === '--version') {
+  if (
+    commandName === 'help' ||
+    commandName === 'version' ||
+    commandName === '--version' ||
+    commandName === 'install-skill'
+  ) {
     await command.run({ argv: parsed.argv.slice(1) });
     return;
   }

@@ -4,6 +4,12 @@
 
 형식은 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)를 느슨하게 따르고, 버전은 `package.json`의 `version` 및 Git 태그와 맞춥니다.
 
+## Unreleased
+
+### Added
+
+- Codex용 `openapi-projector` 스킬과 이를 설치하는 `install-skill` 명령을 추가했습니다.
+
 ## 0.3.11 - 2026-06-05
 
 ### Added
