@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
+import { assertPackagedInternalImportsResolvable } from './package-integrity.mjs';
 
 const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -619,6 +620,14 @@ async function main() {
   console.log(`sourceUrl: ${fixtureServer.sourceUrl}`);
 
   try {
+    if (!options.packageSpec) {
+      await assertPackagedInternalImportsResolvable({
+        execCommand,
+        readText,
+        repoRoot: REPO_ROOT,
+      });
+    }
+
     if (!options.skipCompat) {
       const previousTag = await resolvePreviousTag(options.previousTag);
       if (previousTag) {

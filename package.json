@@ -12,6 +12,10 @@
   "homepage": "https://github.com/aqwsde321/openapi-projector#readme",
   "packageManager": "pnpm@10.28.2",
   "type": "module",
+  "imports": {
+    "#src/*": "./src/*",
+    "#test-support/*": "./test-support/*"
+  },
   "bin": {
     "openapi-projector": "./bin/openapi-tool.mjs",
     "openapi-tool": "./bin/openapi-tool.mjs"
