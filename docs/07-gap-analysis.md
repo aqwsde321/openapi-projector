@@ -31,9 +31,9 @@
 
 근거:
 
-- `download`: [src/commands/download.mjs](../src/commands/download.mjs)
-- `catalog`: [src/commands/catalog.mjs](../src/commands/catalog.mjs)
-- `generate`: [src/commands/generate.mjs](../src/commands/generate.mjs)
+- `download`: [src/commands/download/run.mjs](../src/commands/download/run.mjs)
+- `catalog`: [src/commands/catalog/run.mjs](../src/commands/catalog/run.mjs)
+- `generate`: [src/commands/generate/run.mjs](../src/commands/generate/run.mjs)
 
 남은 갭:
 
@@ -59,7 +59,7 @@
 
 - `rules`는 `src` 전체를 스캔하고 section별 파일 수를 분석 결과에 남김
 - 분석기는 TypeScript AST로 import, 호출 형태, export naming을 수집함
-- 관련 코드: [src/commands/rules.mjs](../src/commands/rules.mjs), [src/project-analyzer/index.mjs](../src/project-analyzer/index.mjs)
+- 관련 코드: [src/commands/rules/run.mjs](../src/commands/rules/run.mjs), [src/project-analyzer/analyze-project.mjs](../src/project-analyzer/analyze-project.mjs)
 
 핵심 갭:
 
@@ -81,7 +81,7 @@
 
 근거:
 
-- 후보 생성: [src/commands/project.mjs](../src/commands/project.mjs)
+- 후보 생성: [src/commands/project/build-candidate.mjs](../src/commands/project/build-candidate.mjs)
 
 핵심 갭:
 

@@ -16,8 +16,8 @@
 ## 핵심 엔트리포인트
 
 - CLI 진입점: `bin/openapi-tool.mjs`
-- 명령 라우팅: `src/cli.mjs`
-- 공용 유틸: `src/core/openapi-utils.mjs`
+- 명령 라우팅: `src/cli/run.mjs`
+- 공용 유틸: `src/core/text-utils.mjs`, `src/core/path-utils.mjs`, `src/io/files.mjs`
 - 명령 구현: `src/commands/*.mjs`
 - 기본 설정값: `config/defaults.jsonc`
 - bootstrap 템플릿: `templates/project.jsonc`, `templates/project-rules.jsonc`, `templates/project-readme.md`
@@ -119,6 +119,7 @@ git push origin main --tags
 
 `pnpm run smoke:release`는 temp workspace에서 아래를 자동 확인합니다.
 
+- `npm pack --dry-run --json` 파일 목록 기준으로 패키지에 포함된 JS 파일의 internal import 대상이 실제 패키지에 포함되는지 확인
 - 직전 태그의 CLI로 temp workspace를 `init`
 - 현재 checkout CLI로 같은 workspace에 `update`
 - 기존 `sourceUrl`, `review.rulesReviewed`, 생성 후보가 보존되는지 확인
