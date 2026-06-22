@@ -1,7 +1,7 @@
 import {
   normalizeText,
   toCamelCase,
-} from '../core/openapi-utils.mjs';
+} from '../core/text-utils.mjs';
 
 function normalizeOperationNameSource(value) {
   const text = normalizeText(value);

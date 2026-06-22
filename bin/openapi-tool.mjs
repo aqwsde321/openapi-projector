@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
-import { runCli } from '../src/cli.mjs';
-import { formatFailure } from '../src/cli-format.mjs';
+import { formatFailure } from '../src/cli/format.mjs';
+import { runCli } from '../src/cli/run.mjs';
 
 try {
   await runCli(process.argv.slice(2));
