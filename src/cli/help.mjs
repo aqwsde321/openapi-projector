@@ -1,0 +1,63 @@
+const commandDescriptions = [
+  ['help', '도움말 출력'],
+  ['init', 'standalone 기본 config/bootstrap 생성'],
+  ['download', 'OpenAPI 원본 다운로드'],
+  ['catalog', 'endpoint catalog 와 변경 요약 생성'],
+  ['generate', 'review 문서와 schema.ts 생성'],
+  ['rules', 'project 규칙 분석 문서와 scaffold 생성'],
+  ['project', '규칙 기반 DTO/API 후보 코드 생성'],
+  ['refresh', 'download + catalog + generate'],
+  ['doctor', '로컬 설정과 대상 프로젝트 준비 상태 점검'],
+  ['prepare', 'init 필요 시 생성 후 refresh + rules 실행, 검토된 rules에서 project까지 실행'],
+  ['update', '기존 openapi 작업공간을 최신 CLI 형식으로 안전하게 갱신'],
+  ['upgrade-docs', '기존 설정은 보존하고 openapi/README.md 안내 문서만 최신화'],
+  ['install-skill', 'Codex용 openapi-projector 스킬 설치'],
+  ['version', '현재 CLI 버전 출력'],
+];
+
+function renderCliHelp() {
+  return `openapi-projector
+
+Usage:
+  npx --yes openapi-projector@latest <command>
+  openapi-projector <command>
+  node ./bin/openapi-tool.mjs <command>
+  openapi-tool <command>
+  node ./bin/openapi-tool.mjs --project-root <frontend-project-root> <command>
+  pnpm run openapi:<command>
+
+First-time setup:
+  1. cd <frontend-project-root>
+  2. npx --yes openapi-projector@latest init
+     interactive terminals can confirm, validate, or retry the default sourceUrl
+     CI/scripts can pass --source-url explicitly or use --no-input
+  3. read openapi/README.md or ask an AI coding agent to continue from it
+  Optional Codex skill:
+     npx --yes openapi-projector@latest install-skill --yes
+
+Commands:
+${commandDescriptions.map(([name, description]) => `  ${name.padEnd(14, ' ')} ${description}`).join('\n')}
+
+Execution model:
+  - 기본 target project root 는 현재 실행 디렉터리입니다.
+  - 우선순위: --project-root -> .openapi-projector.local.jsonc -> .openapi-tool.local.jsonc -> cwd
+  - config 탐색 순서: openapi.config.jsonc -> openapi/config/project.jsonc -> config/project.jsonc
+  - review 산출물은 openapi/review 아래에 생성됩니다.
+  - project 후보는 openapi/project 아래에 생성됩니다.
+  - generate 는 review 문서와 schema.ts 만 생성합니다.
+  - project 는 schema.ts + 태그 폴더 내부 엔드포인트별 DTO/API 후보 코드를 생성합니다.
+  - 실제 반영은 사람이거나 AI가 openapi/project 결과를 보고 진행합니다.
+  - 새 프로젝트 시작은 init 명령으로 bootstrap 합니다.
+  - 기존 프로젝트 갱신은 update 명령으로 설정을 보존한 채 마이그레이션합니다.
+  - 이미 init된 프로젝트의 안내 문서는 upgrade-docs 로 안전하게 최신화합니다.
+
+Recommended flow:
+  init -> read openapi/README.md -> doctor -> refresh -> rules -> review rules -> project
+
+Docs:
+  - 빠른 사용법: README.md
+  - 개념과 단계: docs/01-concepts.md
+  - 설정값: docs/04-config-reference.md`;
+}
+
+export { commandDescriptions, renderCliHelp };

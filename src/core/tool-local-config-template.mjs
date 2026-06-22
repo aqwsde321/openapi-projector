@@ -1,0 +1,10 @@
+function renderToolLocalConfig() {
+  return `{
+  // 이 파일은 실행한 프론트엔드 프로젝트 루트 기준 로컬 설정입니다.
+  // 보통 projectRoot 는 현재 디렉터리를 뜻하는 "." 그대로 둡니다.
+  "projectRoot": "."
+}
+`;
+}
+
+export { renderToolLocalConfig };
