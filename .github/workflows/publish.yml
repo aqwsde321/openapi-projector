@@ -49,6 +49,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Release smoke
+        run: pnpm run smoke:release
+
       - name: Check npm package contents
         run: npm pack --dry-run
 

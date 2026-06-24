@@ -4,6 +4,13 @@
 
 형식은 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)를 느슨하게 따르고, 버전은 `package.json`의 `version` 및 Git 태그와 맞춥니다.
 
+## 0.3.13 - 2026-06-24
+
+### Changed
+
+- 런타임 코드를 기능별 모듈로 분리하고, 테스트 구조를 세분화해 유지보수성을 높였습니다.
+- npm 배포 전 릴리스 smoke 검증에서 패키지 내부 import와 기존 workspace 호환성을 확인하도록 릴리스 게이트를 강화했습니다.
+
 ## 0.3.12 - 2026-06-09
 
 ### Added
