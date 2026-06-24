@@ -4,6 +4,12 @@
 
 형식은 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)를 느슨하게 따르고, 버전은 `package.json`의 `version` 및 Git 태그와 맞춥니다.
 
+## 0.3.14 - 2026-06-24
+
+### Fixed
+
+- GitHub Actions 배포 workflow에서 전체 git history와 tags를 checkout해 릴리스 smoke가 직전 태그를 찾지 못하는 실패를 방지했습니다.
+
 ## 0.3.13 - 2026-06-24
 
 ### Changed
