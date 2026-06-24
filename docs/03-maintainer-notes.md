@@ -108,14 +108,14 @@ npm pack --dry-run
 # package.json version과 CHANGELOG.md를 먼저 갱신하고 커밋
 node ./bin/openapi-tool.mjs --version
 pnpm test
-npm pack --dry-run
 pnpm run smoke:release
+npm pack --dry-run
 
 git tag vX.Y.Z
 git push origin main --tags
 ```
 
-`.github/workflows/publish.yml`은 태그의 `v`를 제외한 값과 `package.json`의 `version`이 같을 때만 `pnpm test`, `npm pack --dry-run`, `npm publish`를 실행합니다.
+`.github/workflows/publish.yml`은 태그의 `v`를 제외한 값과 `package.json`의 `version`이 같을 때만 `pnpm test`, `pnpm run smoke:release`, `npm pack --dry-run`, `npm publish`를 실행합니다.
 
 `pnpm run smoke:release`는 temp workspace에서 아래를 자동 확인합니다.
 
